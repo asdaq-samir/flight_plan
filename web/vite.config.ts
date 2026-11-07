@@ -407,6 +407,26 @@ export default defineConfig({
   //
   // The shared engine's WebAssembly is loaded before every test file
   // (lib/engine/vitestSetup.ts), as main.tsx loads it before the first
-  // render, so a rule that asks the engine answers in a test too.
-  test: { environment: "node", exclude: ["**/node_modules/**", "e2e/**"], setupFiles: ["src/lib/engine/vitestSetup.ts"] },
+  // render, so a rule that asks the engine answers in a test too. Then
+  // the guards against flaky tests (src/test/guards.ts).
+  //
+  // Files and the tests in them run in a new random order every run, so
+  // a test that only passes after another one fails here rather than one
+  // day in CI (docs/CI.md, "Flaky tests"). The order comes from the seed
+  // vitest prints at the start ("Running tests with seed"): npx vitest run
+  // --sequence.seed=<it> repeats it. A
+  // test that must keep its order says so with describe(name, { shuffle:
+  // false }, ...) and is listed to be fixed.
+  //
+  // An error nobody awaited, or a timer firing after its test's
+  // environment is gone, fails the run (dangerouslyIgnoreUnhandledErrors,
+  // false is vitest's default, said here so nobody turns it on to get a
+  // green run).
+  test: {
+    environment: "node",
+    exclude: ["**/node_modules/**", "e2e/**"],
+    setupFiles: ["src/lib/engine/vitestSetup.ts", "src/test/guards.ts"],
+    sequence: { shuffle: true },
+    dangerouslyIgnoreUnhandledErrors: false,
+  },
 });

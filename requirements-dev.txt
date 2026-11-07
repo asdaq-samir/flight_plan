@@ -11,5 +11,6 @@
 -r src/requirements-charts.txt   # wingtip's own list, charts included -- tests/ covers both
 # Pillow among them is pinned once, 13.0.0, in src/requirements-charts.txt.
 pytest
+pytest-randomly==5.0.0   # every run in a new random order, --randomly-seed=N repeats one (docs/CI.md, "Flaky tests")
 ruff
 pygeodesy   # TEST ONLY -- the independent implementation tests/test_geo.py pins wingtip.geo against
