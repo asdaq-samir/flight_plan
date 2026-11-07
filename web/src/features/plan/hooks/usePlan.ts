@@ -9,7 +9,7 @@ import type {
 } from "../../../lib/api/types";
 import type { FlightRules } from "../../../lib/preferences";
 import { useCheckpointNotes } from "./useCheckpointNotes";
-import { useNarratives } from "./useNarratives";
+import { useNarrative } from "./useNarrative";
 import { briefingLegs } from "./briefingLegs";
 
 /**
@@ -20,14 +20,14 @@ import { briefingLegs } from "./briefingLegs";
  * the same answer today as an hour ago -- and are kept for the
  * session; the nav log is live winds and streams in leg by leg, keyed
  * on the airplane, the altitude and the departure time as well. The
- * briefing, the checkpoint descriptions and the two narratives are
+ * briefing, the checkpoint descriptions and the narrative are
  * asked for when a pilot opens or clicks for them. Every failure is
  * the query client's to report (queryClient.ts). A route had first to
  * be collected, which the page offered; its checkpoints come off the
  * chart now, for any route it covers.
  *
- * Checkpoint notes and the two narratives are hooks of their own
- * (useCheckpointNotes, useNarratives),
+ * Checkpoint notes and the narrative are hooks of their own
+ * (useCheckpointNotes, useNarrative),
  * which this one composes into the page's one plan: each changes for
  * its own reasons, and this file used to change for all of them.
  */
@@ -134,7 +134,7 @@ const NONE: Candidate[] = [];
 /** Where the runways left from are in a plan's key (planKeyOf). */
 const PLAN_KEY_RUNWAYS = 21;
 
-/** Everything the nav log is computed from -- the narratives are keyed
+/** Everything the nav log is computed from -- the narrative is keyed
  *  on the same, so a narrative is always about the log on screen. */
 function planKeyOf(
   { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "", checkpoints = true,
@@ -380,8 +380,8 @@ export function usePlan(
 
   const notes = useCheckpointNotes(dep, dest, stops);
   // Written from the checkpoints' nav log, not the route as entered.
-  // The held log's narratives while it is held: they are about it.
-  const narratives = useNarratives({ dep, dest, planKey: holding ? held.planKey : planKey, nav, legs, whole: !!totals && !pointToPoint });
+  // The held log's narrative while it is held: it is about it.
+  const narrative = useNarrative({ dep, dest, planKey: holding ? held.planKey : planKey, nav, legs, whole: !!totals && !pointToPoint });
 
   return {
     // Not the previous route's, kept as a placeholder, once the route is
@@ -403,7 +403,7 @@ export function usePlan(
     local,
     briefing: briefingState,
     ...notes,
-    ...narratives,
+    ...narrative,
   };
 }
 

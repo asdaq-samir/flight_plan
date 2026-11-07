@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Wingtip Maps on AWS, built for low cost: one EC2 server (webapp, planner,
-  briefing agent, Postgres) behind CloudFront, FAA chart tiles drawn once
+  Postgres) behind CloudFront, FAA chart tiles drawn once
   per 56-day cycle by a Fargate Spot task into S3, and the web app's
   fingerprinted files cached at the edge. About $29 a month with the
   server on Spot capacity, the default (docs/README-AWS.md has the
@@ -157,7 +157,7 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
 
   # ---------------------------------------------------------------------
-  # Images: the four the server runs, pushed by promote.yml's push-ecr.
+  # Images: the two the server runs, pushed by promote.yml's push-ecr.
   # ---------------------------------------------------------------------
   WebappRepository:
     Type: AWS::ECR::Repository
@@ -171,14 +171,6 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: wingtip/planning-service
-      EmptyOnDelete: true
-      LifecyclePolicy:
-        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
-
-  NavLogAgentRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: wingtip/nav-log-agent
       EmptyOnDelete: true
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
@@ -237,22 +229,14 @@ Resources:
             ExpiredObjectDeleteMarker: true
 
   # ---------------------------------------------------------------------
-  # Secrets: three the stack generates, one the owner fills in
-  # (infra/server/env.example). deploy.sh reads all four.
+  # Secrets: two the stack generates, one the owner fills in
+  # (infra/server/env.example). deploy.sh reads all three.
   # ---------------------------------------------------------------------
   DbPasswordSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Postgres password on the server.
       GenerateSecretString: { PasswordLength: 32, ExcludePunctuation: true }
-
-  # nav-log-agent will not start without its key (an open MCP server),
-  # and the webapp sends it.
-  AgentKeySecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Description: The bearer token of nav-log-agent's MCP server.
-      GenerateSecretString: { PasswordLength: 40, ExcludePunctuation: true }
 
   OriginSecret:
     Type: AWS::SecretsManager::Secret
@@ -306,10 +290,9 @@ Resources:
                 Resource:
                   - !GetAtt WebappRepository.Arn
                   - !GetAtt PlanningServiceRepository.Arn
-                  - !GetAtt NavLogAgentRepository.Arn
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: [!Ref DbPasswordSecret, !Ref AgentKeySecret, !Ref OriginSecret, !Ref AppSecret]
+                Resource: [!Ref DbPasswordSecret, !Ref OriginSecret, !Ref AppSecret]
               # Reads anything (models/ comes from the owner); writes only
               # where it keeps things: backup.sh's backups/ and the ground
               # grid deploy.sh builds once (ground_grid/). So a server
@@ -435,7 +418,7 @@ Resources:
               curl -fsSL "$compose_url" -o /usr/local/lib/docker/cli-plugins/docker-compose
               echo "$(curl -fsSL "$compose_url.sha256" | cut -d' ' -f1)  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
               chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-              # 2 GB of swap: headroom for a JVM, a planner and an agent on 4 GB.
+              # 2 GB of swap: headroom for a JVM and a planner on 4 GB.
               if [ ! -f /swapfile ]; then
                 fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
                 echo '/swapfile none swap sw 0 0' >> /etc/fstab
@@ -449,7 +432,6 @@ Resources:
               SERVER_BUCKET=${ServerBucket}
               APP_SECRET_ARN=${AppSecret}
               DB_SECRET_ARN=${DbPasswordSecret}
-              AGENT_SECRET_ARN=${AgentKeySecret}
               ORIGIN_SECRET_ARN=${OriginSecret}
               BACKUP_TOPIC_ARN=${BackupTopicArn}
               LOG_GROUP=${ServerLogGroup}
@@ -987,7 +969,6 @@ Resources:
                 Resource:
                   - !GetAtt WebappRepository.Arn
                   - !GetAtt PlanningServiceRepository.Arn
-                  - !GetAtt NavLogAgentRepository.Arn
               # The server changes with each Spot interruption, so deploys
               # find it by its Name tag and may run only on that.
               - Effect: Allow

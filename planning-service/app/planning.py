@@ -784,8 +784,7 @@ def _class_b_over(selection: dict, segment: dict) -> str:
 
 
 def no_altitude_detail(selection: dict, between: tuple[str, str] | None = None, via: dict | None = None) -> str:
-    """no_altitude as one message, for /api/plan's 422 and the agents
-    that read it."""
+    """no_altitude as one message, for /api/plan's 422."""
     parts = no_altitude(selection, between, via)
     reasons = " ".join(parts["reasons"])
     return f"{parts['title']}. {reasons + ' ' if reasons else ''}{parts['advice']}"

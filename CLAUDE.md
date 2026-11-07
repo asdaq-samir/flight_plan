@@ -93,9 +93,8 @@ long measurements still wait for the owner's ask; CI runs everything.
 
 On the Mac, run them with `scripts/check.sh all-changed` (the areas the
 branch and its uncommitted files touch, in parallel) or `scripts/check.sh
-<area>` (web, py, planner, nav-log-agent, crewai-agent, engine, java, ios,
-android). It runs the table's commands in Docker, or on the host for the
-phones, each area in its own turn of `scripts/one-at-a-time.sh`, warm from
+<area>` (web, py, planner, engine, java, ios, android). It runs the
+table's commands in Docker, or on the host for the phones, each area in its own turn of `scripts/one-at-a-time.sh`, warm from
 any worktree's first run: ready-made images per lockfile and requirements,
 and shared Cargo, npm, uv and Maven caches (the script's header lists
 them). The table is what it runs:

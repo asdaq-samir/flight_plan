@@ -123,10 +123,10 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          # The three images the production server runs
-          # (docker-compose.prod.yml). crewai-agent and the pipeline stay
-          # out of production (docs/README-AWS.md).
-          for service in webapp planning-service nav-log-agent; do
+          # The two images the production server runs
+          # (docker-compose.prod.yml). The pipeline stays out of
+          # production (docs/README-AWS.md).
+          for service in webapp planning-service; do
             source="$GHCR/$service:sha-$SHA"
             if ! docker buildx imagetools inspect --raw "$source" > /dev/null 2>&1; then
               source="$GHCR/$service:latest"

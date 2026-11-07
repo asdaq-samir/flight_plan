@@ -196,8 +196,8 @@ thrown) whether or not OIDC is configured.
 **Planner writes need a session once anyone can sign in, and the
 developer's work needs the developer role.** `GET /api/planner/**` is
 public apart from the stack's own status and services; `POST`/`DELETE`
-through the proxy (checkpoint notes, corridor builds) and the billed
-`/api/comparison` narrative require a session whenever `SecurityConfig`
+through the proxy (checkpoint notes, corridor builds, the billed
+written briefing at `/api/planner/briefing/narrative`) require a session whenever `SecurityConfig`
 sees a way to obtain one -- OIDC credentials or a configured
 `MAIL_HOST` for the magic link. The developer's work -- picks (the
 model's training labels), a retrain, a chart refresh,

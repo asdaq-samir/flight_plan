@@ -1,6 +1,6 @@
-# The settings of the root suite (tests/). planning-service, crewai-agent and
-# nav-log-agent each have a pyproject.toml of their own, which pytest takes
-# instead of this one, so they repeat addopts and markers and their
+# The settings of the root suite (tests/). planning-service has a
+# pyproject.toml of its own, which pytest takes instead of this one, so it
+# repeats addopts and markers and its
 # conftest.py imports the guards in pytest_guards.py. No cache of the last run's failures,
 # which would carry one run's order into the next (docs/CI.md, "Flaky
 # tests"), and a mark nobody declared is an error rather than a test

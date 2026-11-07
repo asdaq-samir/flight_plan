@@ -4,7 +4,6 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { GROUP_HEADING } from "../../../../lib/text";
 import type { NavLogAltitude, Totals } from "../../../../lib/api/types";
-import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { FlightBriefing } from "../../hooks/useFlightBriefing";
 import { ceilingAndVisibility } from "../../format";
 import { identOf } from "../../../../lib/identSchema";
@@ -36,20 +35,19 @@ interface Props {
   dep: string;
   dest: string;
   depart: string;
-  langgraphNarrative: FrameworkNarrative;
-  crewaiNarrative: FrameworkNarrative;
+  narrativeText: string | null;
   narrative?: ReactNode;
 }
 
 /** Preflight: the go / no-go first, then what is done before leaving --
  *  the airspace, the risk, the paperwork, the loading. */
-export default function PreflightPart({ vm, nav, totals, dep, dest, depart, langgraphNarrative, crewaiNarrative, narrative }: Props) {
+export default function PreflightPart({ vm, nav, totals, dep, dest, depart, narrativeText, narrative }: Props) {
   const { items, landings, setFolds, printing, folds, assessment, briefingPendingMessage, ifr, planForms, briefing, pilot, planText } = vm;
   return (
     <>
       {/* The narrative, printed only: on screen it is the tab's own
-          section (BriefNarrative), whose framework is a setting. */}
-      <BriefingNarrativePrintBlock langgraph={langgraphNarrative.text} crewai={crewaiNarrative.text} />
+          section (BriefNarrative). */}
+      <BriefingNarrativePrintBlock text={narrativeText} />
 
       <BriefChecks
         items={items} flight={`${landings.join("-")}|${depart}`} here={TILE_SECTIONS}

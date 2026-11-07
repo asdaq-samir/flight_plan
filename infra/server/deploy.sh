@@ -17,7 +17,7 @@ commit=${1:-}
 
 # Written by the stack's UserData: AWS_REGION, IMAGE_REGISTRY, IMAGE_TAG,
 # PUBLIC_HOST, ORIGIN_HOST, SERVER_BUCKET, APP_SECRET_ARN, DB_SECRET_ARN,
-# AGENT_SECRET_ARN, ORIGIN_SECRET_ARN, MAIL_HOST, MAIL_FROM.
+# ORIGIN_SECRET_ARN, MAIL_HOST, MAIL_FROM.
 # shellcheck source=/dev/null
 source /etc/wingtip.conf
 
@@ -39,7 +39,6 @@ secret() { aws secretsmanager get-secret-value --region "$AWS_REGION" --secret-i
 # header check pass any request that merely carries the header.
 db_password=$(secret "$DB_SECRET_ARN")
 origin_secret=$(secret "$ORIGIN_SECRET_ARN")
-agent_key=$(secret "$AGENT_SECRET_ARN")
 app_values=$(secret "$APP_SECRET_ARN")
 umask 077
 {
@@ -53,7 +52,6 @@ umask 077
   echo "MAIL_FROM=$MAIL_FROM"
   echo "POSTGRES_PASSWORD=$db_password"
   echo "ORIGIN_SECRET=$origin_secret"
-  echo "NAV_LOG_AGENT_API_KEY=$agent_key"
   # The owner's own values (infra/server/env.example lists them), kept as
   # one JSON secret: ANTHROPIC_API_KEY, MAIL_USERNAME, MAIL_PASSWORD, ...
   # Double-quoted, escapes and all: Sign in with Apple's private key is a

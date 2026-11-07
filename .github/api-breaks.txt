@@ -4,3 +4,6 @@
 # for the change, as its failure printed them, and why no released app
 # is hurt. Kept after the merge, as the record of what was broken when.
 # See docs/CI.md, "API compatibility".
+2026-11-07 GET /api/status removed the required property `services/crewai_agent` from the response with the `200` status -- the agent services were removed (#495); only the Dev panel reads /api/status
+2026-11-07 GET /api/status removed the required property `services/nav_log_agent` from the response with the `200` status -- the agent services were removed (#495); only the Dev panel reads /api/status
+2026-11-07 POST /api/comparison api path removed without deprecation -- the LangGraph/CrewAI comparison was a web Dev screen; no phone calls it (#495)

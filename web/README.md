@@ -20,8 +20,8 @@ component (`MapPage`) in two modes:
   fuel-remaining columns to fill in in flight. Opened wide
   (`?view=briefing`, or the sidebar toggle), the same drawer is the
   FAA-sequence briefing: the nav log with the briefing's sections
-  under it, an AI narrative popover (LangGraph or CrewAI, each a real
-  Claude call) and Print in its header, the map still beside it. The
+  under it, the written briefing (one streamed Claude call from the
+  planner) and Print in its header, the map still beside it. The
   pilot console drops down over the map from the header: sign-in, the
   pilot's own aeroplanes (the nav log flies the one picked), filed
   flights and the theme.
@@ -31,7 +31,7 @@ component (`MapPage`) in two modes:
   Training (collect a corridor, ratings so far, retrain: the training
   run as a container the planner starts), Performance (every algorithm trained, the promoted one)
   and System (which services answer, how fresh the FAA and weather
-  data is, the doors into Jupyter and the agents — each a
+  data is, the door into Jupyter — a
   link that starts the container if it isn't running). `/app/label`
   redirects here (its own query string carried over); `/app/settings`
   redirects to Plan, where everything it used to hold now lives in the
@@ -166,8 +166,8 @@ The front end never calls `planning-service`
 directly. Every request goes through `webapp` at `/api/planner/*` (a
 middleware rewrites `/api/x` to that path, so call sites read as if
 they spoke to the planner directly), so there is one origin, one
-session and one set of access rules. The one exception is the AI
-narrative, streamed from `webapp`'s own `/api/comparison`.
+session and one set of access rules -- the written briefing included
+(`/api/planner/briefing/narrative`, streamed as Claude writes it).
 
 ## Project layout
 

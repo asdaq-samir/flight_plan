@@ -1,8 +1,8 @@
 """What every Python suite here shares, imported by the conftest.py of each
-pytest rootdir: the repository's (tests/), planning-service's,
-crewai-agent's and nav-log-agent's. The last three have their own
-pyproject.toml, which pytest takes as the rootdir and never looks above, so
-neither this repository's settings nor its conftest reach them otherwise.
+pytest rootdir: the repository's (tests/) and planning-service's. The
+planner has its own pyproject.toml, which pytest takes as the rootdir and
+never looks above, so neither this repository's settings nor its conftest
+reach it otherwise.
 
 Tests run in a new random order every time (pytest-randomly), so a test
 that leaves the module it tested changed breaks whichever test happens to

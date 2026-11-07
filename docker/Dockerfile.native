@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # The canonical copy of the wingtip-native stage that every image importing
-# wingtip carries (planning-service, the pipeline stages, the ML image and
-# both agents); tests/test_dockerfiles.py fails if any copy
+# wingtip carries (planning-service, the pipeline stages and the ML image);
+# tests/test_dockerfiles.py fails if any copy
 # differs from this one. Built alone, it is the wheel:
 #   docker build -f docker/Dockerfile.native --target native -o out .
 

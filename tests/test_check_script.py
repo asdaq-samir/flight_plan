@@ -34,8 +34,7 @@ def test_an_openapi_document_reaches_the_web_types():
 
 
 def test_wingtip_reaches_every_python_that_imports_it():
-    assert areas("src/wingtip/airspace.py") == [
-        "py", "planner", "nav-log-agent", "crewai-agent"]
+    assert areas("src/wingtip/airspace.py") == ["py", "planner"]
 
 
 def test_an_engine_rule_reaches_every_shell_of_it():
@@ -52,7 +51,6 @@ def test_each_app_is_its_own_area():
     assert areas("springboot-app/pom.xml") == ["java"]
     assert areas("ios/Wingtip/App.swift") == ["ios"]
     assert areas("android/app/build.gradle.kts") == ["android"]
-    assert areas("nav-log-agent/app/main.py") == ["nav-log-agent"]
 
 
 def test_words_alone_check_nothing():
@@ -61,4 +59,4 @@ def test_words_alone_check_nothing():
 
 def test_each_area_once_in_one_order():
     assert areas("tests/test_geo.py", "src/wingtip/geo.py", "web/src/App.tsx") == [
-        "web", "py", "planner", "nav-log-agent", "crewai-agent"]
+        "web", "py", "planner"]

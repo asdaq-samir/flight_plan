@@ -189,8 +189,8 @@ in file order. A test that cannot yet run in any order is marked
 be fixed.
 
 **Guards for the usual causes.**
-- Python (`pyproject.toml` of the root, planning-service, crewai-agent and
-  nav-log-agent, each its own rootdir so each repeats the settings, and
+- Python (`pyproject.toml` of the root and planning-service, each its own
+  rootdir so each repeats the settings, and
   their `conftest.py`, which all import `pytest_guards.py`): no cache of the last run (`-p no:cacheprovider`), unknown
   marks are errors (`--strict-markers`), and a test that leaves one of
   wingtip's or an app's functions replaced -- a test double put on a module

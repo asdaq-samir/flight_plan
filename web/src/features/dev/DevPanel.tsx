@@ -20,8 +20,6 @@ import { useRetrain } from "./useRetrain";
 import SpeedPage from "./SpeedPage";
 import { grouped } from "../../lib/units";
 import { ago } from "../../lib/clock";
-import Segmented from "../../components/Segmented";
-import { usePreferences, type NarrativeFramework } from "../../lib/preferences";
 
 const mae = (n: number) => n.toFixed(4);
 
@@ -659,22 +657,14 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
   const services = status?.services;
   const rows: { name: string; health: Health; detail: string }[] = [
     { name: "webapp (Spring Boot)", health: reported(services?.webapp, failed), detail: "the gateway, sessions, aircraft and flights" },
-    { name: "db (Postgres + pgvector)", health: reported(services?.db, failed), detail: "application data and the agent's memory" },
+    { name: "db (Postgres)", health: reported(services?.db, failed), detail: "application data" },
     { name: "planning-service", health: reported(status ? { up: true } : null, failed), detail: "course, checkpoints and the chart model's scores, nav log, briefing, chart reading" },
-    { name: "nav-log-agent (LangGraph, MCP)", health: reported(services?.nav_log_agent, failed), detail: "the briefing narrative, with memory" },
-    { name: "crewai-agent", health: reported(services?.crewai_agent, failed), detail: "the same narrative, in CrewAI" },
   ];
   const host = window.location.hostname;
   const links: { label: string; href: string; localOnly?: boolean; service?: string; note?: string }[] = [
     { label: "webapp API docs", href: "/swagger-ui/index.html" },
     { label: "planning-service API docs", href: `http://${host}:8084/docs`, localOnly: true },
     { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true, service: "ml" },
-    // The sidecar can start it; its one page is the MCP stream, which
-    // answers 401 without the bearer token -- enough to see it is up.
-    {
-      label: "nav-log-agent (MCP)", href: `http://${host}:8082/mcp/sse`, localOnly: true, service: "nav-log-agent",
-      note: "The MCP stream; its bearer token is in the agent's README",
-    },
   ];
 
   // Every door, always. Two cleverer versions of this were wrong:
@@ -723,8 +713,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           title: "Services",
           content: (
             // As the planner found them a moment ago: the gateway and its
-            // database through Spring's actuator, the model service and
-            // the agents through their own probes, the planner by
+            // database through Spring's actuator, the planner by
             // answering. A row a service, its role under its name and the
             // status at its end; when the snapshot was taken under them.
             <ListGroup
@@ -812,11 +801,11 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
         elsewhere: {
           title: "Elsewhere in the stack",
           content: (
-            // docker-compose publishes the last five on 127.0.0.1; its lan
+            // docker-compose publishes the local ones on 127.0.0.1; its lan
             // overlay publishes them to the network, Jupyter with no
             // password, which is why the file is to be read first.
             <ListGroup
-              footer={<>Each in a new tab. The last five open only where the stack runs; <span className="font-mono">docker-compose.lan.yml</span> publishes them (read it first).</>}
+              footer={<>Each in a new tab. Those on this machine's ports open only where the stack runs; <span className="font-mono">docker-compose.lan.yml</span> publishes them (read it first).</>}
             >
               {shown.map(l => <StackLink key={l.href} link={l} />)}
             </ListGroup>
@@ -825,7 +814,6 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
       }}
     >
       <div className="space-y-6">
-        <NarrativeGroup />
         {stale && status && (
           // The service worker serves the last snapshot it has when the
           // planner is out of reach, and it arrives looking like an
@@ -861,23 +849,5 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
         </ListGroup>
       </div>
     </ConsolePages>
-  );
-}
-
-/** Which agent writes the Brief's narrative, the developer's to pick, at
- *  the owner's word (2026-10-27): it was a group of the Settings page for
- *  every pilot, who gets the default. */
-function NarrativeGroup() {
-  const narrative = usePreferences(s => s.narrative);
-  const setNarrative = usePreferences(s => s.setNarrative);
-  return (
-    <ListGroup title="Brief">
-      <ListRow title="Narrative">
-        <Segmented
-          label="Narrative from" value={narrative} onChange={v => setNarrative(v as NarrativeFramework)} testId="narrative-framework"
-          options={[{ value: "langgraph", label: "LangGraph" }, { value: "crewai", label: "CrewAI" }]}
-        />
-      </ListRow>
-    </ListGroup>
   );
 }

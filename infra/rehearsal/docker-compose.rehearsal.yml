@@ -46,9 +46,6 @@ services:
       APP_MAGIC_LINK_PER_CLIENT_PER_HOUR: "200"
       APP_PAID_CALLS_PER_DAY: "500"
 
-  nav-log-agent:
-    logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
-
   cdn:
     image: caddy:2.10-alpine
     restart: unless-stopped

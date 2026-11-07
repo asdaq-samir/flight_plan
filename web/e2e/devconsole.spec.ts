@@ -31,14 +31,13 @@ async function openServices(page: Page) {
   await expect(consoleSheet(page).getByRole("heading", { name: "Services" })).toBeVisible();
 }
 
-test("an agent this deployment does not run reads not configured", async ({ page }) => {
+test("a service this deployment does not report on reads not configured", async ({ page }) => {
   await page.route("**/api/planner/status", async route => {
     const response = await route.fetch();
     const json = await response.json();
-    json.services.nav_log_agent = null;
-    // The other agent, not run in CI's stack either, as one that answers:
-    // what is asked is that one not configured is not counted as down.
-    json.services.crewai_agent = { up: true, detail: "HTTP 200" };
+    // A snapshot with no word on the database, as one from a planner
+    // not told where the gateway is: unknown, not down.
+    json.services.db = null;
     await route.fulfill({ response, json });
   });
   await openSystemTab(page);
@@ -46,8 +45,8 @@ test("an agent this deployment does not run reads not configured", async ({ page
   await expect(consoleSheet(page).getByRole("button", { name: /^Services/ })).not.toContainText("down");
   await openServices(page);
 
-  await expect(row(page, /nav-log-agent/)).toContainText("not configured");
-  await expect(row(page, /nav-log-agent/)).not.toContainText("checking");
+  await expect(row(page, /db \(Postgres\)/)).toContainText("not configured");
+  await expect(row(page, /db \(Postgres\)/)).not.toContainText("checking");
 });
 
 test("a snapshot that failed reads no answer, and nothing waits for it for ever", { tag: "@smoke" }, async ({ page }) => {
@@ -55,10 +54,9 @@ test("a snapshot that failed reads no answer, and nothing waits for it for ever"
     route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ detail: "planner down" }) }));
   await openSystemTab(page);
   // Said at the Services row's end, then service by service on its page.
-  await expect(consoleSheet(page).getByRole("button", { name: /^Services/ })).toContainText("5 down");
+  await expect(consoleSheet(page).getByRole("button", { name: /^Services/ })).toContainText("3 down");
   await openServices(page);
 
-  await expect(row(page, /crewai-agent/)).toContainText("no answer");
   await expect(row(page, /webapp/)).toContainText("no answer");
   await expect(row(page, /planning-service/)).toContainText("no answer");
   // The reference data's page says so too, once its row is tapped: back

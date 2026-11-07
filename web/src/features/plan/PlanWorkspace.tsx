@@ -70,10 +70,9 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // hidden ones and their charts too -- half a second of a phone's.
   const narrative = useMemo(() => !s.local && (
     <BriefNarrative
-      ready={!!s.totals} onGenerateNarrative={s.generateNarrative}
-      langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+      ready={!!s.totals} onGenerateNarrative={s.generateNarrative} narrative={s.narrative}
     />
-  ), [s.local, s.totals, s.generateNarrative, s.langgraphNarrative, s.crewaiNarrative]);
+  ), [s.local, s.totals, s.generateNarrative, s.narrative]);
 
   const tabContent = useCallback((part: BriefingPart) => (
     <FlightBriefingView
@@ -82,12 +81,12 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       // The airports landed at: a waypoint has no weather of its own.
       stops={landedStops} route={planned.stops} procedures={filedProcedures}
       briefing={s.briefing} course={course} totals={s.totals} depart={depart}
-      langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+      narrativeText={s.narrative.text}
       problem={unflyableBrief}
       narrative={part === "preflight" ? narrative : undefined}
     />
   ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, planned.stops, filedProcedures, s.briefing, course, s.totals, depart,
-    s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, narrative]);
+    s.narrative.text, unflyableBrief, narrative]);
 
   // Print's Kneeboard card, off screen (a portal to the page's body):
   // drawn after what the pilot sees (useDeferredValue), first and as the
@@ -180,14 +179,14 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       <FlightBriefingView
         part={null} publish nav={s.nav} legs={s.legs} dep={planned.dep} dest={planned.dest} stops={landedStops}
         briefing={s.briefing} course={course} totals={s.totals} depart={depart}
-        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative} problem={unflyableBrief}
+        narrativeText={s.narrative.text} problem={unflyableBrief}
       />
       {kneeboardLater}
     </NavLogView>
     </Suspense>
   ), [s.totals, s.descriptionError, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
-    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
+    marks, tabContent, s.briefing, s.local, landedStops, s.narrative.text, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
     routeList, navLogShown, closeNavLogCard, planned.stops, briefLine, routeEdit, planned.dep, planned.dest]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
