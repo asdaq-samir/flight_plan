@@ -13,10 +13,6 @@
 #
 # A new third-party import in src/wingtip belongs here -- or in
 # requirements-charts.txt if only wingtip.charts/wingtip.chartvision need it.
-# The two agents are the one kind of caller that doesn't install it:
-# they run only wingtip.planner_client and wingtip.narrative, and take what
-# those need (requests; pydantic, through their frameworks) in their
-# own files.
 # The CI build job imports what each service imports inside its built
 # image, so a missing line fails there rather than on a restart.
 #
@@ -24,13 +20,13 @@
 # moving (.github/dependabot.yml watches /src).
 numpy==2.5.3        # wingtip.geo, wingtip.features, wingtip.osm, wingtip.weather
 pandas==3.0.6       # wingtip.airports, wingtip.faa_data, wingtip.features, wingtip.pipeline
-requests==2.34.2    # every external source (wingtip.retry), wingtip.planner_client
+requests==2.34.2    # every external source (wingtip.retry)
 cachetools==7.2.1   # wingtip.sua's day cache of special-use airspace; planning-service's own caches
 pyarrow==25.0.1     # wingtip.faa_data's Parquet cache of the obstacle table; the pipeline's feature store
 shapely==2.1.2      # wingtip.airspace polygons, wingtip.weather's hazards, wingtip.osm's representative points
 pyshp==3.1.6        # wingtip.airspace reads the FAA Class Airspace shapefile
 pyproj==3.8.0       # wingtip.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
-pydantic==2.13.5    # wingtip.narrative -- the agents' request model; what planning-service's FastAPI resolves too
+pydantic==2.13.5    # pinned once here for planning-service's FastAPI and its schemas
 pydantic-settings==2.16.2   # wingtip.config's Settings -- every environment variable wingtip and the planner read
 scipy==1.18.1       # wingtip.geo's cluster_points KD-tree (imported at wingtip.geo's module level)
 pygeomag==1.1.0     # the oracle tests/test_flight_rules.py holds the engine's WMM-2025 (wingtip.magnetic) to

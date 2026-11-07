@@ -6,7 +6,6 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { TEXT } from "../../../../lib/text";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type { Course, Leg, NavLogAltitude, Totals } from "../../../../lib/api/types";
-import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { useFlightBriefing, WEATHER_SOURCE_LABEL } from "../../hooks/useFlightBriefing";
 import { clockTime } from "../../format";
@@ -58,12 +57,10 @@ interface Props {
    *  applies, rather than making a failed briefing indistinguishable
    *  from a slow one. */
   briefing: BriefingState;
-  /** LangGraph's (nav-log-agent) and CrewAI's (crewai-agent) own
-   *  briefing narratives -- read-only here, only for
-   *  `BriefingNarrativePrintBlock` (BriefingBits). Generating them is the
-   *  Brief tab's (BriefNarrative), not this component's. */
-  langgraphNarrative: FrameworkNarrative;
-  crewaiNarrative: FrameworkNarrative;
+  /** The narrative's text, once the pilot has had it written -- read-only
+   *  here, only for `BriefingNarrativePrintBlock` (BriefingBits). Writing
+   *  it is the Brief tab's (BriefNarrative), not this component's. */
+  narrativeText: string | null;
   /** The Brief's narrative (BriefNarrative), under its Go / No-Go. */
   narrative?: ReactNode;
   /** No VFR altitude fits the route, in a line (usePlan's Unflyable). */
@@ -105,7 +102,7 @@ const NO_STOPS: string[] = [];
 export default memo(function FlightBriefingView(props: Props) {
   const {
     part, nav, legs, dep, dest, stops = NO_STOPS, course = null, totals = null, depart = "",
-    briefing: briefingState, langgraphNarrative, crewaiNarrative, narrative,
+    briefing: briefingState, narrativeText, narrative,
   } = props;
   const vm = useFlightBriefing(props);
   const { briefing, briefingPendingMessage, unchecked, opened, landings, ownCallSign, loaded, ifr, alternateWhere } = vm;
@@ -132,7 +129,7 @@ export default memo(function FlightBriefingView(props: Props) {
       {part === "preflight" && (
         <PreflightPart
           vm={vm} nav={nav} totals={totals} dep={dep} dest={dest} depart={depart}
-          langgraphNarrative={langgraphNarrative} crewaiNarrative={crewaiNarrative} narrative={narrative}
+          narrativeText={narrativeText} narrative={narrative}
         />
       )}
 

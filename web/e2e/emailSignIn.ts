@@ -6,7 +6,7 @@ import { openConsole, openAccount } from "./helpers";
  * link, from the inbox docker-compose.yml runs beside the webapp
  * (Mailpit, its API on port 8025). MAILPIT_URL overrides where that
  * is; MAILPIT_UI_AUTH, `user:password`, is the password
- * docker-compose.phone.yml puts on it.
+ * docker-compose.yml puts on it once PUBLISH_ADDRESS opens it to the Wi-Fi.
  */
 
 /** The address the suite runs as, a developer on the local stack

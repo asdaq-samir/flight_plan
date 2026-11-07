@@ -19,7 +19,7 @@ from ..settings import get_settings
 
 router = APIRouter()
 
-# Same env-var convention as nav-log-agent's NAV_LOG_AGENT_MODEL. Haiku:
+# Named by the environment, as every model here is. Haiku:
 # on eight of the C81 to KDLH route's checkpoints (2026-10-08) it wrote
 # lines as useful as claude-sonnet-5's for a quarter of the cost, $0.0002
 # a checkpoint against $0.00085.

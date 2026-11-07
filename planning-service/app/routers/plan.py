@@ -2,9 +2,9 @@
 for these in order: the course draws immediately, the checkpoints land
 a tenth of a second later, and the nav log -- which needs terrain,
 obstacles, airspace and weather -- arrives when it can without holding
-up the map. /api/plan returns all of it at once, and is what both
-agents (nav-log-agent, crewai-agent) fetch their nav log from, so the
-nav log an agent briefs is the one a pilot sees.
+up the map. /api/plan returns all of it at once, for the assistant
+(app.assistant) and anything else that wants the whole plan in one
+answer.
 
 A route may land at stops on the way (`stops`, "KDSM,KLNK"): each flight
 between two landings -- a hop -- is planned as a route of its own, with
@@ -1368,8 +1368,7 @@ def foreflight_pack(route: str, file: str, request: Request) -> Response:
 
 def planned_within_limit(r: Route, q: "PlanQuery", profile: dict) -> tuple[list, list, list[HopRun], "Flown | NoWinds | Unflyable"]:
     """The checkpoints scored and picked, each hop's run and the altitude
-    chosen, all inside the one bound (COMPUTE_LIMIT_S), scoring included:
-    the agents' client waits exactly that long (wingtip.planner_client). For
+    chosen, all inside the one bound (COMPUTE_LIMIT_S), scoring included. For
     /api/plan and the Go / No-Go (app.routers.gonogo); the nav log streams
     its own, a stage line at each step."""
     runs: list[HopRun] = []

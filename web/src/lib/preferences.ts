@@ -57,9 +57,6 @@ export type ChartLight = "auto" | "on" | "off";
  *  owner kept (2026-11-04: "Only keep the glass cockpit and chart ink");
  *  Sectional, Windsock and Clear Sky are gone. */
 export type Brand = "cockpit" | "ink";
-/** Which agent writes the Brief's narrative: nav-log-agent (LangGraph) or
- *  crewai-agent (CrewAI). */
-export type NarrativeFramework = "langgraph" | "crewai";
 /** The flight rules a route is planned under (the altitude's popover):
  *  VFR, or IFR -- its minimum altitudes, its thousands by direction of
  *  flight and its 45-minute reserve (the planner's wingtip.ifr). */
@@ -175,9 +172,6 @@ interface Preferences {
   brand: Brand;
   /** How own ship is drawn on the chart (lib/map/ownShipLook). */
   ownShipLook: OwnShipLook;
-  /** Which writes the Brief tab's narrative (BriefNarrative), from the
-   *  settings: it was a switch over the narrative itself. */
-  narrative: NarrativeFramework;
   /** The flight rules every route is planned under, kept: a pilot who
    *  files IFR files it flight after flight. */
   flightRules: FlightRules;
@@ -260,7 +254,6 @@ interface Preferences {
   setChartLight: (chartLight: ChartLight) => void;
   setBrand: (brand: Brand) => void;
   setOwnShipLook: (ownShipLook: OwnShipLook) => void;
-  setNarrative: (narrative: NarrativeFramework) => void;
   setFlightRules: (flightRules: FlightRules) => void;
   setRouteEdit: (routeEdit: RouteEdit) => void;
   addRecentAirport: (airport: RecentAirport) => void;
@@ -327,7 +320,6 @@ export const usePreferences = create<Preferences>()(
       brand: "cockpit",
       // A plane, at the owner's ask, where it was the arrow.
       ownShipLook: "single",
-      narrative: "langgraph",
       flightRules: "vfr",
       // The box as it was, till the pilot picks another.
       routeEdit: "box",
@@ -400,7 +392,6 @@ export const usePreferences = create<Preferences>()(
       setChartLight: chartLight => set({ chartLight }),
       setBrand: brand => set({ brand }),
       setOwnShipLook: ownShipLook => set({ ownShipLook }),
-      setNarrative: narrative => set({ narrative }),
       setFlightRules: flightRules => set({ flightRules }),
       setRouteEdit: routeEdit => set({ routeEdit }),
       addRecentAirport: airport => set(s => ({
@@ -450,7 +441,7 @@ export const usePreferences = create<Preferences>()(
       }) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, chartLight: s.chartLight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, chartLight: s.chartLight, brand: s.brand, ownShipLook: s.ownShipLook,
         flightRules: s.flightRules, routeEdit: s.routeEdit, listenInput: s.listenInput,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

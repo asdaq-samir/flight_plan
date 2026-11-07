@@ -1,35 +1,69 @@
-"""What both narrative agents write from: the nav log they are handed
-(NarrativeRequest) and the one prompt they turn it into.
+"""The Brief's narrative: the nav log on the pilot's screen told in a
+page of plain words by Claude, streamed as it is written
+(app.routers.narrative).
 
-nav-log-agent (LangGraph) and crewai-agent (CrewAI) exist to compare two
-frameworks on the same task, so they must be given the same task: the
-same request, checked the same way, and the same words in front of
-Claude. Each used to keep its own copy of both -- the prompt's leg and
-altitude formatting word for word in two files, the request model in two
-servers -- which is two chances for the comparison to stop being fair.
+The nav log is the one the page already shows -- the planner computed
+it seconds earlier, and the pilot may have set an altitude of their own
+-- so it is sent here whole rather than planned again, and the words are
+about those numbers. Every number the model needs is in the prompt; it
+is told not to look anything up.
 
-Here, beside wingtip.planner_client, because both agents already import wingtip
-for that and nothing else. Its pydantic is on wingtip's own list with the
-rest (src/requirements.txt); the agents, which install only what they
-import from wingtip, get it with their frameworks (mcp, fastapi).
+This used to be two services, nav-log-agent (LangGraph, with a pgvector
+memory of past briefings) and crewai-agent (CrewAI), kept to compare the
+frameworks on one task. The task is one Claude call, so it is one call
+here, with the SDK, as the planner's other Claude features are
+(app.words, app.oral, app.assistant). The memory went with them: it
+needed a local sentence-transformers model to embed each briefing, and a
+briefing of the route on screen is written from its own figures, not
+from another route's.
 """
+from __future__ import annotations
+
+import json
+import logging
+import os
+from collections.abc import Iterator
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+import anthropic
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .schemas import NarrativeDelta, NarrativeDone, NarrativeError
+
+log = logging.getLogger(__name__)
+
+# Haiku: on the C81 to KDLH route (2026-10-08) it wrote the whole
+# briefing, three times out of three, for about $0.001 each, where
+# claude-sonnet-5 spent $0.009 and wrote nothing (below). Named by the
+# environment, as the planner's other models are.
+NARRATIVE_MODEL = os.environ.get("NARRATIVE_MODEL", "claude-haiku-5-5")
+# The model thinks before it writes, and the thinking counts toward this
+# cap: at 512, claude-sonnet-5 thought until the cap and returned no
+# text at all (stop reason max_tokens); Haiku at 1,536 did the same on
+# two runs of three. At 4,096 every run finished, in 8 to 10 s. Thinking
+# stays on: turned off, the same briefing read a 9,000 ft freezing level
+# as "a serious icing risk" at 3,000 ft.
+NARRATIVE_MAX_TOKENS = 4096
+NARRATIVE_EFFORT = "low"
 
 BRIEFING_WORDS = 200
 #: A long cross-country is a few dozen legs; anything near this is not a
 #: nav log, and every leg is prompt text Claude is billed for reading.
 MAX_LEGS = 100
 
+#: What the pilot reads when Claude cannot be asked: the reason itself
+#: (its status, its request id) is the log's, not the pilot's.
+UNREACHABLE = "The narrative cannot be written just now; the nav log and the briefing above are still right."
+
 
 class NarrativeLeg(BaseModel):
-    """What the prompt reads from one leg, checked before a word of it
-    is sent. Other fields a nav-log leg carries are allowed and ignored.
-    A flyable leg (an ETE) needs its heading, ground speed and fuel; an
-    unflyable one needs none of them."""
+    """What the prompt reads from one leg, checked before a word of it is
+    sent. The rest of a nav-log leg (its wind, its true airspeed and
+    density altitude, its fixes) is kept and read where the prompt has a
+    use for it. A flyable leg (one with an ETE) needs its heading, ground
+    speed and fuel; an unflyable one needs none of them."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     from_: str = Field(alias="from", max_length=80)
     to: str = Field(max_length=80)
@@ -49,19 +83,12 @@ class NarrativeLeg(BaseModel):
 
 
 class NarrativeRequest(BaseModel):
-    """The nav log the flight planning drawer already shows, handed to an
-    agent to write about rather than to recompute -- what the webapp's
-    /api/comparison forwards untouched. `aircraft_name` omitted means the
-    planner's own default aeroplane. `flown`, when sent, says which
-    altitudes the legs fly: "custom" for the pilot's own, else the
-    planner's plan of that name.
-
-    A field it does not know is refused, not dropped: the two frameworks
-    are compared on the same input, and one that quietly ignored a field
-    the other read would be narrating a different nav log with nothing
-    to show for it."""
-
-    model_config = ConfigDict(extra="forbid")
+    """The nav log the Brief shows, to be told in words rather than
+    recomputed. `aircraft_name` omitted means the planner's own default
+    airplane. `flown`, when sent, says whose altitudes the legs fly:
+    "custom" for the pilot's own, else the planner's plan of that name.
+    `altitude_selection` is the planner's reasoning for the altitude
+    (the nav log's own), read field by field below."""
 
     departure_ident: str = Field(max_length=10)
     destination_ident: str = Field(max_length=10)
@@ -69,35 +96,14 @@ class NarrativeRequest(BaseModel):
     altitude_ft: float
     altitude_selection: dict | None = None
     flown: Literal["custom", "lowest", "highest", "fastest", "economical"] | None = None
-    legs: list[dict] = Field(min_length=1, max_length=MAX_LEGS)
+    legs: list[NarrativeLeg] = Field(min_length=1, max_length=MAX_LEGS)
 
-    @field_validator("legs")
-    @classmethod
-    def _legs_are_legs(cls, legs: list[dict]) -> list[dict]:
-        """Each leg is checked against NarrativeLeg and kept as the dict
-        it arrived as, which is what both agents' prompts read."""
-        for leg in legs:
-            NarrativeLeg.model_validate(leg)
-        return legs
+    def leg_dicts(self) -> list[dict]:
+        """Each leg as it arrived, under its own key names ("from")."""
+        return [leg.model_dump(by_alias=True) for leg in self.legs]
 
 
-def invalid_detail(err: Exception) -> str:
-    """The one 422 `detail` both agents answer a bad NarrativeRequest with,
-    naming each field and what was wrong -- nav-log-agent's own, which
-    crewai-agent's FastAPI list-of-errors used to differ from. `err` is a
-    pydantic ValidationError, FastAPI's RequestValidationError (whose
-    locations start at "body") or the ValueError of a body that is not
-    JSON."""
-    errors = err.errors() if hasattr(err, "errors") else []
-    if not errors or any(e.get("type") == "json_invalid" for e in errors):
-        return "invalid nav log: the request body is not JSON"
-    parts = []
-    for e in errors:
-        loc = [str(part) for part in e["loc"]]
-        if loc[:1] == ["body"]:
-            loc = loc[1:]
-        parts.append(f"{'.'.join(loc)}: {e['msg']}")
-    return "invalid nav log: " + "; ".join(parts)
+# --- The prompt --------------------------------------------------------------
 
 
 def briefing_prompt(
@@ -106,13 +112,11 @@ def briefing_prompt(
     altitude_ft: float,
     altitude_selection: dict | None,
     legs: list[dict],
-    similar_briefings: list[dict] | None = None,
     *,
     flown: str | None = None,
 ) -> str:
-    """The instruction both agents hand Claude. `similar_briefings`, the
-    past briefings nav-log-agent's pgvector memory found, adds them as
-    precedent; crewai-agent keeps no memory and leaves it out. `flown` is
+    """The instruction Claude writes the briefing from: every number it
+    needs, the altitude's reasoning and the legs. `flown` is
     NarrativeRequest's: whose altitudes the legs fly, said only when it
     is known."""
     prompt = (
@@ -124,14 +128,16 @@ def briefing_prompt(
         + f"Altitude selection:\n{_format_altitude_selection(altitude_selection)}\n\n"
         f"Dead-reckoning legs:\n{_format_legs(legs)}"
     )
-    if similar_briefings is not None:
-        prompt += (
-            "\n\nSimilar past route briefings (for context/consistency, not to copy verbatim):\n"
-            f"{_format_memory(similar_briefings)}"
-        )
     # Said again last, after the data: claude-haiku-5-5 bolded its
     # headings with only the rule at the top (2026-10-08).
     return prompt + "\n\nWrite the briefing as plain text: no Markdown, so no ** or # anywhere."
+
+
+def prompt_for(request: NarrativeRequest) -> str:
+    return briefing_prompt(
+        request.departure_ident, request.destination_ident, request.altitude_ft,
+        request.altitude_selection, request.leg_dicts(), flown=request.flown,
+    )
 
 
 def _ft(value) -> str:
@@ -150,8 +156,7 @@ def _cruising(altitude_ft: float, legs: list[dict]) -> str:
 
 
 def _provenance(flown: str) -> str:
-    """Whose altitudes the legs fly -- from the field that says so. The
-    prompt used to guess it from whether a selection was sent."""
+    """Whose altitudes the legs fly -- from the field that says so."""
     if flown == "custom":
         return "The altitude is the pilot's own, flown the whole way; the planner's reasoning below is what it would have chosen."
     return f"The altitudes are the planner's {flown} plan."
@@ -190,8 +195,7 @@ def _format_altitude_selection(sel: dict | None) -> str:
     weather is a row per check -- could not be read, flagged, or fine --
     by `weather_unavailable`: a check that failed used to read as a check
     that found nothing, and a value that is None was printed as "Noneft".
-    Without a selection there is nothing to say about it; this used to
-    claim the pilot had typed the altitude, which nothing told it."""
+    Without a selection there is nothing to say about it."""
     if not sel:
         return "(none given)"
     unavailable = set(sel.get("weather_unavailable") or [])
@@ -248,9 +252,51 @@ def _format_altitude_selection(sel: dict | None) -> str:
     return "\n".join(lines)
 
 
-def _format_memory(similar_briefings: list[dict]) -> str:
-    if not similar_briefings:
-        return "(no similar past routes yet)"
-    return "\n".join(
-        f"- {b['departure_ident']}->{b['destination_ident']}: {b['briefing'][:200]}" for b in similar_briefings
-    )
+# --- The call ----------------------------------------------------------------
+
+
+def _client() -> anthropic.Anthropic:
+    """The seam the tests stand a fake model in at."""
+    return anthropic.Anthropic()
+
+
+def _line(message: BaseModel) -> str:
+    return json.dumps(message.model_dump(), ensure_ascii=False) + "\n"
+
+
+def stream(request: NarrativeRequest) -> Iterator[str]:
+    """The briefing as newline-delimited JSON: a `delta` line for each
+    piece of text as Claude writes it, then a `done` line with the whole
+    briefing, or an `error` line saying why there is none. Thinking
+    blocks are not part of text_stream, so nothing here skips them.
+
+    A briefing cut off at the token cap ends in an error, not a `done`:
+    it can stop before its weather or its icing, and shown whole a pilot
+    would take it as whole."""
+    parts: list[str] = []
+    try:
+        with _client().messages.stream(
+            model=NARRATIVE_MODEL,
+            max_tokens=NARRATIVE_MAX_TOKENS,
+            output_config={"effort": NARRATIVE_EFFORT},
+            messages=[{"role": "user", "content": prompt_for(request)}],
+        ) as said:
+            for text in said.text_stream:
+                parts.append(text)
+                yield _line(NarrativeDelta(text=text))
+            stop_reason = said.get_final_message().stop_reason
+    except anthropic.AnthropicError as err:
+        # No key, a refused one, no network, a limit: the reason is the
+        # log's (CodeQL's py/stack-trace-exposure), the pilot's is plain.
+        log.warning("narrative unreachable: %s", err)
+        yield _line(NarrativeError(detail=UNREACHABLE))
+        return
+    briefing = "".join(parts).strip()
+    if stop_reason == "max_tokens":
+        yield _line(NarrativeError(detail="The narrative ran out of room before it was finished; ask again."))
+    elif stop_reason == "refusal":
+        yield _line(NarrativeError(detail="The narrative was declined for this flight."))
+    elif not briefing:
+        yield _line(NarrativeError(detail="The narrative came back empty; ask again."))
+    else:
+        yield _line(NarrativeDone(briefing=briefing))

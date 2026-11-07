@@ -62,9 +62,20 @@ target "webapp" {
   output     = pushed(WEBAPP_KEY)
 }
 
+# wingtip's Python base, which the planner is built FROM
+# (docker/Dockerfile.base): built in the same bake, from images.hcl's
+# cache of it.
+target "base" {
+  context    = "."
+  dockerfile = "docker/Dockerfile.base"
+  target     = "base"
+  cache-from = cache("base")
+}
+
 target "planning-service" {
   context    = "."
   dockerfile = "planning-service/Dockerfile"
+  contexts   = { wingtip-base = "target:base" }
   tags       = tags("planning-service", PLANNING_SERVICE_KEY)
   cache-from = cache("planning-service")
   cache-to   = PLANNING_SERVICE_KEY == "" ? [] : ["type=inline"]

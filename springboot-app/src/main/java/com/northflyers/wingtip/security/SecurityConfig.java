@@ -184,9 +184,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.HEAD, "/api/planner/foreflight-pack/**").permitAll();
                     // Writing through the planner -- a checkpoint note, a
                     // corridor build (minutes of Overpass and FAA I/O per
-                    // call) -- and the flight planning drawer's narrative
-                    // (ComparisonProxyController, a real billed Claude call
-                    // every time) need a session as soon as this deployment
+                    // call), the Brief's narrative (a real billed Claude
+                    // call every time) -- need a session as soon as this deployment
                     // offers any way to get one.
                     //
                     // Where nothing does, they are open only when the
@@ -198,15 +197,9 @@ public class SecurityConfig {
                     // refused: open by default made every write public on
                     // any host that simply had no sign-in configured.
                     switch (signIn.access()) {
-                        case SIGN_IN -> auth
-                                .requestMatchers("/api/planner/**").authenticated()
-                                .requestMatchers("/api/comparison/**").authenticated();
-                        case OPEN -> auth
-                                .requestMatchers("/api/planner/**").permitAll()
-                                .requestMatchers("/api/comparison/**").permitAll();
-                        case CLOSED -> auth
-                                .requestMatchers("/api/planner/**").denyAll()
-                                .requestMatchers("/api/comparison/**").denyAll();
+                        case SIGN_IN -> auth.requestMatchers("/api/planner/**").authenticated();
+                        case OPEN -> auth.requestMatchers("/api/planner/**").permitAll();
+                        case CLOSED -> auth.requestMatchers("/api/planner/**").denyAll();
                     }
                     auth
                             // The magic-link flow's own two steps -- request

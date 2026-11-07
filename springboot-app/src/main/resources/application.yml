@@ -68,21 +68,6 @@ spring:
 planner-service:
   base-url: ${PLANNER_SERVICE_URL:http://localhost:8084}
 
-# The two Gen AI comparison builds (ComparisonProxyController), behind
-# the flight planning drawer's narrative popover -- neither is required for the app to
-# start (see that controller's own per-framework error handling),
-# unlike planner-service above.
-nav-log-agent:
-  base-url: ${NAV_LOG_AGENT_URL:http://localhost:8082}
-  # nav-log-agent's own MCP endpoint has no auth other than this bearer
-  # token (see its BearerAuthMiddleware) -- blank locally is fine, that
-  # call just 401s and the panel reports it unavailable, the same as an
-  # unset ANTHROPIC_API_KEY would.
-  api-key: ${NAV_LOG_AGENT_API_KEY:}
-
-crewai-agent:
-  base-url: ${CREWAI_AGENT_URL:http://localhost:8000}
-
 server:
   port: 8080
   servlet:
@@ -199,8 +184,8 @@ app:
   # the local stack, where the e2e suite signs in.
   # The calls this app pays Anthropic for, a day's worth per pilot (or
   # per address, where nobody is signed in), each counted on its own:
-  # the framework narratives (ComparisonProxyController) and generating
-  # a route's checkpoint notes (PlannerProxyController). Past it, a 429
+  # the Brief's narratives and generating a route's checkpoint notes
+  # (PlannerProxyController). Past it, a 429
   # that says when there are more.
   paid-calls:
     per-day: ${APP_PAID_CALLS_PER_DAY:40}

@@ -10,7 +10,7 @@
 # other's toolchain.
 
 # Node's LTS line, the major in .nvmrc (which CI's web job reads).
-FROM node:26-slim AS web
+FROM node:26-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 # --mount=type=cache: npm's own download/extract cache, keyed by this
@@ -33,7 +33,7 @@ RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 # JDK 25, the same LTS the app targets (pom.xml's java.version), runs on
 # (the eclipse-temurin:25-jre stage below) and CI tests with. ASM in
 # Spring Boot's `repackage` can't parse Java 26+ class files anyway.
-FROM maven:3.9-eclipse-temurin-25 AS build
+FROM maven:3.9-eclipse-temurin-25@sha256:93b8a14ea2f412782e4e842651273b4d903e35cc496284f178fbbe2d67d00976 AS build
 WORKDIR /build
 COPY springboot-app/pom.xml .
 # The dependencies into the layer itself (/build/m2), not only into the
@@ -54,7 +54,7 @@ COPY planning-service/openapi.json /planning-service/openapi.json
 COPY springboot-app/src/main ./src/main
 RUN mvn -B -q package -DskipTests -Dmaven.repo.local=/build/m2
 
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25-jre@sha256:ecdc0adb37bde1a281c4d245a3cd535004b1fc8322d560f5b09463b248c81df0
 WORKDIR /app
 COPY --from=build /build/target/*.jar app.jar
 COPY --from=web /web/dist ./static/app

@@ -38,8 +38,8 @@ a high-severity npm advisory.
 ## Scope
 
 In scope: anything reachable through the web app or its API — the session
-and sign-in flow, the CSRF protection, the planner and comparison
-proxies, the access rules in `SecurityConfig`, and the GitHub Actions
+and sign-in flow, the CSRF protection, the planner
+proxy, the access rules in `SecurityConfig`, and the GitHub Actions
 workflow, which holds a registry token and, in the deploy job, AWS
 credentials.
 

@@ -9,34 +9,19 @@ import { FINDING_TONE, type Finding } from "../../../../lib/status";
 // The small pieces the briefing's parts share (FlightBriefingView).
 
 /**
- * Whichever narrative(s) a pilot actually generated, print only. On
- * screen each is the Brief tab's (BriefNarrative), whose framework
- * switch is no use on paper, so a printed copy has its own text sitting
- * directly in the page. Prints neither,
- * one, or both, whichever the pilot actually asked for on screen --
- * generating a framework's narrative just to have it for a printout
- * nobody asked for would be a real, billed Claude call spent on
- * nothing.
+ * The narrative, print only, when the pilot had it written. On screen it
+ * is the Brief tab's (BriefNarrative), whose button is no use on paper,
+ * so a printed copy has its own text sitting directly in the page.
+ * Writing one just to have it for a printout nobody asked for would be
+ * a real, billed Claude call spent on nothing.
  */
-export function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string | null; crewai: string | null }) {
-  if (!langgraph && !crewai) return null;
+export function BriefingNarrativePrintBlock({ text }: { text: string | null }) {
+  if (!text) return null;
   // On paper only, at paper's own 14: no finger, no type scale.
   return (
     <div className="hidden break-inside-avoid-page border-b border-border px-4 py-3 print:block print:break-inside-avoid">
-      {langgraph && (
-        <>
-          <h2 className={GROUP_HEADING}>Narrative</h2>
-          <p className={cn("mt-2 text-muted-foreground", TEXT.detail)}>{langgraph}</p>
-        </>
-      )}
-      {crewai && (
-        <>
-          <h2 className={cn(GROUP_HEADING, langgraph && "mt-3")}>
-            Second narrative
-          </h2>
-          <p className={cn("mt-2 text-muted-foreground", TEXT.detail)}>{crewai}</p>
-        </>
-      )}
+      <h2 className={GROUP_HEADING}>Narrative</h2>
+      <p className={cn("mt-2 text-muted-foreground", TEXT.detail)}>{text}</p>
     </div>
   );
 }

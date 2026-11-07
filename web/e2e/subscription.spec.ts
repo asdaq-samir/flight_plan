@@ -40,7 +40,7 @@ async function stubSubscription(page: Page, state: Standing, over: Record<string
   });
   page.on("request", r => {
     const path = new URL(r.url()).pathname;
-    if (path.endsWith("/api/comparison") || path.endsWith("/checkpoint-notes/generate")) asked.push(path);
+    if (path.endsWith("/api/planner/briefing/narrative") || path.endsWith("/checkpoint-notes/generate")) asked.push(path);
   });
   return asked;
 }
@@ -77,7 +77,7 @@ test("without the subscription the Brief's narrative says it comes with it, and 
   await expect(narrative).toContainText("A test narrative.", { timeout: slow(60000) });
   await expect(prompt).toHaveCount(0);
   expect(asked[0]).toBe("trial");
-  expect(asked.filter(a => a.endsWith("/api/comparison"))).toHaveLength(1);
+  expect(asked.filter(a => a.endsWith("/api/planner/briefing/narrative"))).toHaveLength(1);
   // What is left of the month, under the text.
   await expect(narrative).toContainText("left this month");
 });

@@ -4,8 +4,7 @@
 # Docker (the Mac has no node, npm or pytest), each area in its own turn of
 # scripts/one-at-a-time.sh, and warm from the first run of any worktree.
 #
-#   scripts/check.sh <area>...       web py planner nav-log-agent crewai-agent
-#                                    engine java ios android
+#   scripts/check.sh <area>...       web py planner engine java ios android
 #   scripts/check.sh all-changed     the areas `git diff origin/main...` and
 #                                    the uncommitted files touch, in parallel
 #   scripts/check.sh --areas         reads paths on stdin, prints their areas
@@ -38,7 +37,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 PATH=$PATH:$HOME/.docker/bin:/Applications/Docker.app/Contents/Resources/bin:$HOME/.local/bin:$HOME/.cargo/bin
 
-AREAS="web py planner nav-log-agent crewai-agent engine java ios android"
+AREAS="web py planner engine java ios android"
 RUST_IMAGE=rust:1.89-slim-bookworm
 
 # The areas a list of changed paths touches, one per line in AREAS' order:
@@ -57,12 +56,6 @@ areas_for() {
     esac
     case "$path" in
       planning-service/*|src/*|native/*) found+="planner " ;;
-    esac
-    case "$path" in
-      nav-log-agent/*|src/*) found+="nav-log-agent " ;;
-    esac
-    case "$path" in
-      crewai-agent/*|src/*) found+="crewai-agent " ;;
     esac
     case "$path" in
       native/*|web/src/lib/fixtures/*|tests/fixtures/native/*) found+="engine " ;;
@@ -240,8 +233,6 @@ run_area() {
       ;;
     py) run_py . 3.14 src/wingtip ;;
     planner) run_py planning-service 3.14 app ;;
-    nav-log-agent) run_py nav-log-agent 3.14 app "torch --index-url https://download.pytorch.org/whl/cpu" ;;
-    crewai-agent) run_py crewai-agent 3.13 app ;;
     engine)
       # CI's own cargo test line (ci.yml's test job), so the crates tested
       # here are always the ones tested there.

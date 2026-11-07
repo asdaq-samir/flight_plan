@@ -48,7 +48,7 @@ class SecurityRulesOpenWritesTest {
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
         mockMvc.perform(get("/api/planner/status"))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
-        mockMvc.perform(post("/api/comparison").with(csrf()))
+        mockMvc.perform(post("/api/planner/briefing/narrative").with(csrf()))
                 .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
     }
 

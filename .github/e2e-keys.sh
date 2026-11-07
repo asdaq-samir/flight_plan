@@ -11,13 +11,14 @@
 #                     sources. Not web/: the suite's stack serves the
 #                     page below, mounted over the image's
 #                     (docker-compose.ci.yml).
-#   planning-service  its packages: the Dockerfile, the requirements
-#                     it installs and native/, the engine its
-#                     wingtip-native stage builds into the image (a rule
-#                     added there is missing from an image keyed without
-#                     it: the planner answered "the engine has no rule
-#                     called data_cycle"). Not its Python code, which the
-#                     stack mounts from the checkout over the image's
+#   planning-service  its packages: the Dockerfile, the base it is built
+#                     FROM (docker/Dockerfile.base), the requirements it
+#                     installs and native/, the engine the base builds
+#                     into the image (a rule added there is missing from
+#                     an image keyed without it: the planner answered "the
+#                     engine has no rule called data_cycle"). Not its
+#                     Python code, which the stack mounts from the
+#                     checkout over the image's
 #                     (docker-compose.yml).
 #   page              the page: web/ but its browser suite (web/e2e),
 #                     the two API documents its types are made from, and
@@ -28,6 +29,6 @@
 set -euo pipefail
 key() { { echo "zstd"; git ls-tree -r HEAD -- "$@"; } | git hash-object --stdin | cut -c1-16; }
 echo "webapp $(key springboot-app/Dockerfile springboot-app/pom.xml springboot-app/src/main)"
-echo "planning-service $(key planning-service/Dockerfile planning-service/requirements.txt src/requirements.txt src/requirements-charts.txt native)"
+echo "planning-service $(key planning-service/Dockerfile docker/Dockerfile.base planning-service/requirements.txt src/requirements.txt src/requirements-charts.txt native)"
 echo "page $(git ls-tree -r HEAD -- web planning-service/openapi.json springboot-app/openapi.json .nvmrc \
   | grep -v $'\tweb/e2e/' | git hash-object --stdin | cut -c1-16)"

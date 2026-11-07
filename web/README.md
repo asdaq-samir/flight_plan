@@ -20,8 +20,8 @@ component (`MapPage`) in two modes:
   fuel-remaining columns to fill in in flight. Opened wide
   (`?view=briefing`, or the sidebar toggle), the same drawer is the
   FAA-sequence briefing: the nav log with the briefing's sections
-  under it, an AI narrative popover (LangGraph or CrewAI, each a real
-  Claude call) and Print in its header, the map still beside it. The
+  under it, the written briefing (one streamed Claude call from the
+  planner) and Print in its header, the map still beside it. The
   pilot console drops down over the map from the header: sign-in, the
   pilot's own aeroplanes (the nav log flies the one picked), filed
   flights and the theme.
@@ -31,7 +31,7 @@ component (`MapPage`) in two modes:
   Training (collect a corridor, ratings so far, retrain: the training
   run as a container the planner starts), Performance (every algorithm trained, the promoted one)
   and System (which services answer, how fresh the FAA and weather
-  data is, the doors into Jupyter and the agents — each a
+  data is, the door into Jupyter — each a
   link that starts the container if it isn't running). `/app/label`
   redirects here (its own query string carried over); `/app/settings`
   redirects to Plan, where everything it used to hold now lives in the
@@ -87,8 +87,8 @@ The suite signs in first, as the stack's own developer
 (`developer@example.com`): its "setup" project asks for an emailed link
 the way a person does and reads it from the local inbox
 (`e2e/emailSignIn.ts`), and every test then runs with that session
-unless it opens a signed-out one itself. With
-`docker-compose.phone.yml` up the inbox has a password; pass it as
+unless it opens a signed-out one itself. With the stack open to the
+phone (`PUBLISH_ADDRESS` in `.env`) the inbox has a password; pass it as
 `-e MAILPIT_UI_AUTH=<user:password>`, the value in `.env`.
 
 CI runs the same suite on every push and pull request (the `e2e` job in
@@ -103,14 +103,16 @@ artifact, and each shard's notice lists its slowest tests.
 
 The webapp serves the bundle from a plain directory, read per request
 (`APP_STATIC_LOCATION`, see `WebMvcConfig`), so for front-end work the
-image need not be rebuilt at all. `docker-compose.web-dev.yml` mounts
-`web/dist` over that directory and runs vite in watch mode into it: a
-saved file is rebuilt in a second or two and served at once, with no
-restart.
+image need not be rebuilt at all. `WEB_DIST_MOUNT=/app/static/app`
+mounts `web/dist` over that directory, and the `web-dev` profile's
+`web-build` runs vite in watch mode into it: a saved file is rebuilt in
+a second or two and served at once, with no restart. Both can live in
+`.env` (`COMPOSE_PROFILES=web-dev` for the profile), as on the owner's
+Mac; for once:
 
 ```bash
 # once: the webapp serving web/dist, and vite keeping it built
-docker compose -f docker-compose.yml -f docker-compose.web-dev.yml up -d --no-deps webapp web-build
+WEB_DIST_MOUNT=/app/static/app docker compose --profile web-dev up -d --no-deps webapp web-build
 docker compose logs -f web-build     # each rebuild, as it happens
 
 # each change: the spec you touched while iterating (a single test with -g;
@@ -166,8 +168,8 @@ The front end never calls `planning-service`
 directly. Every request goes through `webapp` at `/api/planner/*` (a
 middleware rewrites `/api/x` to that path, so call sites read as if
 they spoke to the planner directly), so there is one origin, one
-session and one set of access rules. The one exception is the AI
-narrative, streamed from `webapp`'s own `/api/comparison`.
+session and one set of access rules -- the written briefing included
+(`/api/planner/briefing/narrative`, streamed as Claude writes it).
 
 ## Project layout
 

@@ -8842,6 +8842,258 @@
         "title": "ModelledWeather",
         "type": "object"
       },
+      "NarrativeDelta": {
+        "description": "A piece of the briefing as Claude writes it.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "type": {
+            "const": "delta",
+            "default": "delta",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "NarrativeDelta",
+        "type": "object"
+      },
+      "NarrativeDone": {
+        "description": "The whole briefing, once it is written.",
+        "properties": {
+          "briefing": {
+            "title": "Briefing",
+            "type": "string"
+          },
+          "type": {
+            "const": "done",
+            "default": "done",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "briefing"
+        ],
+        "title": "NarrativeDone",
+        "type": "object"
+      },
+      "NarrativeError": {
+        "description": "Why there is no briefing, in words a pilot reads. It may come after\ndeltas: a failure once the first line is out cannot change the status\nany more.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "NarrativeError",
+        "type": "object"
+      },
+      "NarrativeLeg": {
+        "additionalProperties": true,
+        "description": "What the prompt reads from one leg, checked before a word of it is\nsent. The rest of a nav-log leg (its wind, its true airspeed and\ndensity altitude, its fixes) is kept and read where the prompt has a\nuse for it. A flyable leg (one with an ETE) needs its heading, ground\nspeed and fuel; an unflyable one needs none of them.",
+        "properties": {
+          "altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Ft"
+          },
+          "climb_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Climb Min"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ete_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ete Min"
+          },
+          "from": {
+            "maxLength": 80,
+            "title": "From",
+            "type": "string"
+          },
+          "fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Gal"
+          },
+          "groundspeed_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groundspeed Kt"
+          },
+          "magnetic_heading_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Magnetic Heading Deg"
+          },
+          "to": {
+            "maxLength": 80,
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "distance_nm"
+        ],
+        "title": "NarrativeLeg",
+        "type": "object"
+      },
+      "NarrativeMessage": {
+        "discriminator": {
+          "mapping": {
+            "delta": "#/components/schemas/NarrativeDelta",
+            "done": "#/components/schemas/NarrativeDone",
+            "error": "#/components/schemas/NarrativeError"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NarrativeDelta"
+          },
+          {
+            "$ref": "#/components/schemas/NarrativeDone"
+          },
+          {
+            "$ref": "#/components/schemas/NarrativeError"
+          }
+        ]
+      },
+      "NarrativeRequest": {
+        "description": "The nav log the Brief shows, to be told in words rather than\nrecomputed. `aircraft_name` omitted means the planner's own default\nairplane. `flown`, when sent, says whose altitudes the legs fly:\n\"custom\" for the pilot's own, else the planner's plan of that name.\n`altitude_selection` is the planner's reasoning for the altitude\n(the nav log's own), read field by field below.",
+        "properties": {
+          "aircraft_name": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aircraft Name"
+          },
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "altitude_selection": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Selection"
+          },
+          "departure_ident": {
+            "maxLength": 10,
+            "title": "Departure Ident",
+            "type": "string"
+          },
+          "destination_ident": {
+            "maxLength": 10,
+            "title": "Destination Ident",
+            "type": "string"
+          },
+          "flown": {
+            "anyOf": [
+              {
+                "enum": [
+                  "custom",
+                  "lowest",
+                  "highest",
+                  "fastest",
+                  "economical"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flown"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/NarrativeLeg"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Legs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "departure_ident",
+          "destination_ident",
+          "altitude_ft",
+          "legs"
+        ],
+        "title": "NarrativeRequest",
+        "type": "object"
+      },
       "NavLogAltitude": {
         "description": "Which altitudes the legs that follow fly. `flown` is the planner's\nplan of that name, or \"custom\" for a pilot's own altitude; None when\nthe winds the legs need could not be read, so no leg follows -- the\nstream's next line is the error. `altitude_ft` is the first leg's (a\nplan may step), and None exactly when `flown` is. `options` are the\nfour plans, offered beside a pilot's own as well; empty only when the\nwinds failed before they could be made.\n\nIt used to say all of that with `choice: null` and an empty `options`,\nwhich a winds outage produced too: the page showed \"0 ft \u00b7 yours\",\nwith Custom pressed, for an altitude nobody typed.",
         "properties": {
@@ -13583,29 +13835,9 @@
         "type": "object"
       },
       "Services": {
-        "description": "None for an agent this planner was not told the address of. The\nwebapp and its database are probed from here too -- its liveness\nand its readiness group, which includes the database -- rather\nthan by the browser: a phone's probes queued behind its chart\ntiles on one HTTP/1.1 connection pool and timed out, and the\nconsole read \"no answer\" for a gateway that had just served it.",
+        "description": "The webapp and its database, probed from here -- its liveness and\nits readiness group, which includes the database -- rather than by\nthe browser: a phone's probes queued behind its chart\ntiles on one HTTP/1.1 connection pool and timed out, and the\nconsole read \"no answer\" for a gateway that had just served it.",
         "properties": {
-          "crewai_agent": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ServiceStatus"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "db": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ServiceStatus"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "nav_log_agent": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ServiceStatus"
@@ -13626,10 +13858,6 @@
             ]
           }
         },
-        "required": [
-          "nav_log_agent",
-          "crewai_agent"
-        ],
         "title": "Services",
         "type": "object"
       },
@@ -17546,6 +17774,44 @@
           }
         },
         "summary": "Briefing"
+      }
+    },
+    "/api/briefing/narrative": {
+      "post": {
+        "description": "The narrative as lines of NarrativeMessage: `delta` (a piece of\nthe text) as Claude writes it, then `done` with the whole briefing,\nor `error` with why there is none. The body is the nav log the Brief\nshows -- idents, airplane, cruise altitude and its selection, the\nlegs -- and is checked before Claude is asked, so a nav log the\nprompt cannot read is a 422 naming the field, not an error line.",
+        "operationId": "write_narrative_api_briefing_narrative_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrativeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/x-ndjson": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Write Narrative"
       }
     },
     "/api/chart": {

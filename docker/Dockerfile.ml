@@ -1,33 +1,14 @@
 # syntax=docker/dockerfile:1
-# >>> wingtip-native: the same in every image that imports wingtip, kept so by
-# tests/test_dockerfiles.py against docker/Dockerfile.native. wingtip's Rust
-# extension (native/py, over wingtip-engine in native/engine), which wingtip
-# imports at module level since the shared engine (2026-11-03): built
-# here, with Rust copied in from its own image, so the image carries the
-# wheel and none of the toolchain. The stage is the same text in each
-# Dockerfile so that BuildKit's cache key is the same: one bake of every
-# image compiles it once, and a commit that leaves native/ alone takes
-# it from the registry's cache.
-FROM python:3.14-slim AS native
-COPY --from=rust:1.89-slim-bookworm /usr/local/cargo /usr/local/cargo
-COPY --from=rust:1.89-slim-bookworm /usr/local/rustup /usr/local/rustup
-ENV PATH=/usr/local/cargo/bin:$PATH CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    rm -f /etc/apt/apt.conf.d/docker-clean \
-    && apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev
-RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
-COPY native /native
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
-# <<< wingtip-native
 
 # The notebooks' image: Jupyter and scikit-learn over wingtip's own list,
 # for notebooks 01-03 and 08. Python 3.14, as every other image: the
 # 3.13 it was held at was for TensorFlow, which went with the PyTorch,
 # Spark and sentence-transformers comparison notebooks (2026-11-06), and
 # with them the CPU torch wheel and the JDK PySpark needed.
-FROM python:3.14-slim
+# wingtip's base (docker/Dockerfile.base): Python, wingtip's own
+# requirements, its Rust extension and the appuser, built once for every
+# image that imports wingtip. The build context `wingtip-base` names it.
+FROM wingtip-base
 
 WORKDIR /workspace
 
@@ -36,23 +17,18 @@ WORKDIR /workspace
 COPY src/requirements.txt src/
 COPY docker/requirements-ml.txt docker/
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirements-ml.txt
-# The engine's wheel from the native stage above, mounted rather than
-# copied, so no layer keeps it.
-RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
-    pip install --no-cache-dir --no-deps /tmp/wheels/*.whl
 # The build fails here if a package the notebooks and wingtip import is
 # missing, rather than a notebook cell later. This image carries no
 # source (compose mounts the checkout), so it is the packages alone:
 # wingtip's own list, then the notebooks'.
 RUN python -B -c "import wingtip_native, numpy, pandas, requests, pyarrow.parquet, shapely.ops, shapefile, pyproj, scipy.spatial, pygeomag, astral, sklearn, joblib, matplotlib, PIL, folium, notebook"
 
-# Non-root, matching every other image (Dockerfile.processing,
-# Dockerfile.training, planning-service) -- this one used to run (and
+# Non-root (the base's appuser), matching every other image
+# (Dockerfile.processing, Dockerfile.training, planning-service) -- this one used to run (and
 # need --allow-root for) root specifically, despite mounting the same `.:/workspace` bind mount the other two
 # pipeline images already run non-root against: a notebook saved from
 # inside this container was landing on the host owned by root, not the
 # host user who'd then need sudo to edit or delete it.
-RUN useradd -m appuser
 USER appuser
 
 EXPOSE 8888

@@ -1,8 +1,8 @@
 #!/bin/bash
 # The nightly backup (cron, from the stack's UserData), to
 # s3://SERVER_BUCKET/backups/<date>/; the bucket keeps 14 days.
-# - postgres.dump: every pilot's account, aircraft and flights, and the
-#   briefing agent's memory (pg_dump, custom format).
+# - postgres.dump: every pilot's account, aircraft and flights
+#   (pg_dump, custom format).
 # - labels.tar.gz: the checkpoint notes pilots and Claude have written,
 #   and any chart ratings -- the planner keeps those as files in
 #   data/labels, not in the database.

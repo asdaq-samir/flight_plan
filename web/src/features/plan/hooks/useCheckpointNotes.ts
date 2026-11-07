@@ -52,7 +52,7 @@ export function useCheckpointNotes(dep: string, dest: string, stops: string[] = 
   });
   // The query's own refetch and flags, not its result, which is new at
   // every render: so was this, and with it the nav log drawn again at
-  // every render of the page (as useNarratives).
+  // every render of the page (as useNarrative).
   const { isFetching, isFetched, isError, refetch } = descriptions;
   // One of the month's runs (the subscription's cap): its count, asked
   // again once the run is done.

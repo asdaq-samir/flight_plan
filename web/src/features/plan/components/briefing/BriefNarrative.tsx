@@ -3,57 +3,44 @@ import { Button } from "../../../../components/ui/button";
 import { cn } from "cn";
 import AccordionSection from "../../../../components/AccordionSection";
 import { TEXT } from "../../../../lib/text";
-import { usePreferences, type NarrativeFramework } from "../../../../lib/preferences";
 import { mayUse, useEntitlement, usesLeft } from "../../../../lib/subscription";
 import PaidPrompt from "../../../../components/PaidPrompt";
-import type { FrameworkNarrative } from "../../hooks/useNarratives";
-
-const FRAMEWORK_LABEL: Record<NarrativeFramework, string> = {
-  langgraph: "LangGraph",
-  crewai: "CrewAI",
-};
+import type { Narrative } from "../../hooks/useNarrative";
 
 /**
  * The Brief tab's narrative, under its Go / No-Go: the flight told in
- * words by the agent the settings name (Brief, Narrative) -- LangGraph's
- * nav-log-agent or CrewAI's crewai-agent. It was the Brief button's
- * popover, then a switch over the narrative; the pilot made it a tab, and
- * the switch a setting. Each is a real, billed Claude call, so it is
+ * words by Claude, from the whole nav log (the planner's
+ * /api/briefing/narrative). It is a real, billed Claude call, so it is
  * asked for by a tap once the whole nav log is in -- Preflight, where it
  * is, is the tab up whenever the route's panel opens, and asked for on
- * opening it would bill one for every route looked at -- once a
- * framework, never again for the same plan; the text streams in under a
- * "generating" line until its first words. On screen only:
- * FlightBriefingView keeps a printed copy.
+ * opening it would bill one for every route looked at -- once, never
+ * again for the same plan; the text streams in under a "generating" line
+ * until its first words. On screen only: FlightBriefingView keeps a
+ * printed copy.
  *
  * It comes with the subscription (lib/subscription): without it, the
  * narrative's place says so (PaidPrompt) and nothing is asked for; with
  * it, what is left of the month's briefings is said under the text.
  */
-export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNarrative, crewaiNarrative }: {
+export default function BriefNarrative({ ready, onGenerateNarrative, narrative }: {
   /** The whole nav log is in: a narrative is written from all of it. */
   ready: boolean;
-  onGenerateNarrative: (framework: NarrativeFramework) => void;
-  langgraphNarrative: FrameworkNarrative;
-  crewaiNarrative: FrameworkNarrative;
+  onGenerateNarrative: () => void;
+  narrative: Narrative;
 }) {
-  const framework = usePreferences(s => s.narrative);
-  const narrative = framework === "langgraph" ? langgraphNarrative : crewaiNarrative;
-  const [asked, setAsked] = useState<NarrativeFramework[]>([]);
+  const [asked, setAsked] = useState(false);
   const entitlement = useEntitlement();
   const allowed = mayUse(entitlement);
   const ask = () => {
-    setAsked(list => [...list, framework]);
-    onGenerateNarrative(framework);
+    setAsked(true);
+    onGenerateNarrative();
   };
-  const askable = ready && allowed && !asked.includes(framework) && !narrative.text && !narrative.loading;
+  const askable = ready && allowed && !asked && !narrative.text && !narrative.loading;
   const left = usesLeft(entitlement, "NARRATIVE");
   // Not offered in this deployment (lib/subscription): no section at all.
   if (entitlement.kind === "hidden") return null;
   return (
     <div className="print:hidden">
-      {/* Which agent wrote it is the settings' (Brief, Narrative), not the
-          heading's: "Narrative LangGraph" read as jargon to a pilot. */}
       <AccordionSection title="Narrative">
         <div aria-label="Briefing narrative" data-testid="brief-narrative">
           {!allowed && !narrative.text && (
@@ -66,12 +53,11 @@ export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNa
             <Button variant="outline" onClick={ask} data-testid="brief-narrative-write">Write it</Button>
           )}
           {narrative.loading && !narrative.text && (
-            <p className="text-muted-foreground" role="status">Generating the {FRAMEWORK_LABEL[framework]} narrative…</p>
+            <p className="text-muted-foreground" role="status">Generating the narrative…</p>
           )}
           {narrative.error && <p className="text-destructive" role="alert">Narrative unavailable: {narrative.error}</p>}
           {narrative.text && <p className="whitespace-pre-wrap">{narrative.text}</p>}
-          {/* What is left of the month's briefings, under the text; which
-              agent wrote it is Settings' to say, not a footnote's. */}
+          {/* What is left of the month's briefings, under the text. */}
           {narrative.text && left && <p className={cn("pt-2 text-muted-foreground", TEXT.note)}>{left}.</p>}
         </div>
       </AccordionSection>

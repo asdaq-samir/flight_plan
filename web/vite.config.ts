@@ -8,7 +8,7 @@ import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Under docker-compose.web-dev.yml's watch (VITE_KEEP_OUTDIR) web/dist is
+// Under docker-compose.yml's web-build watch (VITE_KEEP_OUTDIR) web/dist is
 // never emptied, so a page loading mid-build still finds its chunks. The
 // files this build wrote, so that the service worker precaches them and
 // not every build's before them -- it listed 3,488 files, half a
@@ -365,11 +365,11 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   build: {
     // web/dist, where the webapp's image copies it from and the web-dev
-    // overlay serves it. It was springboot-app's resources, which nothing
+    // setup (WEB_DIST_MOUNT) serves it. It was springboot-app's resources, which nothing
     // has served since the image built its own: a build in a container
     // that mounted the whole repo left a stale copy there for every grep.
     outDir: "dist",
-    // Emptied before a build -- except under docker-compose.web-dev.yml's
+    // Emptied before a build -- except under docker-compose.yml's web-build
     // watch, which sets VITE_KEEP_OUTDIR: there the directory is what
     // the webapp is serving, and watch mode empties it on every rebuild,
     // so a page loading that instant got nothing. Old chunks are kept an

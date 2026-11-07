@@ -93,7 +93,7 @@ long measurements still wait for the owner's ask; CI runs everything.
 
 On the Mac, run them with `scripts/check.sh all-changed` (the areas the
 branch and its uncommitted files touch, in parallel) or `scripts/check.sh
-<area>` (web, py, planner, nav-log-agent, crewai-agent, engine, java, ios,
+<area>` (web, py, planner, engine, java, ios,
 android). It runs the table's commands in Docker, or on the host for the
 phones, each area in its own turn of `scripts/one-at-a-time.sh`, warm from
 any worktree's first run: ready-made images per lockfile and requirements,
@@ -105,7 +105,7 @@ them). The table is what it runs:
 | `web/` | `npm run types && npx tsc --noEmit && npx eslint . && npx vitest run` |
 | `planning-service/` | `ruff check app tests && pytest tests/` |
 | `src/wingtip`, `tests/` | `ruff check src/wingtip tests && pytest tests/` (repo root) |
-| `native/` (Rust, `wingtip_native`) | the engine's `cargo test --profile ci` (`ci.yml`'s line); `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same wingtip-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
+| `native/` (Rust, `wingtip_native`) | the engine's `cargo test --profile ci` (`ci.yml`'s line); `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` is built FROM `docker/Dockerfile.base`, which builds and installs it once (`tests/test_dockerfiles.py`), and none of them starts without it |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
 | `ios/` (the native app) | On the Mac mini (Xcode and XcodeGen are there): `xcodegen` in `ios/`, then `xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -destination "platform=iOS Simulator,name=<newest iPhone>" test` through `scripts/one-at-a-time.sh`; `native-ios.yml` runs the same, iPad included (docs/NATIVE.md) |
