@@ -75,9 +75,12 @@ services:
   # image that imports wingtip as its `wingtip-base` context
   # (`service:base` below), so `docker compose build planning-service`
   # builds it first, from this checkout, with nothing pulled from a
-  # registry. Never run: behind a profile of its own, it is only built.
+  # registry. Never run: scaled to zero, so `up` starts none of it. Not
+  # behind a profile, because compose leaves a profiled service out of the
+  # project, and a context naming it is then "an unknown service" (the
+  # e2e job's `up` failed on exactly that).
   base:
-    profiles: ["base"]
+    scale: 0
     build:
       context: .
       dockerfile: docker/Dockerfile.base
