@@ -45,7 +45,7 @@ export const zoomOutKey = (event: KeyboardEvent) =>
  *  anything in it (its zoom buttons, a marker). */
 function onMap(): boolean {
   const active = document.activeElement;
-  return active instanceof HTMLElement && active.closest(".leaflet-container") !== null;
+  return active instanceof HTMLElement && active.closest(".maplibregl-map") !== null;
 }
 
 const DIRECTIONS: Record<string, "left" | "up" | "right" | "down"> = {
@@ -136,7 +136,7 @@ export function startTv(platform: TvPlatform) {
     // the arrows move between controls again.
     if (onMap()) {
       const next = document.querySelector<HTMLElement>('[data-slot="map-panel"] button, [data-slot="map-panel"] input');
-      const outside = [...document.querySelectorAll<HTMLElement>("button")].find(button => !button.closest(".leaflet-container"));
+      const outside = [...document.querySelectorAll<HTMLElement>("button")].find(button => !button.closest(".maplibregl-map"));
       (next ?? outside ?? document.body).focus();
       return;
     }

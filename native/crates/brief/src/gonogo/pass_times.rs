@@ -47,7 +47,28 @@ pub fn tfr_when(at_us: i64, effective_us: Option<i64>, expires_us: Option<i64>) 
     }
 }
 
-pub const DAY_NAMES: [&str; 7] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+/// Whether a flight in a hazard from `enter` to `leave` (seconds since
+/// 1970) is there while the hazard is valid, from `valid_from` to
+/// `valid_to`: "before" it starts or "after" it ends, its window widened
+/// by `margin_s` either way (an ETA is an estimate), else "during"; None
+/// where it gives no window at all, one open at an end open that way.
+/// The planner's exposure of a SIGMET, a G-AIRMET or a TFR met along the
+/// route (app.exposure), with PASS_MARGIN_MIN as the margin; with none,
+/// whether a TFR is in force at any time of a span (wingtip.tfr.in_force).
+pub fn window_when(enter: f64, leave: f64, valid_from: Option<f64>, valid_to: Option<f64>, margin_s: f64) -> Option<&'static str> {
+    if valid_from.is_none() && valid_to.is_none() {
+        return None;
+    }
+    Some(if valid_from.is_some_and(|f| leave < f - margin_s) {
+        "before"
+    } else if valid_to.is_some_and(|t| enter > t + margin_s) {
+        "after"
+    } else {
+        "during"
+    })
+}
+
+pub const DAY_NAMES: [&str; 7] =["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 /// A clock as the times of use are read on: the day of the week (0
 /// Sunday) and the minute of the day.

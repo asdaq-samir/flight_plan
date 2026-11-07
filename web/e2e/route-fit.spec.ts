@@ -49,7 +49,7 @@ async function fittedClearOf(page: Page, panel: Locator) {
 
 /** Own ship's marker, on screen. */
 const shipAt = async (page: Page) => {
-  const box = (await page.locator(".leaflet-marker-icon").filter({ has: page.locator("[data-own-ship]") }).last().boundingBox())!;
+  const box = (await page.locator(".maplibregl-marker").filter({ has: page.locator("[data-own-ship]") }).last().boundingBox())!;
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 };
 
@@ -79,7 +79,7 @@ async function shipInTheMiddle(page: Page) {
 /** Where the map's pane and the sheet's top are, for a turn of the sheet
  *  to be checked against (slidWithSheet). */
 const paneAndSheet = (page: Page) => page.evaluate(() => ({
-  pane: new DOMMatrix(getComputedStyle(document.querySelector(".leaflet-map-pane")!).transform).m42,
+  pane: Number(document.querySelector<HTMLElement>("[data-testid=gl-map]")!.dataset.offset!.split(",")[1]),
   top: document.querySelector('[data-slot="map-panel"]')!.getBoundingClientRect().top,
 }));
 
@@ -95,7 +95,7 @@ async function slidWithSheet(page: Page, before: { pane: number; top: number }) 
   else expect(Math.abs((after.pane - before.pane) - (after.top - before.top) / 2)).toBeLessThan(20);
 }
 
-const mapAt = (page: Page) => page.locator(".leaflet-map-pane").evaluate(el => (el as HTMLElement).style.transform);
+const mapAt = (page: Page) => page.getByTestId("gl-map").getAttribute("data-offset");
 
 /** A drag on the chart, from a point clear of the panel and the map's
  *  buttons, by `dx`, `dy`. */
@@ -169,7 +169,7 @@ test("reloaded where it was, the map opens on the position in the middle of what
     const seen: string[] = [];
     (window as unknown as { __panes: string[] }).__panes = seen;
     const look = () => {
-      const at = document.querySelector<HTMLElement>(".leaflet-map-pane")?.style.transform;
+      const at = document.querySelector<HTMLElement>("[data-testid=gl-map]")?.dataset.offset;
       if (at && at !== seen[seen.length - 1]) seen.push(at);
       if (performance.now() < 6000) requestAnimationFrame(look);
     };
@@ -223,12 +223,10 @@ test("opened on the whole country, land and water lie under the charts where the
   await settle(page);
   await expect.poll(() => asked.filter(u => u.includes("/USGSHydroCached/")).length, { timeout: slow(10_000) }).toBeGreaterThan(0);
   // Under every chart layer, the sectional's included.
-  const order = await page.locator(".leaflet-tile-pane > .leaflet-layer").evaluateAll(layers => layers.map(l => ({
-    z: Number((l as HTMLElement).style.zIndex || 0), base: !!l.querySelector('img[src*="nationalmap"]'), sec: !!l.querySelector('img[src*="/sec/"]'),
-  })));
-  const base = order.find(l => l.base)!;
-  expect(base).toBeTruthy();
-  for (const l of order.filter(l => l.sec)) expect(base.z).toBeLessThan(l.z);
+  // The map's layers bottom to top (GlMapShell's data-layers).
+  await expect.poll(async () => (await page.getByTestId("gl-map").getAttribute("data-layers")) ?? "").toContain("land-water");
+  const order = ((await page.getByTestId("gl-map").getAttribute("data-layers")) ?? "").split(" ");
+  expect(order.indexOf("land-water")).toBeLessThan(order.indexOf("chart"));
 });
 
 test("opened fresh where the position was given before, it is asked for again as the page opens", async ({ page }) => {

@@ -10,12 +10,13 @@ deviation) is deliberately not computed here -- that needs a per-aircraft
 deviation card, which isn't data this project has (wingtip.aircraft profiles
 don't carry one). Magnetic heading is as far as this goes for now.
 """
+import json
 import math
 from itertools import accumulate, pairwise
 
 import wingtip_native
 
-from . import ifr, performance
+from . import performance
 from .geo import bearing_deg, destination_point, distance_nm
 from .magnetic import magnetic_variation_deg
 from .weather import temperature_at_altitude, wind_at_altitude
@@ -205,9 +206,10 @@ def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool 
     said so. Every figure None that cannot be known: no total while a leg
     is unflyable, no margin without a usable-fuel figure. Under IFR
     (`rules` "ifr") the reserve is 14 CFR 91.167(a)(3)'s 45 minutes, day
-    or night (wingtip.ifr.RESERVE_MIN), after `alternate_gal`, the fuel from
-    the destination to the alternate (91.167(a)(2)), where one is filed."""
-    reserve_min = ifr.RESERVE_MIN if rules == "ifr" else NIGHT_RESERVE_MIN if night else DAY_RESERVE_MIN
+    or night, after `alternate_gal`, the fuel from the destination to the
+    alternate (91.167(a)(2)), where one is filed. The minutes are the
+    engine's (flight.rs reserve_min)."""
+    reserve_min = wingtip_native.reserve_min(rules == "ifr", bool(night))
     reserve_gal = round(reserve_min / 60 * aircraft_profile["fuel_burn_gph"], 2)
     taxi_gal = aircraft_profile.get("taxi_fuel_gal", DEFAULT_TAXI_FUEL_GAL)
     required = None if total_fuel_gal is None else round(total_fuel_gal + taxi_gal + alternate_gal + reserve_gal, 1)
@@ -307,8 +309,10 @@ def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profil
 
 #: The descent: 1,000 ft for every 3 nm -- "three to one", a path of
 #: about 3 degrees, an ILS glideslope's -- at whatever the ground speed,
-#: which makes the rate about five times it (600 fpm at 110 kt).
-DESCENT_NM_PER_1000_FT = 3.0
+#: which makes the rate about five times it (600 fpm at 110 kt). The
+#: engine's (motion profile.rs DESCENT_FT_PER_NM), the web's and the
+#: phones' plan profile the same.
+DESCENT_FT_PER_NM = json.loads(wingtip_native.call("descent_ft_per_nm", "{}"))
 
 
 def with_descents(leg_list: list, fix_list: list, end_altitude_ft: float | None,
@@ -336,7 +340,7 @@ def with_descents(leg_list: list, fix_list: list, end_altitude_ft: float | None,
         return out
     ends = list(accumulate(leg["distance_nm"] for leg in out))
     starts = [end - leg["distance_nm"] for end, leg in zip(ends, out)]
-    ft_per_nm = 1000 / DESCENT_NM_PER_1000_FT
+    ft_per_nm = DESCENT_FT_PER_NM
 
     # Backward from the end: the highest each leg's end can be and still
     # make every level-off after it, and the level-off that binds -- its

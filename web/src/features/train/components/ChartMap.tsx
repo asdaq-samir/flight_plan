@@ -1,20 +1,18 @@
-import L from "leaflet";
-import { useLayoutEffect, useRef, type ReactNode } from "react";
-import { Marker } from "react-leaflet";
-import { Badge } from "../../../components/ui/badge";
+import { useMemo, type ReactNode } from "react";
+import { SheetCard } from "../../../components/SheetCard";
 import type { Course, Point, Rating } from "../../../lib/api/types";
 import { isEndpoint } from "../../../lib/api/types";
-import { AirportCard } from "../../../lib/map/AirportCard";
-import { CourseLine } from "../../../lib/map/CourseLine";
-import { Halo } from "../../../lib/map/Halo";
-import { airportIcon, dotIcon } from "../../../lib/map/icons";
-import { MapCard } from "../../../lib/map/MapCard";
-import { MapPopup } from "../../../lib/map/MapPopup";
-import { MapShell } from "../../../lib/map/MapShell";
-import { MapTooltip } from "../../../lib/map/MapTooltip";
+import GlMapShell from "../../../lib/map/gl/GlMapShell";
+import { useGlTap } from "../../../lib/map/gl/glLayer";
+import { AirspaceGl } from "../../../lib/map/gl/layers/AirspaceGl";
+import { LandWaterGl, OverlayGl } from "../../../lib/map/gl/layers/BaseGl";
+import { ChartGl } from "../../../lib/map/gl/layers/ChartGl";
+import { NavaidsGl } from "../../../lib/map/gl/layers/NavaidsGl";
+import { OwnShipGl } from "../../../lib/map/gl/layers/OwnShipGl";
+import { PickedGl } from "../../../lib/map/gl/layers/RouteExtrasGl";
+import { RouteGl, type GlCandidate, type GlEndpoint } from "../../../lib/map/gl/layers/RouteGl";
 import { usePreferences } from "../../../lib/preferences";
-import { COLORS, hasRating, isVisible, modelNote, pointKey, prettyCategory, type Filters } from "../logic";
-import { bearing } from "../../../lib/units";
+import { COLORS, hasRating, isVisible, pointKey, type Filters } from "../logic";
 
 interface Props {
   course: Course | null;
@@ -24,141 +22,61 @@ interface Props {
   filters: Filters;
   selected: Point | null;
   selectedContent?: ReactNode;
-  /** Whether the selected point's popup should be showing at all --
-   *  false while fit-line has zoomed out to the whole leg, where the
-   *  ring should stay marking the selection but the rating menu would
-   *  just be floating over unrelated ground. */
   onSelect: (point: Point) => void;
-  /** Leaflet closing the card clears the selection it was drawn from. */
   onDeselect: () => void;
   onAddAt: (lat: number, lon: number) => void;
-  onMapReady?: (map: L.Map) => void;
+  /** Where the page brings the map, a new object each time (a row walked
+   *  to, a point picked), flown to in to `flyZoom` at least. */
+  flyTo?: { lat: number; lon: number } | null;
+  flyZoom?: number;
 }
 
-/** The read-only preview a hover shows before a tap opens the full
- *  rating card -- the same category and rating a row of WaypointPanel
- *  shows, not the interactive rating buttons and category picker
- *  `PointPopup` adds once a point is actually selected. */
-function PointPreview({ point }: { point: Point }) {
-  if (isEndpoint(point)) {
-    return (
-      <AirportCard
-        ident={point.ident}
-        name={point.name}
-        badge={<Badge variant="secondary">{point.category === "departure" ? "DEP" : "DEST"}</Badge>}
-      />
-    );
-  }
-  const rating = (point as { rating: Rating | null }).rating;
-  return (
-    <MapCard
-      title={prettyCategory((point as { category: string }).category)}
-      subtitle={
-        hasRating(point)
-          ? <Badge style={{ backgroundColor: COLORS[rating as Rating], color: "white" }}>{rating}</Badge>
-          : ["Unrated", modelNote(point)].filter(Boolean).join(" · ")
-      }
-    />
-  );
-}
-
-/** The detections and the points added by hand, at every zoom, unless
- *  the settings' Waypoints is off: they started at zoom 7, and a
- *  corridor zoomed out to its region showed none of them. Unrated is
- *  slate rather than white: a white dot with a white casing vanishes
- *  over pale chart. Hovering previews the point the same way Class B
- *  airports do; the selected one skips its own preview, since its
- *  full rating card is already pinned above it (`selectedContent`,
- *  drawn separately in `ChartMap` below -- there is no per-marker
- *  popup here to hide it behind, the way the other two maps do). */
-function Candidates({ detections, added, filters, selected, onSelect }: Pick<Props, "detections" | "added" | "filters" | "selected" | "onSelect">) {
-  const show = usePreferences(s => s.waypoints);
-  if (!show) return null;
-  const draw = (points: Point[], kind: "detected" | "added") =>
-    points.filter(p => isVisible(p, filters)).map(p => (
-      <Marker
-        key={`${kind}-${pointKey(p)}`} position={[p.lat, p.lon]}
-        icon={dotIcon(hasRating(p) ? COLORS[(p as { rating: 0 }).rating] : "#8fa3b0")}
-        eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(p); } }}
-      >
-        {selected !== p && <MapTooltip><PointPreview point={p} /></MapTooltip>}
-      </Marker>
-    ));
-  return (
-    <>
-      {draw(detections, "detected")}
-      {draw(added, "added")}
-    </>
-  );
-}
+const NO_HOLD = () => {};
+/** An unrated point's grey. */
+const UNRATED = "#8fa3b0";
 
 /**
- * The training map's own layers: the course line (a click on it adds a
- * point), the airports, every candidate the filters admit, and the
- * selection ring with the rating menu pinned above it. The markers are
- * a function of state -- the whole reason for the port: the list of
- * what is on screen is derived, not kept in step by hand. Everything
- * under them is `MapShell`, which the planner's map shares.
+ * The training map: the chart, the airspace, the VORs, the course and its
+ * two airports, and every point the model detected or the developer added,
+ * in its rating's colour -- on the same WebGL map as the planner's
+ * (GlMapShell and its layers). A tap on a point selects it and flies to
+ * it; its rating card opens in the sheet; a tap on the course adds a point
+ * there.
  */
 export default function ChartMap({
   course, endpoints, detections, added, filters, selected, selectedContent,
-  onSelect, onDeselect, onAddAt, onMapReady,
+  onSelect, onDeselect, onAddAt, flyTo = null, flyZoom = 12,
 }: Props) {
-  // Whether the card is meant to be up: put away by the page (the panel
-  // all the way up over it), its removal is not a tap closing it, and
-  // the point stays picked.
-  // Kept as each commit lays out, ahead of react-leaflet's own (passive)
-  // effect that removes the card.
-  const showing = useRef(false);
-  const shown = !!(selected && selectedContent);
-  useLayoutEffect(() => { showing.current = shown; }, [shown]);
+  const show = usePreferences(s => s.waypoints);
+  const candidates = useMemo<GlCandidate[]>(() => (!show ? [] : [...detections, ...added].filter(p => isVisible(p, filters)).map(p => ({
+    key: pointKey(p), lat: p.lat, lon: p.lon,
+    colour: hasRating(p) ? COLORS[(p as { rating: Rating }).rating] : UNRATED,
+    select: () => onSelect(p),
+  }))), [show, detections, added, filters, onSelect]);
+  const ends = useMemo<GlEndpoint[]>(() => endpoints.filter(isEndpoint).map(e => ({
+    ident: e.ident, lat: e.lat, lon: e.lon, colour: "#ffffff", space: null, fix: false, select: () => onSelect(e),
+  })), [endpoints, onSelect]);
   return (
-    <MapShell course={course} onReady={onMapReady}>
-      {course && (
-        <>
-          {/* Left-click the course to add: dragging still pans, and an
-              18 px line is too specific to hit by accident. */}
-          <CourseLine
-            line={course.course_line as [number, number][]}
-            tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm · ${bearing(course.bearing_deg)}T`}
-            onClick={latlng => onAddAt(latlng.lat, latlng.lng)}
-          />
-          {endpoints.filter(isEndpoint).map(e => (
-            // The same airport chip as the route map's, in white: the
-            // training map never asks about its weather, and grey is
-            // what a field that was asked and had no report looks like.
-            <Marker
-              key={e.ident} position={[e.lat, e.lon]} icon={airportIcon(e.ident)}
-              eventHandlers={{ click: ev => { L.DomEvent.stopPropagation(ev); onSelect(e); } }}
-            >
-              {selected !== e && <MapTooltip><PointPreview point={e} /></MapTooltip>}
-            </Marker>
-          ))}
-          <Candidates detections={detections} added={added} filters={filters} selected={selected} onSelect={onSelect} />
-          {selected && <Halo at={selected} />}
-          {/* The rating menu, pinned above the ring. Closed by a tap on
-              the chart like every other card, which Leaflet does for us
-              -- `remove` then clears the React selection it was drawn
-              from, or React would put it straight back.
-
-              It used to be gated on the map being zoomed in, so
-              pinching out to see where you were took the card away, and
-              the card is how the pass steps to the next point.
-
-              autoPan off: stepping between points centres the point
-              being walked to, and Leaflet's own autoPan would re-pan on
-              top of that. */}
-          {selected && selectedContent && (
-            <MapPopup
-              position={[selected.lat, selected.lon]} offset={[0, -16]}
-              autoPan={false} ring={false}
-              eventHandlers={{ remove: () => { if (showing.current) onDeselect(); } }}
-            >
-              {selectedContent}
-            </MapPopup>
-          )}
-        </>
-      )}
-    </MapShell>
+    <GlMapShell course={course} focus={flyTo} focusZoom={flyZoom} place={null}>
+      <LandWaterGl />
+      <ChartGl course={course} />
+      <OverlayGl />
+      <AirspaceGl />
+      <NavaidsGl />
+      <RouteGl course={course} checkpoints={[]} candidates={candidates} endpoints={ends} />
+      <AddOnCourse onAddAt={onAddAt} />
+      <PickedGl focus={selected} held={null} onHold={NO_HOLD} />
+      <OwnShipGl />
+      {/* The rating card for the point selected, in the sheet: its close
+          (or Escape, Back) clears the selection. */}
+      {selected && selectedContent && <SheetCard onClose={onDeselect}>{selectedContent}</SheetCard>}
+    </GlMapShell>
   );
+}
+
+/** A tap on the course line adds a point there (the training map's
+ *  CourseLine onClick): within a finger's reach of the line. */
+function AddOnCourse({ onAddAt }: { onAddAt: (lat: number, lon: number) => void }) {
+  useGlTap(["route-core"], 9, 6, (_feature, e) => onAddAt(e.lngLat.lat, e.lngLat.lng));
+  return null;
 }

@@ -61,8 +61,23 @@ C81 -> KDLH read the corridor's sectional tiles: 185 s of a 215 s run
 with the charts left out. The other jobs keep the charts in a cache of
 their own, so this one is separate (`tests-raw-planner-v2-`).
 
+A pull request merges once "CI passed" is green; Claude's review no
+longer gates it and runs only when the "review" label is put on the pull
+request (the owner, 2026-11-06), so agents run the checks that cover their
+change, and the aviation-check skill, before pushing.
+
 Promote tags the images after main's push is green. A nightly failure is
 said in its run and does not hold Promote.
+
+Each push to main also brings the open, non-draft `claude/` pull requests
+that are behind it up to date (`update-branches.yml`): GitHub's "update
+branch", a merge of main, one at a time ten seconds apart, at most ten a
+run, leaving alone any pushed to in the last five minutes. It updates with
+`MERGE_TOKEN`, since a push made with the workflow's own `GITHUB_TOKEN`
+starts no workflow and the pull request would sit with no checks; the
+owner's token's merge commit starts CI like the owner's push. One that
+main does not merge into cleanly gets the label `needs-merge`, taken off
+once its branch is current again: merge main into it by hand.
 
 A test belongs in the smoke set (`{ tag: "@smoke" }` on the `test(...)`)
 when it is the one that proves a journey works end to end -- planning a
@@ -132,7 +147,16 @@ itself there, since it needs Advanced Security. The rest run on the Mac
 mini for free:
 
 - **Linux jobs (`mini-linux`):** a Lima VM, `wingtip-ci`, running Ubuntu
-  with its own Docker and the runners. It must be a VM, not a container:
+  with its own Docker and the runners. Its setup (`~/.config/wingtip-ci/wingtip-ci.yaml`,
+  copied into Lima's instance and re-run at every boot) gives it what the
+  jobs take from GitHub's image: Docker CE with Compose and Buildx, gh,
+  jq, shellcheck, Temurin 25 and Maven, rustup's tools on the PATH,
+  Docker Hub through mirror.gcr.io, and amd64 through Rosetta for
+  `scripts/build-engine-wasm.sh`. A job-started hook gives each runner
+  back a clean Python before every job, as a fresh GitHub machine would;
+  the jobs write to `$RUNNER_TEMP`, not `/tmp`, since three runners share
+  the VM, and `hub-mirror` leaves its Docker alone when the mirror is
+  already set. It must be a VM, not a container:
   the jobs use `sudo`, `localhost` and `--network host` as on GitHub's
   machines, and their ports would otherwise meet the live stack's.
 - **iOS (`mini`):** a runner on the Mac itself, which has Xcode, rustup

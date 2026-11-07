@@ -9,7 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { BASE_CHARTS, usePreferences, type BaseChart, type ChartLight, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
-import { USGS_URL } from "../lib/map/OverlayTiles";
+import { USGS_URL } from "../lib/map/imagery";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { OWN_SHIP_LOOKS, ownShipSvg, type OwnShipLook } from "../lib/map/ownShipLook";
 import { tileUrl } from "../lib/map/tiles";

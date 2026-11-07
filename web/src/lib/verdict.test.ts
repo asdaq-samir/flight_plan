@@ -6,7 +6,7 @@ const quiet: VerdictInput = {
   airspace: { pending: false, unchecked: false, inForce: [], near: 0, specialUse: [] },
   altitude: { pending: false, problem: null, cautions: [], flown: "FL055 · Lowest" },
   fuel: { pending: false, marginGal: 12.4, requiredGal: 27.6, reserveMin: 30 },
-  runways: { pending: false, worked: true, short: [], crosswind: [] },
+  runways: { pending: false, worked: true, short: [], crosswind: [], beyond: [], unchecked: [] },
   balance: { pending: false, worked: true, problems: [], takeoff: "2,407 lb at 41.2 in" },
   risk: { level: "low", line: "Low · 2 points" },
 };
@@ -56,6 +56,13 @@ describe("the Go / No-Go", () => {
     };
     expect(finding(input, "airspace").detail).toBe("VOLK EAST MOA scheduled in use when you pass");
     expect(verdictLine(verdictItems(input)).words).toBe("Look again at Weather, TFRs & special use, Altitude, Runways");
+  });
+
+  it("takes distances past the POH's tables as a caution and a runway not checked as unknown, never within", () => {
+    expect(finding({ ...quiet, runways: { ...quiet.runways, beyond: ["KLXV"] } }, "runways"))
+      .toMatchObject({ finding: "caution", detail: "Past the POH's tables at KLXV: its distances will be longer" });
+    expect(finding({ ...quiet, runways: { ...quiet.runways, unchecked: ["C81"] } }, "runways"))
+      .toMatchObject({ finding: "unknown", detail: "Not checked at C81: runway length or field elevation not known" });
   });
 
   it("says what was not worked out, and what is still coming", () => {
