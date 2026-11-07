@@ -62,17 +62,16 @@ export function plannedWords(t: Totals | null): string {
  *  plan for "now" left open all day is, or a later flight's no product
  *  covers. Its headings, times and fuel then out of date. Whether the
  *  winds count is the engine's `weather_in_force`, the rule the planner
- *  and the phones go by; winds with no end given are not called out of
- *  date, as nothing says when they end. */
+ *  and the phones go by. Winds with no end given never expire, but a
+ *  flight before their start is still not for them. */
 export function windsOutOfDate(t: Totals | null, now: number, depart = ""): boolean {
   if (!t?.winds) return false;
   const [from, to] = [Date.parse(t.winds.use_from), Date.parse(t.winds.use_to)];
-  if (!Number.isFinite(to)) return false;
   const planned = Date.parse(depart);
   const at = Number.isFinite(planned) && planned > now ? planned : now;
   const secs = (ms: number) => Math.floor(ms / 1000);
   return !callEngine("weather_in_force", {
-    product: "winds", now: secs(at), valid_from: Number.isFinite(from) ? secs(from) : null, valid_to: secs(to),
+    product: "winds", now: secs(at), valid_from: Number.isFinite(from) ? secs(from) : null, valid_to: Number.isFinite(to) ? secs(to) : Number.MAX_SAFE_INTEGER,
   });
 }
 
