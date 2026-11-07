@@ -6,11 +6,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationCompat
+import androidx.core.location.altitude.AltitudeConverterCompat
 import app.wingtipmaps.android.api.AheadAlert
 import app.wingtipmaps.android.api.Planner
 import app.wingtipmaps.android.api.ahead
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Own ship: where the phone is, which way it is going and how fast, from
@@ -48,8 +52,15 @@ import kotlinx.coroutines.launch
  * requires for one (Notifications.ownShip). On the ground the reading
  * stops with the app, as any map's does.
  *
- * The permission (ACCESS_FINE_LOCATION) is the screen's to ask through
- * the system's request; `start` reads `denied` from whether it is held.
+ * The permission is the screen's to ask through the system's request,
+ * precise and approximate together as Android 12 and later require;
+ * `start` reads `denied` from whether neither is held, and `approximate`
+ * from whether only the approximate one is. An approximate position
+ * (to within about three square kilometres, Android's
+ * "approximate location") is no position to fly by:
+ * the alerts ahead, the ground alert and the traffic near would all be
+ * worked out from the wrong place, so no fixes are read from it at all
+ * and the screen says why and asks again.
  */
 class OwnShip private constructor(private val context: Context) {
     /** A fix as the flight pieces read it: feet, knots, degrees true,
@@ -70,6 +81,11 @@ class OwnShip private constructor(private val context: Context) {
     private val _denied = MutableStateFlow(false)
     val denied: StateFlow<Boolean> = _denied.asStateFlow()
 
+    /** Only approximate location allowed (Android 12 and later let the
+     *  pilot pick it): nothing is read, and the screen asks for precise. */
+    private val _approximate = MutableStateFlow(false)
+    val approximate: StateFlow<Boolean> = _approximate.asStateFlow()
+
     /** What the track runs into in the next minutes, from the planner or
      *  the packs. */
     private val _ahead = MutableStateFlow<List<AheadAlert>>(emptyList())
@@ -82,35 +98,65 @@ class OwnShip private constructor(private val context: Context) {
     private var reading = false
     private var serving = false
 
+    /** The geoid's conversion, one fix at a time and in order, off the
+     *  main thread: its first call reads the model from disk. */
+    private val converting = Dispatchers.Default.limitedParallelism(1)
+
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val last = result.lastLocation ?: return
-            took(
-                Fix(
-                    lat = last.latitude, lon = last.longitude,
-                    altitudeFt = if (last.hasAltitude()) last.altitude * FT_PER_M else null,
-                    trackDeg = if (last.hasBearing()) last.bearing.toDouble() else null,
-                    groundspeedKt = if (last.hasSpeed()) last.speed * KT_PER_MPS else null,
-                    accuracyM = if (last.hasAccuracy()) last.accuracy.toDouble() else Double.NaN,
-                    atMs = last.time,
-                ),
-            )
+            // The fix's own altitude (Location.getAltitude) is height above
+            // the WGS84 ellipsoid, not above mean sea level: over the US the
+            // geoid lies 30 to 115 ft below it, and the ground alert, the
+            // traffic near and the track are all MSL. Android 14 and later
+            // may give MSL with the fix (Location.getMslAltitudeMeters);
+            // otherwise the geoid model adds it (AltitudeConverterCompat,
+            // androidx.core:core-location-altitude, Android's own
+            // AltitudeConverter on 14 and later). Where neither can, the
+            // fix has no altitude rather than the ellipsoid's.
+            // developer.android.com/reference/android/location/Location#getAltitude()
+            if (!last.hasAltitude() || LocationCompat.hasMslAltitude(last)) {
+                took(fixOf(last))
+                return
+            }
+            scope.launch {
+                withContext(converting) {
+                    try {
+                        AltitudeConverterCompat.addMslAltitudeToLocation(context, last)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // No conversion: the fix goes without an altitude.
+                    }
+                }
+                took(fixOf(last))
+            }
         }
     }
 
+    /** Whether precise location is allowed: what the dot, the alerts and
+     *  the track need. */
     val permitted: Boolean
-        get() = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        get() = held(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    private fun held(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
     /** The fixes started, one a second: the map is shown. Nothing without
      *  the permission, and `denied` says so for the screen. */
     fun start() {
         // Checked here, in the method that asks the provider, so lint's
         // MissingPermission sees the check beside the call it guards.
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            _denied.value = true
+        val precise = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        _approximate.value = !precise && coarse
+        _denied.value = !precise && !coarse
+        if (!precise) {
+            // Downgraded to approximate (or off) while reading: the
+            // fixes stop with the permission.
+            stop()
             return
         }
-        _denied.value = false
         if (!reading) {
             reading = true
             // One fix a second at the best accuracy, as the iOS app asks
@@ -142,6 +188,12 @@ class OwnShip private constructor(private val context: Context) {
     }
 
     private fun took(fix: Fix) {
+        // A fix converted after the reading stopped is left out.
+        if (!reading) return
+        // A fix converted late can be overtaken by a newer one that needed
+        // no conversion; time does not go backwards for the trail and the
+        // alerts.
+        if (_fix.value.let { it != null && fix.atMs <= it.atMs }) return
         _fix.value = fix
         // The path flown, and the phone's position kept with the screen
         // off only while flying: the service is started as the airplane
@@ -197,6 +249,22 @@ class OwnShip private constructor(private val context: Context) {
     }
 
     companion object {
+        /** A fix as the flight pieces read it, its altitude above mean sea
+         *  level or none (the callback's comment says why). */
+        fun fixOf(location: Location): Fix =
+            Fix(
+                lat = location.latitude, lon = location.longitude,
+                altitudeFt = mslFeet(if (LocationCompat.hasMslAltitude(location)) LocationCompat.getMslAltitudeMeters(location) else null),
+                trackDeg = if (location.hasBearing()) location.bearing.toDouble() else null,
+                groundspeedKt = if (location.hasSpeed()) location.speed * KT_PER_MPS else null,
+                accuracyM = if (location.hasAccuracy()) location.accuracy.toDouble() else Double.NaN,
+                atMs = location.time,
+            )
+
+        /** Feet above mean sea level from metres above it; none stays none,
+         *  never the ellipsoid's height in its place. */
+        fun mslFeet(mslMeters: Double?): Double? = mslMeters?.let { it * FT_PER_M }
+
         /** One fix a second. */
         const val EVERY_MS = 1000L
         /** How often what is ahead is asked while moving; the planner looks
