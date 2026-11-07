@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# The quick checks, before a push, for the parts of the repo the push
+# changes against origin/main: TypeScript and ESLint for web/, ruff for
+# the Python, `cargo check` for native/. A type error or a lint failure
+# then stops on the Mac in seconds rather than in CI minutes later (the
+# owner, 2026-11-06: development faster). The full checks -- the tests --
+# stay with scripts/one-at-a-time.sh and CI; this runs outside the lock,
+# since it is quick and holds no turn.
+#
+# Installed by scripts/install-hooks.sh. Skipped with `git push
+# --no-verify` or SKIP_HOOKS=1. A check whose tool is not on this machine
+# is skipped with a note rather than failing the push.
+set -uo pipefail
+
+if [ -n "${SKIP_HOOKS:-}" ]; then
+  echo "pre-push: skipped (SKIP_HOOKS)"
+  exit 0
+fi
+
+here=$(git rev-parse --show-toplevel)
+PATH=$PATH:$HOME/.docker/bin:/Applications/Docker.app/Contents/Resources/bin:$HOME/.local/bin:$HOME/.cargo/bin
+zero=0000000000000000000000000000000000000000
+
+# The files the pushed commits change against origin/main (from where they
+# left it), for each ref pushed. A deleted ref changes nothing.
+changed=$(
+  while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    [ "$local_sha" = "$zero" ] && continue
+    base=$(git merge-base origin/main "$local_sha" 2>/dev/null) || continue
+    git diff --name-only --diff-filter=d "$base" "$local_sha"
+  done | sort -u
+)
+if [ -z "$changed" ]; then exit 0; fi
+
+failed=0
+note() { echo "pre-push: $*"; }
+fail() { echo "pre-push: $* failed"; failed=1; }
+
+# --- web: tsc over the project, ESLint over the files changed ---------------
+web_files=$(grep -E '^web/.*\.(ts|tsx|js|jsx|mjs|cjs)$' <<<"$changed" | grep -v '^web/src/lib/engine/pkg/' || true)
+if grep -qE '^web/' <<<"$changed"; then
+  lint=$(cut -c5- <<<"$web_files" | xargs)
+  # The API and engine types are generated, not committed: tsc needs them.
+  web_cmd="npm run -s types >/dev/null && npx tsc --noEmit${lint:+ && npx eslint --no-warn-ignored $lint}"
+  if command -v npx >/dev/null && [ -d "$here/web/node_modules" ]; then
+    note "web: tsc${lint:+, eslint}"
+    (cd "$here/web" && sh -c "$web_cmd") || fail "web"
+  elif [ -z "${PRE_PUSH_WEB_DOCKER:-}" ]; then
+    # In Docker the web check took about 12 minutes on a loaded Mac
+    # (2026-11-07), and the owner wants no check to hold up a push: without
+    # node on the host it is left to CI unless PRE_PUSH_WEB_DOCKER=1 asks.
+    note "web: left to CI (no node here; PRE_PUSH_WEB_DOCKER=1 runs it in Docker)"
+  elif command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+    # scripts/check.sh's image, with web's packages installed for this lock,
+    # if a check has built it; the newest one otherwise (a lock a commit or
+    # two older types the same nearly always); else it is built here, once,
+    # the way check.sh builds it, and both share it from then on.
+    node=$(tr -d ' \n' < "$here/.nvmrc")
+    tag=wingtip-check-web:$({ echo "node $node"; cat "$here/web/package.json" "$here/web/package-lock.json"; } | shasum -a 256 | cut -c1-16)
+    if ! docker image inspect "$tag" >/dev/null 2>&1; then
+      newest=$(docker image ls wingtip-check-web --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' | sort -r | head -1 | cut -d'|' -f2)
+      if [ -n "$newest" ]; then
+        tag=$newest
+      else
+        note "web: building $tag once (npm ci, a minute or two)"
+        ctx=$(mktemp -d)
+        cp "$here/web/package.json" "$here/web/package-lock.json" "$ctx/"
+        docker build -q -t "$tag" --build-arg NODE="$node" -f - "$ctx" >/dev/null <<'EOF' || tag=""
+ARG NODE
+FROM node:${NODE}-slim
+COPY package.json package-lock.json /
+RUN --mount=type=cache,id=wingtip-npm,target=/root/.npm \
+    cd / && npm ci --no-audit --no-fund --loglevel=error
+ENV PATH=/node_modules/.bin:$PATH
+EOF
+        rm -rf "$ctx"
+      fi
+    fi
+    if [ -n "$tag" ]; then
+      note "web: tsc${lint:+, eslint} in $tag"
+      hide=()
+      [ -d "$here/web/node_modules" ] && hide=(--tmpfs /repo/web/node_modules)
+      docker run --rm -v "$here:/repo" "${hide[@]+"${hide[@]}"}" -w /repo/web "$tag" sh -c "$web_cmd" || fail "web"
+    else
+      note "web: skipped, the wingtip-check-web image would not build"
+    fi
+  else
+    note "web: skipped, neither node nor Docker is running here"
+  fi
+fi
+
+# --- Python: ruff over the files changed, each under its own settings -------
+py_files=$(grep -E '\.py$' <<<"$changed" | grep -v '^planning-service/app/detection\.py$' || true)
+if [ -n "$py_files" ]; then
+  if command -v ruff >/dev/null; then ruff=(ruff)
+  elif command -v uvx >/dev/null; then ruff=(uvx -q ruff)
+  else ruff=()
+  fi
+  if [ ${#ruff[@]} -gt 0 ]; then
+    note "python: ruff on $(wc -l <<<"$py_files" | tr -d ' ') file(s)"
+    # Each service's own pyproject applies to its files: ruff finds the
+    # nearest one from each path.
+    (cd "$here" && xargs "${ruff[@]}" check --force-exclude <<<"$py_files") || fail "ruff"
+  else
+    note "python: skipped, no ruff or uvx here"
+  fi
+fi
+
+# --- native: cargo check over the crates CI tests ---------------------------
+if grep -qE '^native/' <<<"$changed"; then
+  if command -v cargo >/dev/null && cargo --version >/dev/null 2>&1; then
+    # CI's own crate list (ci.yml's test job), so this checks what CI tests;
+    # one target directory for every worktree, so only the first is cold.
+    read -ra pkgs <<<"$(grep -oE 'cargo test --profile ci [^#]*' "$here/.github/workflows/ci.yml" | head -1 | grep -oE -- '-p [a-z0-9-]+' | xargs)"
+    note "native: cargo check"
+    CARGO_TARGET_DIR=${WINGTIP_HOOK_CARGO_TARGET:-$HOME/Library/Caches/wingtip-pre-push-cargo} \
+      cargo check -q --manifest-path "$here/native/Cargo.toml" "${pkgs[@]}" || fail "cargo check"
+  else
+    note "native: skipped, no Rust toolchain here (CI checks it)"
+  fi
+fi
+
+if [ "$failed" -ne 0 ]; then
+  echo "pre-push: fix the above, or push anyway with git push --no-verify (or SKIP_HOOKS=1)"
+  exit 1
+fi
+exit 0
