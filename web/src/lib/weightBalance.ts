@@ -2,7 +2,7 @@
  * The airplane's weight and balance against its POH's loading: the
  * weights, the centre-of-gravity envelope and each station's most (the
  * POH's section 6; 14 CFR 91.9(a)). Worked out by the shared engine
- * (native/engine/src/gonogo/weight_balance.rs, through lib/engine), the
+ * (native/crates/brief/src/gonogo/weight_balance.rs, through lib/engine), the
  * planner's and the phones' own; only the shapes are made here.
  */
 import type { Loading } from "./api/types";

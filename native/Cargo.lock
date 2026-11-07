@@ -356,12 +356,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
+name = "wingtip-airspace"
+version = "0.1.0"
+dependencies = [
+ "wingtip-figures",
+ "wingtip-geo",
+ "wingtip-radio",
+]
+
+[[package]]
+name = "wingtip-brief"
+version = "0.1.0"
+dependencies = [
+ "wingtip-figures",
+ "wingtip-geo",
+]
+
+[[package]]
 name = "wingtip-engine"
 version = "0.1.0"
 dependencies = [
  "flate2",
  "proptest",
  "serde_json",
+ "wingtip-airspace",
+ "wingtip-brief",
+ "wingtip-figures",
+ "wingtip-geo",
+ "wingtip-pilot",
+ "wingtip-radio",
+ "wingtip-route",
+ "wingtip-weather",
+ "wingtip-wording",
 ]
 
 [[package]]
@@ -372,10 +398,59 @@ dependencies = [
 ]
 
 [[package]]
+name = "wingtip-figures"
+version = "0.1.0"
+dependencies = [
+ "wingtip-geo",
+]
+
+[[package]]
+name = "wingtip-geo"
+version = "0.1.0"
+
+[[package]]
+name = "wingtip-pilot"
+version = "0.1.0"
+dependencies = [
+ "wingtip-geo",
+]
+
+[[package]]
+name = "wingtip-radio"
+version = "0.1.0"
+dependencies = [
+ "wingtip-geo",
+]
+
+[[package]]
+name = "wingtip-route"
+version = "0.1.0"
+dependencies = [
+ "wingtip-figures",
+ "wingtip-geo",
+]
+
+[[package]]
 name = "wingtip-wasm"
 version = "0.1.0"
 dependencies = [
  "wingtip-engine",
+]
+
+[[package]]
+name = "wingtip-weather"
+version = "0.1.0"
+dependencies = [
+ "wingtip-geo",
+]
+
+[[package]]
+name = "wingtip-wording"
+version = "0.1.0"
+dependencies = [
+ "wingtip-airspace",
+ "wingtip-figures",
+ "wingtip-geo",
 ]
 
 [[package]]

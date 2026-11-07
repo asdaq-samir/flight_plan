@@ -25,7 +25,7 @@ import { altFt } from "./units";
  * which is right only when it gets worse); a TEMPO, PROB or INTER group
  * weather that comes and goes, which is not the hour's bar but its
  * "at times" (`atTimes`), drawn lighter under it and said in the
- * sentence -- that reading the shared engine's (native/engine/src/
+ * sentence -- that reading the shared engine's (native/crates/weather/src/
  * forecast), the parser only finding the groups. The ceiling is 14 CFR 1.1's -- the lowest layer broken or
  * overcast, or the vertical visibility into an obscuration -- and the
  * flight category AIM 7-1-7's, by the one rule the app has for it
@@ -171,7 +171,7 @@ interface HourRead {
 /** The TAF's hour starting `at`; null outside its validity. The parser
  *  finds the groups in force; what they make of the hour -- a BECMG under
  *  way the worse of before and after, a TEMPO's or PROB's worse weather at
- *  times -- is the shared engine's (native/engine/src/forecast). */
+ *  times -- is the shared engine's (native/crates/weather/src/forecast). */
 function hourAt(taf: IForecastContainer, at: number): Omit<Hour, "now"> | null {
   let composite;
   try {

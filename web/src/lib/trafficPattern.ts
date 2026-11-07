@@ -22,7 +22,7 @@
  * A sketch of the pattern to fly by, not a procedure: the size of a
  * pattern is the pilot's, flown as the field and its traffic need.
  *
- * Drawn by the shared engine (native/engine/src/runway/circuit.rs,
+ * Drawn by the shared engine (native/crates/brief/src/runway/circuit.rs,
  * through lib/engine), from the very corners the planner flies the
  * pattern by (wingtip.pattern) and the phones draw it from: the legs and
  * their sources live there. Only the shapes the map reads are made here.

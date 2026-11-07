@@ -8,7 +8,7 @@
  * at a minute (a minute and a half above 14,000 ft MSL), the outbound
  * heading and time worked to make it so in the wind.
  *
- * Worked out by the shared engine (native/engine/src/figures/holding.rs,
+ * Worked out by the shared engine (native/crates/figures/src/figures/holding.rs,
  * through lib/engine), the very code behind the planner's /api/holding and
  * the phones' wt_holding: the rules and their AIM sources live there. Only
  * the shapes the pages read are made here.

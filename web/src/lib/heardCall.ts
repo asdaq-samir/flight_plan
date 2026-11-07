@@ -10,7 +10,7 @@
  * else's: AIM 4-2-4 a.1 warns of exactly that. What it asks of us is read
  * as a clearance is (lib/clearance), and a "direct" to a place besides.
  *
- * The hearing is the shared engine's (native/engine/src/clearance.rs,
+ * The hearing is the shared engine's (native/crates/radio/src/clearance.rs,
  * asked through lib/engine as our_call, direct_of and call_pattern), held
  * to fixtures/heardCalls.json as this module's tests are.
  */

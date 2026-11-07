@@ -9,7 +9,8 @@
 //! figures among the readback's. What was missed or said differently is a
 //! warning in the microphone's pill (the web's RadioLayer); it never stops
 //! anything. The web's lib/readback asks for it as `readback_check`; held
-//! to web/src/lib/fixtures/readbacks.json (tests/clearance.rs).
+//! to web/src/lib/fixtures/readbacks.json (the engine's
+//! tests/clearance.rs).
 
 use crate::clearance::{place_words, read, tokens, Clearance, Item};
 use crate::json;

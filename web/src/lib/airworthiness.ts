@@ -56,7 +56,7 @@ export function squawksInput(open: Squawk[]) {
  *   which this flight is.
  *
  * The rules, their points and their sources are the shared engine's
- * (native/engine/src/gonogo/frat.rs, through lib/engine), the planner's
+ * (native/crates/brief/src/gonogo/frat.rs, through lib/engine), the planner's
  * and the phones' own.
  */
 export function inspectionFactors(i: Inspections, day: string, ifr: boolean): RiskFactor[] {

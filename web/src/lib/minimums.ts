@@ -5,7 +5,7 @@ import { callEngine } from "./engine/engine";
  * A pilot's personal minimums -- the weather they have decided they will
  * not take off or land in, stricter than the rules -- and where the
  * briefing's weather is under them. Each off (null) until set. The rules
- * are the shared engine's (native/engine/src/gonogo/minimums.rs, through
+ * are the shared engine's (native/crates/brief/src/gonogo/minimums.rs, through
  * lib/engine), the planner's and the phones' own.
  */
 export interface Minimums {

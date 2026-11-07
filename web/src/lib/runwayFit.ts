@@ -5,7 +5,7 @@
  * 50 ft obstacle for the airplane's weight, the field's pressure and
  * density altitude and the headwind on it, against the runway's length
  * -- what 14 CFR 91.103(b) asks a pilot to know. Worked out by the
- * shared engine (native/engine/src/runway/performance.rs, through
+ * shared engine (native/crates/brief/src/runway/performance.rs, through
  * lib/engine) with the Brief's runway check's own evaluator, which says
  * the same for the runway flown: the rules and their sources live there.
  */

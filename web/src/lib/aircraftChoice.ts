@@ -12,7 +12,7 @@ export function aircraftKey(a: AircraftChoice): string {
 /** An N-number as a pilot types one, as 14 CFR 47.15(b) shapes it: N,
  *  then up to five figures, four and a letter, or three and two letters,
  *  the first figure 1 to 9 and never the letters I or O. The shared
- *  engine's test (native/engine/src/aircraft), the iPhone's too, asked as
+ *  engine's test (native/crates/pilot/src/aircraft), the iPhone's too, asked as
  *  a pattern's `test` was. */
 export const N_NUMBER = {
   test: (text: string): boolean => callEngine<boolean>("n_number", { text }),
@@ -22,7 +22,7 @@ export const N_NUMBER = {
  *  maker, model and year, each from its type's handbook (data/aircraft):
  *  any other none, its speed and burn the pilot's to give (Setup's
  *  Airplanes) rather than a guess. The shared engine's list
- *  (native/engine/src/aircraft/registry.rs), which the iPhone's
+ *  (native/crates/pilot/src/aircraft/registry.rs), which the iPhone's
  *  Registered asks too. */
 export function profileOfRegistered(registered: { manufacturer?: string | null; model?: string | null; year?: number | null }): string | null {
   return callEngine<string | null>("registered_profile", {

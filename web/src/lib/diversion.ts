@@ -11,7 +11,7 @@
  * ALLOWANCES are this drill's own, about what a pilot works out in their
  * head and off the chart while flying the airplane.
  *
- * Worked out by the shared engine (native/engine/src/figures/diversion.rs,
+ * Worked out by the shared engine (native/crates/figures/src/figures/diversion.rs,
  * through lib/engine), the very code behind the planner's /api/diversion
  * and the phones' wt_diversion. ALLOWANCES stays here as the drill's
  * labels and the type of its keys; diversion.test.ts holds it to the

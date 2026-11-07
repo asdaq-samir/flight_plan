@@ -6,7 +6,7 @@
  * airplane with an engine-driven electrical system: the exceptions for
  * gliders, balloons and the rest (91.215(b)(3), 91.225(e)) are left out.
  *
- * The shared engine's (native/engine/src/rules.rs entry_rules, through
+ * The shared engine's (native/crates/airspace/src/rules.rs entry_rules, through
  * lib/engine), beside the rules of each band of the airspace over a point
  * the planner and the phones answer, from the same figures.
  */

@@ -3,7 +3,7 @@ import { callEngine } from "./engine/engine";
 
 /** NASR's fuel codes as the pump is labelled: its jet fuels by name, the
  *  rest (100LL, UL94, MOGAS) as the codes they are -- the shared engine's
- *  words (native/engine/src/wording), the iPhone's same. */
+ *  words (native/crates/wording/src/wording), the iPhone's same. */
 export const fuelNames = (types: string[]) => (types.length ? callEngine<string>("fuel_names", { types }) : "");
 
 /** How far a place is from the field, as a pilot on foot or in a car reads

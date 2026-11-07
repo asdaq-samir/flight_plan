@@ -19,7 +19,7 @@ export interface ProfileMark {
  * a mile out and the field -- and up again from a stop. Distances are the
  * legs' own, checkpoint to checkpoint; a row whose leg is not in yet ends
  * the line there. Worked out by the shared engine
- * (native/engine/src/motion/profile.rs), which the dry run flies.
+ * (native/crates/route/src/motion/profile.rs), which the dry run flies.
  */
 export function planProfile(rows: NavLogRow[]): { points: ProfilePoint[]; marks: ProfileMark[]; length_nm: number } {
   return callEngine("plan_profile", { rows });

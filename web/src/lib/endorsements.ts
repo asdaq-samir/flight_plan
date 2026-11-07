@@ -9,7 +9,7 @@ export const acDay = (iso: string) => format(parseISO(iso), "MM-dd-yyyy");
 
 /** The latest of each kind signed in the app and not voided, by its code:
  *  the record comes newest first. Picked by the shared engine
- *  (native/engine/src/pilot/endorsements.rs), as the iPhone app picks. */
+ *  (native/crates/pilot/src/pilot/endorsements.rs), as the iPhone app picks. */
 export function inForce(signed: SignedEndorsement[]): Map<string, SignedEndorsement> {
   const picked = callEngine<[string, number][]>("endorsements_in_force", { signed: signed.map(e => ({ code: e.code, voided: e.voided })) });
   return new Map(picked.map(([code, at]) => [code, signed[at]!]));
@@ -31,7 +31,7 @@ export function signatureLine(instructor: Instructor, signedOn: string): string 
  *  expires 24 calendar months from issue, renewal or reinstatement
  *  (61.19(d)(2)), and once expired its privileges wait for reinstatement
  *  under 61.199 (61.197(e)). The shared engine words it
- *  (native/engine/src/pilot/endorsements.rs), as the iPhone app does. */
+ *  (native/crates/pilot/src/pilot/endorsements.rs), as the iPhone app does. */
 export function lapseWarning(instructor: Instructor, signedOn: string): string | null {
   return callEngine<string | null>("endorsement_lapse", { until: instructor.until ?? null, until_kind: instructor.untilKind ?? null, signed_on: signedOn });
 }

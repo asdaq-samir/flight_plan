@@ -1,10 +1,25 @@
-# Wingtip's Rust: the engine (engine/, wingtip-engine), the same answers
+# Wingtip's Rust: the engine (engine/, wingtip-engine, over its domain
+# crates in crates/, layered as README.md says), the same answers
 # on the planner and, later, the phone, and its Python face (py/,
 # wingtip_native), which the planner imports, and its C face for the
 # phones (ffi/, wingtip-ffi), and its WebAssembly for the web app (wasm/,
 # wingtip-wasm).
 [workspace]
-members = ["engine", "py", "ffi", "wasm"]
+members = [
+    "engine",
+    "crates/geo",
+    "crates/weather",
+    "crates/figures",
+    "crates/radio",
+    "crates/airspace",
+    "crates/wording",
+    "crates/brief",
+    "crates/route",
+    "crates/pilot",
+    "py",
+    "ffi",
+    "wasm",
+]
 resolver = "2"
 
 [profile.release]
