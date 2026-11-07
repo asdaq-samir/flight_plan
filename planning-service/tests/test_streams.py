@@ -100,3 +100,19 @@ def test_a_stuck_altitude_selection_ends_the_navlog_stream_saying_what_it_waits_
     assert "aviationweather.gov" not in " ".join(heartbeats)
     assert lines[-1]["type"] == "error"
     assert "waiting on the terrain and obstacles" in lines[-1]["detail"]
+
+
+def test_a_corridor_width_out_of_bounds_is_refused_before_any_read(monkeypatch):
+    # Each width is a read of its own, on a thread and kept on disk: one
+    # past the bound, or none at all, is a 422 and starts nothing.
+    started = []
+    monkeypatch.setattr(chart, "detect_job", lambda *args: started.append(args))
+    for width in (0, -1, chart.MAX_HALF_WIDTH_NM + 0.1, 1e9):
+        resp = client.get("/api/detect/stream", params={"dep": "C81", "dest": "KDLH", "half_width_nm": width})
+        assert resp.status_code == 422, width
+    assert started == []
+
+
+def test_a_point_off_the_globe_is_refused_by_classify():
+    assert client.get("/api/classify", params={"lat": 91, "lon": 0}).status_code == 422
+    assert client.get("/api/classify", params={"lat": 0, "lon": -181}).status_code == 422

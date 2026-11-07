@@ -1,7 +1,9 @@
 """The chart-vision path: the sectional's own tiles, what the detector
 finds in a corridor, and what a pilot marks on it. Nothing here touches
 Overpass, the FAA subscription or the elevation service."""
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from wingtip import chartlabels, charts, chartvision, geo
@@ -70,7 +72,9 @@ def chart_tile(kind: str, z: int, x: int, y: int) -> Response:
 
 
 @router.get("/api/classify")
-def classify(lat: float, lon: float) -> Classification:
+def classify(
+    lat: Annotated[float, Query(ge=-90, le=90)], lon: Annotated[float, Query(ge=-180, le=180)]
+) -> Classification:
     """What the chart draws at a point, so a hand-marked checkpoint is
     categorised from the pixels rather than from whatever the dropdown
     happened to be left on."""
@@ -130,8 +134,20 @@ def remove_pick(dep: str, dest: str, lat: float, lon: float) -> PickDeleted:
     return PickDeleted(ok=removed, summary=chartlabels.summarise(route))
 
 
+#: The widest corridor a read may be asked for, either side of the course.
+#: Each new width is a read of its own, on a thread and kept on disk
+#: (app.detection), so an unbounded one let any caller start reads without
+#: end; the training page reads TRAINING_HALF_WIDTH_NM and never asks for
+#: another, and this leaves room for a developer trying a wider one.
+MAX_HALF_WIDTH_NM = 10.0
+
+
 @router.get("/api/detect/stream")
-def detect_stream(dep: str, dest: str, half_width_nm: float = TRAINING_HALF_WIDTH_NM) -> StreamingResponse:
+def detect_stream(
+    dep: str,
+    dest: str,
+    half_width_nm: Annotated[float, Query(gt=0, le=MAX_HALF_WIDTH_NM)] = TRAINING_HALF_WIDTH_NM,
+) -> StreamingResponse:
     """Detections as newline-delimited JSON, one line per block; each
     line is one app.schemas.DetectMessage.
 

@@ -751,7 +751,7 @@
             "type" : "integer"
           },
           "feature" : {
-            "enum" : [ "NARRATIVE", "CHECKPOINT_NOTES", "ORAL", "DEBRIEF" ],
+            "enum" : [ "NARRATIVE", "CHECKPOINT_NOTES", "ORAL", "ASSISTANT", "WORDS", "DEBRIEF" ],
             "example" : "NARRATIVE",
             "type" : "string"
           },
@@ -3014,44 +3014,6 @@
         "tags" : [ "Client errors" ]
       }
     },
-    "/api/comparison" : {
-      "post" : {
-        "description" : "framework=langgraph (nav-log-agent) or framework=crewai (crewai-agent), each a real billed Claude call. The body is the nav log the flight planning drawer shows (departure_ident, destination_ident, aircraft_name, altitude_ft, altitude_selection, legs); the response is newline-delimited JSON: delta lines with text as it is written, then a done line with the whole briefing, or an error line.",
-        "operationId" : "narrative",
-        "parameters" : [ {
-          "in" : "query",
-          "name" : "framework",
-          "required" : true,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "type" : "string"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/StreamingResponseBody"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "summary" : "Stream one framework's narrative for the nav log in the body",
-        "tags" : [ "Comparison" ]
-      }
-    },
     "/api/flight-service" : {
       "get" : {
         "operationId" : "status",
@@ -4545,9 +4507,6 @@
   "tags" : [ {
     "description" : "What signing in can do in this deployment",
     "name" : "Auth"
-  }, {
-    "description" : "LangGraph vs CrewAI, same nav log -- the flight planning drawer's narrative popover",
-    "name" : "Comparison"
   }, {
     "description" : "Errors on pilots' devices, logged for the owner",
     "name" : "Client errors"

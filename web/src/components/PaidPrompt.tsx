@@ -1,6 +1,6 @@
 import { Suspense, lazy, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { BookOpenCheck, Gauge, MessageSquareText, Sparkles } from "lucide-react";
+import { BookOpenCheck, Bot, Gauge, MessageSquareText, Quote, Sparkles } from "lucide-react";
 import { cn } from "cn";
 import EmptyState from "./EmptyState";
 import { Button } from "./ui/button";
@@ -17,6 +17,8 @@ const TITLES: Record<PaidFeature, string> = {
   NARRATIVE: "Written Briefing",
   CHECKPOINT_NOTES: "Checkpoint Descriptions",
   ORAL: "Mock Oral",
+  ASSISTANT: "Assistant",
+  WORDS: "Readings in Words",
   DEBRIEF: "Debrief",
 };
 
@@ -24,6 +26,8 @@ const ICONS: Record<PaidFeature, ReactNode> = {
   NARRATIVE: <MessageSquareText />,
   CHECKPOINT_NOTES: <Sparkles />,
   ORAL: <BookOpenCheck />,
+  ASSISTANT: <Bot />,
+  WORDS: <Quote />,
   DEBRIEF: <Gauge />,
 };
 

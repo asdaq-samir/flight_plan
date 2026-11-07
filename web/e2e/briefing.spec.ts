@@ -172,18 +172,17 @@ test("plan page: the nav log and the summary on screen, the 'planning aid only' 
   await expect(route).toBeVisible();
 });
 
-test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGraph or CrewAI as the settings say", async ({ page }) => {
+test("plan page: the Brief is a tab after the Nav Log, its narrative written by Claude only when asked", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
 
   await openBriefing(page);
 
-  // LangGraph and CrewAI (nav-log-agent's and crewai-agent's own real,
-  // billed Claude calls) are a setting; the Brief tab asks for the one it
-  // names once it opens -- answered here by a line of the test's own,
-  // nothing billed.
+  // The narrative is the planner's (/api/briefing/narrative), a real,
+  // billed Claude call -- answered here by a line of the test's own
+  // (openTab), nothing billed.
   const asked: string[] = [];
-  page.on("request", r => { if (r.url().includes("/api/comparison")) asked.push(new URL(r.url()).searchParams.get("framework") ?? ""); });
+  page.on("request", r => { if (r.url().includes("/api/planner/briefing/narrative")) asked.push(r.method()); });
   // The Brief's cards as it opens, and nothing asked for until a tap:
   // each is billed, and the Brief is opened for every route looked at.
   await openBrief(page);
@@ -195,20 +194,11 @@ test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGr
   await page.getByTestId("brief-narrative-write").click();
   const narrative = page.getByTestId("brief-narrative");
   await expect(narrative).toContainText("A test narrative.", { timeout: slow(60000) });
-  await expect.poll(() => asked).toEqual(["langgraph"]);
-  // CrewAI's instead, from the settings: asked for as the console goes.
-  // The developer's pick now (the developer's Status page): set as it
-  // sets it, in the stored preferences.
-  await page.evaluate(() => {
-    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? "{\"state\":{},\"version\":1}");
-    kept.state = { ...kept.state, narrative: "crewai" };
-    localStorage.setItem("wingtip.preferences", JSON.stringify(kept));
-  });
-  await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
-  await openTab(page, "Preflight");
-  await openSection(page, "Narrative");
-  await page.getByTestId("brief-narrative-write").click({ timeout: slow(60000) });
-  await expect.poll(() => asked, { timeout: slow(60000) }).toEqual(["langgraph", "crewai"]);
+  await expect.poll(() => asked).toEqual(["POST"]);
+  // Written once for the plan: no second button, and nothing asked again.
+  await expect(page.getByTestId("brief-narrative-write")).toHaveCount(0);
+  await page.waitForTimeout(500);
+  expect(asked).toEqual(["POST"]);
 });
 
 test("plan page: the drawer closes the way the stock components close, and nothing else", async ({ page }) => {

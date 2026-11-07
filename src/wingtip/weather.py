@@ -56,8 +56,8 @@ class WeatherServiceError(RuntimeError):
     error status. Every function in this module that calls it raises
     this instead of letting requests' own exception (ConnectionError,
     Timeout, HTTPError -- a wide, transport-specific family) propagate
-    raw, so callers (planning-service's route handlers, nav-log-agent)
-    have one exception type to catch regardless of which call failed or
+    raw, so callers (planning-service's route handlers) have one
+    exception type to catch regardless of which call failed or
     why.
     """
 

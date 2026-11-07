@@ -11,9 +11,8 @@ consecutive legs, producing 205 legs and, in effect, throwing the model's
 judgment away while carrying its numbers around.
 
 Deliberately pure-Python over a list of dicts, with no pandas or numpy:
-this runs inside the lean nav-log-agent image and is called on the
-response body of an HTTP request, where a DataFrame round-trip would buy
-nothing.
+it is called on a few hundred candidates per request, where a DataFrame
+round-trip would buy nothing.
 """
 
 # A VFR pilotage checkpoint every 10-15 nm is the conventional spacing:

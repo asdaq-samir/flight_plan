@@ -6,12 +6,10 @@ import { ended } from "../../../lib/api/streams";
 import { subscriptionQuery } from "../../../lib/subscription";
 import type { Leg, NarrativeMessage, NarrativeRequest, NavLogAltitude } from "../../../lib/api/types";
 
-export type Framework = "langgraph" | "crewai";
-
-/** One framework's own narrative as it streams: the text so far (or
- *  the whole briefing once done), why there is none, and whether it
- *  is still being written. */
-export interface FrameworkNarrative {
+/** The narrative as it streams: the text so far (or the whole briefing
+ *  once done), why there is none, and whether it is still being
+ *  written. */
+export interface Narrative {
   text: string | null;
   error: string | null;
   loading: boolean;
@@ -30,15 +28,16 @@ interface NarrativeInput {
 }
 
 /**
- * Each framework's narrative about the nav log on screen -- a pilot's
- * own click per framework, each a real, billed Claude call. Only about
- * a log that is flown: with no winds there are no legs.
+ * The narrative about the nav log on screen -- asked for by the pilot's
+ * own tap, a real, billed Claude call (the planner's
+ * /api/briefing/narrative). Only about a log that is flown: with no
+ * winds there are no legs.
  *
- * Its own hook, beside usePlan rather than inside it: what the agents
- * are sent and how their streams are read change for the comparison's
- * reasons, not the nav log's.
+ * Its own hook, beside usePlan rather than inside it: what is sent and
+ * how the stream is read change for the narrative's reasons, not the
+ * nav log's.
  */
-export function useNarratives({ dep, dest, planKey, nav, legs, whole }: NarrativeInput) {
+export function useNarrative({ dep, dest, planKey, nav, legs, whole }: NarrativeInput) {
   const request: NarrativeRequest | null = nav && nav.altitude_ft !== null && nav.flown !== null ? {
     departure_ident: dep, destination_ident: dest, aircraft_name: nav.aircraft.name,
     altitude_ft: nav.altitude_ft, altitude_selection: nav.altitude_selection, flown: nav.flown, legs,
@@ -47,43 +46,36 @@ export function useNarratives({ dep, dest, planKey, nav, legs, whole }: Narrativ
   // departure time, the choice of plan, Load and the airplane's own
   // numbers, and held the leg count, which changes while legs stream --
   // so a narrative could be shown, or printed, beside a different log.
-  const narrativeQuery = (framework: Framework) => ({
-    queryKey: ["narrative", framework, ...planKey],
+  const query = useQuery({
+    queryKey: ["narrative", ...planKey],
     queryFn: streamedQuery({
-      streamFn: ({ signal }: { signal: AbortSignal }) =>
-        ended(api.frameworkNarrative(framework, request!, signal), `${framework} narrative`),
+      streamFn: ({ signal }: { signal: AbortSignal }) => ended(api.narrative(request!, signal), "narrative"),
     }),
     enabled: false, staleTime: Infinity,
-    // Said in its own tab, where it was asked for (NavLogActions).
+    // Said in its own tab, where it was asked for (BriefNarrative).
     meta: { silent: true },
   });
-  const langgraph = useQuery(narrativeQuery("langgraph"));
-  const crewai = useQuery(narrativeQuery("crewai"));
-  // The queries' own refetch, which keeps its identity, not the query
-  // results, which are new at every render: so is this, and with it
-  // the Brief, drawn again at every render of the page.
+  // The query's own refetch, which keeps its identity, not the query
+  // result, which is new at every render: so is this, and with it the
+  // Brief, drawn again at every render of the page.
   // Each narrative is one of the month's (the subscription's cap): its
   // count, asked again once one is written.
   const queryClient = useQueryClient();
-  const { refetch: refetchLanggraph } = langgraph;
-  const { refetch: refetchCrewai } = crewai;
-  const generateNarrative = useCallback((framework: Framework) => {
+  const { refetch } = query;
+  const generateNarrative = useCallback(() => {
     // Only a whole log: the request carries its legs, and a narrative of
     // half of them would be kept for this key as if it were the whole.
     if (!whole) { showError("The nav log isn't fully loaded yet", "The narrative is written from the whole nav log: ask again once every leg is in."); return; }
-    void (framework === "langgraph" ? refetchLanggraph : refetchCrewai)()
-      .then(() => queryClient.invalidateQueries({ queryKey: subscriptionQuery.queryKey }));
-  }, [whole, refetchLanggraph, refetchCrewai, queryClient]);
-  // Each the same object while its stream is, for the same reason.
-  const langgraphNarrative = useMemo(
-    () => narrativeOf(langgraph.data, langgraph.error, langgraph.isFetching), [langgraph.data, langgraph.error, langgraph.isFetching]);
-  const crewaiNarrative = useMemo(
-    () => narrativeOf(crewai.data, crewai.error, crewai.isFetching), [crewai.data, crewai.error, crewai.isFetching]);
+    void refetch().then(() => queryClient.invalidateQueries({ queryKey: subscriptionQuery.queryKey }));
+  }, [whole, refetch, queryClient]);
+  // The same object while its stream is, for the same reason.
+  const narrative = useMemo(
+    () => narrativeOf(query.data, query.error, query.isFetching), [query.data, query.error, query.isFetching]);
 
-  return { langgraphNarrative, crewaiNarrative, generateNarrative };
+  return { narrative, generateNarrative };
 }
 
-function narrativeOf(data: NarrativeMessage[] | undefined, error: Error | null, loading: boolean): FrameworkNarrative {
+function narrativeOf(data: NarrativeMessage[] | undefined, error: Error | null, loading: boolean): Narrative {
   const chunks = data ?? [];
   const done = chunks.find(m => m.type === "done");
   const text = done && done.type === "done" ? done.briefing : chunks.map(m => (m.type === "delta" ? m.text : "")).join("");

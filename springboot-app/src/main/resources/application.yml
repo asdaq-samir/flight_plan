@@ -68,21 +68,6 @@ spring:
 planner-service:
   base-url: ${PLANNER_SERVICE_URL:http://localhost:8084}
 
-# The two Gen AI comparison builds (ComparisonProxyController), behind
-# the flight planning drawer's narrative popover -- neither is required for the app to
-# start (see that controller's own per-framework error handling),
-# unlike planner-service above.
-nav-log-agent:
-  base-url: ${NAV_LOG_AGENT_URL:http://localhost:8082}
-  # nav-log-agent's own MCP endpoint has no auth other than this bearer
-  # token (see its BearerAuthMiddleware) -- blank locally is fine, that
-  # call just 401s and the panel reports it unavailable, the same as an
-  # unset ANTHROPIC_API_KEY would.
-  api-key: ${NAV_LOG_AGENT_API_KEY:}
-
-crewai-agent:
-  base-url: ${CREWAI_AGENT_URL:http://localhost:8000}
-
 server:
   port: 8080
   servlet:
@@ -196,11 +181,15 @@ app:
   # the local stack, where the e2e suite signs in.
   # The calls this app pays Anthropic for, a day's worth per pilot (or
   # per address, where nobody is signed in), each counted on its own:
-  # the framework narratives (ComparisonProxyController) and generating
-  # a route's checkpoint notes (PlannerProxyController). Past it, a 429
+  # the Brief's narratives and generating a route's checkpoint notes
+  # (per-day each), the assistant (Opus, up to eight tool rounds an ask)
+  # and the readings in words (Haiku; the Brief asks three each time a
+  # route or its weather changes) (PlannerProxyController). Past it, a 429
   # that says when there are more.
   paid-calls:
     per-day: ${APP_PAID_CALLS_PER_DAY:40}
+    assistant-per-day: ${APP_PAID_CALLS_ASSISTANT_PER_DAY:20}
+    words-per-day: ${APP_PAID_CALLS_WORDS_PER_DAY:150}
   # The subscription to the paid features (SubscriptionService): the free
   # month's length, once an account; each Claude-written feature's monthly
   # allowance per subscriber, so the heaviest user costs less than they
@@ -222,6 +211,8 @@ app:
       narrative: ${APP_SUBSCRIPTION_CAP_NARRATIVE:60}
       checkpoint-notes: ${APP_SUBSCRIPTION_CAP_CHECKPOINT_NOTES:60}
       oral: ${APP_SUBSCRIPTION_CAP_ORAL:60}
+      assistant: ${APP_SUBSCRIPTION_CAP_ASSISTANT:100}
+      words: ${APP_SUBSCRIPTION_CAP_WORDS:1000}
     comped-emails: ${APP_SUBSCRIPTION_COMPED_EMAILS:}
   magic-link:
     per-address-per-hour: ${APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR:5}

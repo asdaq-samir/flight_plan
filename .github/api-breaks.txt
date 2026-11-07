@@ -1,0 +1,19 @@
+# Breaking changes to the planner's or the webapp's API made on purpose,
+# which ci.yml's api-compat job lets through (oasdiff --err-ignore).
+# One line each, dated, with the method and path and oasdiff's own words
+# for the change, as its failure printed them, and why no released app
+# is hurt. Kept after the merge, as the record of what was broken when.
+# See docs/CI.md, "API compatibility".
+2026-11-06 GET /api/classify for the `query` request parameter `lat`, the max was set to `90.00` -- the training page sends a point on the map, a developer's
+2026-11-06 GET /api/classify for the `query` request parameter `lat`, the min was set to `-90.00` -- the same
+2026-11-06 GET /api/classify for the `query` request parameter `lon`, the max was set to `180.00` -- the same
+2026-11-06 GET /api/classify for the `query` request parameter `lon`, the min was set to `-180.00` -- the same
+2026-11-06 GET /api/detect/stream for the `query` request parameter `half_width_nm`, the exclusiveMinimum was set to `0.00` -- no app sends it; each width started a corridor read kept on disk
+2026-11-06 GET /api/detect/stream for the `query` request parameter `half_width_nm`, the max was set to `10.00` -- the same
+2026-11-07 GET /api/subscription added the new `ASSISTANT` enum value to the `uses/items/feature` response property for the response status `200` -- only the web app reads it, and it ships with this change; neither native app asks for it
+2026-11-07 GET /api/subscription added the new `WORDS` enum value to the `uses/items/feature` response property for the response status `200` -- the same
+2026-11-07 POST /api/subscription/trial added the new `ASSISTANT` enum value to the `uses/items/feature` response property for the response status `200` -- the same
+2026-11-07 POST /api/subscription/trial added the new `WORDS` enum value to the `uses/items/feature` response property for the response status `200` -- the same
+2026-11-07 GET /api/status removed the required property `services/crewai_agent` from the response with the `200` status -- the agent services were removed (#495); only the Dev panel reads /api/status
+2026-11-07 GET /api/status removed the required property `services/nav_log_agent` from the response with the `200` status -- the agent services were removed (#495); only the Dev panel reads /api/status
+2026-11-07 POST /api/comparison api path removed without deprecation -- the LangGraph/CrewAI comparison was a web Dev screen; no phone calls it (#495)

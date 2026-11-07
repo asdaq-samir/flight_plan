@@ -39,9 +39,7 @@ updates:
   - package-ecosystem: pip
     directories:
       - /
-      - /crewai-agent
       - /docker
-      - /nav-log-agent
       - /planning-service
       - /src
     multi-ecosystem-group: monthly
@@ -52,9 +50,7 @@ updates:
 
   - package-ecosystem: docker
     directories:
-      - /crewai-agent
       - /docker
-      - /nav-log-agent
       - /planning-service
       - /springboot-app
     multi-ecosystem-group: monthly

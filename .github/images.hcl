@@ -27,7 +27,7 @@ variable "PUSH" {
 # Promote workflow walks, promoting each this commit built.
 group "default" {
   targets = ["ml", "pipeline-processing", "pipeline-training",
-             "nav-log-agent", "crewai-agent", "planning-service", "webapp"]
+             "planning-service", "webapp"]
 }
 
 function "image" {
@@ -70,24 +70,6 @@ target "pipeline-training" {
   cache-from = image("pipeline-training").cache-from
   cache-to   = image("pipeline-training").cache-to
   output     = image("pipeline-training").output
-}
-
-target "nav-log-agent" {
-  context    = "."
-  dockerfile = "nav-log-agent/Dockerfile"
-  tags       = image("nav-log-agent").tags
-  cache-from = image("nav-log-agent").cache-from
-  cache-to   = image("nav-log-agent").cache-to
-  output     = image("nav-log-agent").output
-}
-
-target "crewai-agent" {
-  context    = "."
-  dockerfile = "crewai-agent/Dockerfile"
-  tags       = image("crewai-agent").tags
-  cache-from = image("crewai-agent").cache-from
-  cache-to   = image("crewai-agent").cache-to
-  output     = image("crewai-agent").output
 }
 
 target "planning-service" {

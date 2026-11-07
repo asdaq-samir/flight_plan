@@ -1,11 +1,10 @@
 """Starting a development service the console links to.
 
-The console offers doors into Jupyter and nav-log-agent. A door into
-something that is not running is a dead link, and telling a developer
-to go and type `docker compose up -d ml` is a worse answer than doing it.
-The training run (compose's `retrain`) is started the same way, by
-/api/retrain (routers/system.py), and its container's state is read
-here too.
+The console offers a door into Jupyter. A door into something that is
+not running is a dead link, and telling a developer to go and type
+`docker compose up -d ml` is a worse answer than doing it. The training
+run (compose's `retrain`) is started the same way, by /api/retrain
+(routers/system.py), and its container's state is read here too.
 
 This service never touches Docker itself. It asks the dev-services
 sidecar (docker/dev-services), the one process holding the socket for
@@ -34,7 +33,6 @@ router = APIRouter()
 #: database port, and webapp starting itself is a contradiction.
 STARTABLE = {
     "ml": "Jupyter (the notebooks)",
-    "nav-log-agent": "nav-log-agent",
 }
 
 #: The training run's container (docker-compose.yml's `retrain`): started

@@ -15,10 +15,10 @@ options -- and issue #482 moves them into the engine, in that order;
 a new rule goes into the engine, not here (native/README.md says how).
 
 Nothing here serves HTTP, and nothing here imports a web framework.
-`planning-service`, the pipeline containers and both Gen AI agents are
+`planning-service`, the pipeline containers and the training run are
 all callers. That separation is the point — the same `navlog.py` runs
-inside a FastAPI request, a notebook cell, a pipeline container and a
-LangGraph tool, unchanged.
+inside a FastAPI request, a notebook cell and a pipeline container,
+unchanged.
 
 ## Contents
 
@@ -57,9 +57,7 @@ list only what they need beyond it. **A new third-party import in
 `src/wingtip` is one line in one of those two files.** Before, it was a line
 in six, and on 2026-09-22 a missed one left both agents and both
 pipeline stages unable to import. CI's build job now imports each
-service's own code inside its built image, so a miss fails there. The
-two agents import only `wingtip.planner_client`, which needs `requests`
-alone, and install neither list.
+service's own code inside its built image, so a miss fails there.
 
 ## Learning this from zero
 
@@ -137,7 +135,7 @@ Grouped by what they are for, not alphabetically.
 | Module | What it does |
 |---|---|
 | `geo.py` | Great-circle distance, bearing, cross/along-track, nearest-neighbour and clustering -- PROJ (`pyproj`) under a thin scalar/array-dispatching layer, not hand-rolled trigonometry. Every function takes a bare float or a whole array the same way. |
-| `navlog.py` | Wind correction angle, heading, ground speed, ETE, fuel -- per leg, and the legs and totals of a whole route, shared by the planner and both agents. |
+| `navlog.py` | Wind correction angle, heading, ground speed, ETE, fuel -- per leg, and the legs and totals of a whole route, for the planner. |
 | `magnetic.py` | Magnetic variation, for true → magnetic (the World Magnetic Model, evaluated locally). |
 | `sun.py` | Civil twilight, for the night fuel reserve. |
 | `aircraft.py` | Performance profiles (a C172, by default), cached by resolved path -- see planning-service/README.md's own note on why a cached profile is handed out as a fresh copy, never the cached object itself. |
@@ -156,9 +154,7 @@ Grouped by what they are for, not alphabetically.
 | `elevation.py` | USGS 3DEP point elevations. |
 | `terrain.py` | Terrain and obstacle floor for a route. |
 | `airports.py` | Identifier → coordinates, and the route form's search. |
-| `planner_client.py` | planning-service's `/api/plan` and `/api/checkpoints`, for the two agents: the nav log they brief is the planner's own, not one they assemble. `requests` only, so importing it pulls in none of this package's other dependencies. |
-| `narrative.py` | What both narrative agents write from: the request they accept (`NarrativeRequest`) and the one briefing prompt, so the framework comparison is on one task. Its pydantic is on wingtip's list like any other dependency; the agents get theirs with their frameworks. |
-| `retry.py` | The one retry loop the four modules above share for their requests, and `upstream_detail`, the one reader of a service's reason in an error response (planner_client, and the planner's dev-services proxy). |
+| `retry.py` | The one retry loop the four modules above share for their requests, and `upstream_detail`, the one reader of a service's reason in an error response (the planner's dev-services proxy). |
 
 **Deciding things** — rules still written here, each to move into the
 engine (#482).

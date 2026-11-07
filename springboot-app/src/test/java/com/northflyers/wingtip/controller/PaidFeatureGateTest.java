@@ -29,21 +29,18 @@ import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
- * The paid features Claude writes are refused, before any agent or the
- * planner is asked, with the subscription's own answer -- a 402 without
+ * The paid features Claude writes are refused, before the planner is
+ * asked, with the subscription's own answer -- a 402 without
  * one, a 429 past the month's cap -- and its sentence; what is free (a
  * pilot's own note saved) is never checked. The upstreams point nowhere:
  * a call that got past the gate would be a 502.
  */
-@WebMvcTest({ComparisonProxyController.class, PlannerProxyController.class})
+@WebMvcTest(PlannerProxyController.class)
 @Import(StreamingProxy.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
         // A deployment that sells the subscription, whose gate these are.
         "app.subscription.enabled=true",
-        "nav-log-agent.base-url=http://127.0.0.1:9",
-        "nav-log-agent.api-key=test-key",
-        "crewai-agent.base-url=http://127.0.0.1:9",
         "planner-service.base-url=http://127.0.0.1:9",
 })
 class PaidFeatureGateTest {
@@ -65,7 +62,7 @@ class PaidFeatureGateTest {
     @Test
     void theWrittenBriefingWithoutTheSubscriptionIsA402ThatSaysSo() throws Exception {
         refuse(PaidFeature.NARRATIVE, 402, "The written briefing comes with the subscription, its first month free.");
-        finish(post("/api/comparison?framework=langgraph")
+        finish(post("/api/planner/briefing/narrative")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departure_ident\":\"C81\"}"))
                 .andExpect(status().isPaymentRequired())
@@ -90,6 +87,38 @@ class PaidFeatureGateTest {
                     .andExpect(status().isTooManyRequests())
                     .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.startsWith("That is this month's 60")));
         }
+    }
+
+    /** The assistant is Opus with up to eight tool rounds an ask: the
+     *  gate's answer, with app.claude-features OFF a 404, stops it. */
+    @Test
+    void theAssistantIsGatedLikeTheOtherClaudeFeatures() throws Exception {
+        refuse(PaidFeature.ASSISTANT, 404, "The assistant comes later; it is not offered yet.");
+        finish(post("/api/planner/assistant").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("The assistant comes later; it is not offered yet."));
+    }
+
+    /** Every kind of reading in words is the one feature, matched by its
+     *  path's pattern. */
+    @Test
+    void everyKindOfReadingInWordsIsGated() throws Exception {
+        refuse(PaidFeature.WORDS, 402, "The readings in words come with the subscription.");
+        for (String kind : new String[] {"notams", "weather", "risk", "debrief", "changes"}) {
+            finish(post("/api/planner/words/" + kind).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isPaymentRequired())
+                    .andExpect(jsonPath("$.detail").value("The readings in words come with the subscription."));
+        }
+    }
+
+    @Test
+    void theWordsPathsAreOneFeatureAndNothingElseIs() {
+        org.assertj.core.api.Assertions.assertThat(PlannerProxyController.paidFeatureOf("/api/words/weather"))
+                .isEqualTo(PaidFeature.WORDS);
+        org.assertj.core.api.Assertions.assertThat(PlannerProxyController.paidFeatureOf("/api/assistant"))
+                .isEqualTo(PaidFeature.ASSISTANT);
+        org.assertj.core.api.Assertions.assertThat(PlannerProxyController.paidFeatureOf("/api/words")).isNull();
+        org.assertj.core.api.Assertions.assertThat(PlannerProxyController.paidFeatureOf("/api/go-no-go")).isNull();
     }
 
     @Test

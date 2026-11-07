@@ -50,16 +50,13 @@ flowchart LR
     registry --> planner[("planning-service<br/>scores with the promoted model")]
 
     webapp["§4 webapp<br/>(Spring Boot: accounts, records)"] --> planner
-    webapp --> db[("db<br/>Postgres + pgvector")]
+    webapp --> db[("db<br/>Postgres")]
     planner --> engine[["§4 engine (Rust)<br/>every aviation rule"]]
     apps([web · iOS · Android]) --> webapp
     apps --> engine
 
-    navlog["§5 nav-log-agent<br/>(LangGraph, MCP)"] --> planner
-    navlog --> db
-    crewai["§5 crewai-agent<br/>(CrewAI, one-shot CLI)"] --> planner
+    planner -->|"§5 the written briefing<br/>(Anthropic SDK)"| claude([Claude API])
 
-    mcpclient([MCP client]) --> navlog
 ```
 
 Everything above `db`/`planning-service` runs today exactly as drawn; the
@@ -109,8 +106,8 @@ they'd actually ship.
 private network, and each service is reachable from any other by its
 *service name* as a hostname — not `localhost`. That's why
 [`docker-compose.yml`](../docker-compose.yml)'s `planning-service` has
-`NAV_LOG_AGENT_URL: http://nav-log-agent:8000`, not
-`http://localhost:8000` — `nav-log-agent` is DNS-resolvable to the right
+`AIRFLOW_URL: http://airflow:8080`, not
+`http://localhost:8081` — `airflow` is DNS-resolvable to the right
 container only inside that private network. From your host machine
 (outside Compose's network), you *do* use `localhost:8080` etc., because
 `ports: ["8080:8080"]` punches a hole from the host into the container.
@@ -179,7 +176,6 @@ from its cache.
 | [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.14-slim` | Adds scikit-learn/joblib on top, so it can run every stage: the training run (`python -m wingtip.pipeline run`, compose's `retrain`) runs in it. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
 | [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.14-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely), and the chart model's scikit-learn, pinned to the training image's. Bind-mounts the repo, so a `src/wingtip` edit needs a restart, not a rebuild. |
 | [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `node:26-slim` → `maven:...` → `eclipse-temurin:25-jre` | Multi-stage, see above. |
-| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.14-slim` (crewai-agent: `python:3.13-slim`, as crewai requires <3.14) | Both set `PYTHONPATH=/workspace/src` so `import wingtip...` resolves inside the container without installing `wingtip` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does (see [the disk lesson](#the-disk-lesson)). |
 
 ### The images those Dockerfiles produce
 
@@ -205,8 +201,7 @@ in the list at all under the containerd image store.
 No image is permanently *needed*. Each one is a cache of a build this
 repo can reproduce, so deleting one costs rebuild time, never data. The
 thing you must not delete is the named Postgres volume (`pgdata_pg18` in
-`docker-compose.yml`), which holds the application rows and the agent's
-vector memory — and `docker system prune --volumes`, the command everyone
+`docker-compose.yml`), which holds the application rows — and `docker system prune --volumes`, the command everyone
 reaches for when a disk fills, takes it with everything else.
 [`docker/tidy.sh`](../docker/tidy.sh) is the safe version: by default it
 removes stopped containers and build-cache entries unused for seven
@@ -233,18 +228,18 @@ Per service, four keys matter most:
   type into your browser; the right side is what the app inside actually
   binds to.
 - `environment:` — env vars injected into the container. Notice
-  `${ANTHROPIC_API_KEY:-}` on `nav-log-agent`/`crewai-agent`: `:-` means
+  `${ANTHROPIC_API_KEY:-}` on `planning-service`: `:-` means
   "empty if unset". Its sibling `${VAR:?message}` means "fail immediately
   with this message if unset", and this file used that until it was tried
   from a clean checkout — Compose interpolates the *whole* file before it
   decides which services to start, so one required-variable marker failed
   every command, including `docker compose up webapp` and even
-  `docker compose config`. A worked lesson in where a check belongs: these
-  two services now declare `profiles: ["ai"]` and check their own keys at
-  startup, so the failure reaches only the people starting them.
+  `docker compose config`. A worked lesson in where a check belongs: the
+  planner's Claude features now find the key missing when they are used,
+  and say so, so the failure reaches only the people using them.
 - `profiles:` — a service with a profile is left out of a plain
-  `docker compose up`. `--profile ai` includes it, and naming the service
-  directly enables its profile too.
+  `docker compose up`. `--profile notebooks` includes `ml`, and naming the
+  service directly enables its profile too.
 - `depends_on:` — controls **start order** only (Compose waits for the
   dependency's container to start, not for the app inside it to be
   ready). It does not retry connections — if `webapp` starts faster than
@@ -556,8 +551,8 @@ into 21 checkpoints and 20 legs, averaging 15.7 nm apart.
 
 This step is worth its own section because its *absence* was invisible for
 weeks. `predicted_score` was plumbed through the FastAPI response, the
-Java DTO and a database column, and no code anywhere branched on it — both
-agents zipped the entire candidate list into consecutive legs, producing a
+Java DTO and a database column, and no code anywhere branched on it — the
+briefing agents of the time zipped the entire candidate list into consecutive legs, producing a
 205-leg "nav log". Every test passed, every service was healthy, and the
 model's output decided nothing. When you add a model to a system, the
 question that catches this is not "is the model good?" but **"what line of
@@ -646,10 +641,9 @@ Where the model gets called is worth noticing by its absence: nowhere in
 this service. Scoring a route belongs to `planning-service`, which
 `webapp` only proxies (`PlannerProxyController`, `/api/planner/*`), and
 planning-service scores in its own process
-([`app/chart_scorer.py`](../planning-service/app/chart_scorer.py)): the Gen AI agents
-ask planning-service itself for the nav log (through
-[`wingtip.planner_client`](../src/wingtip/planner_client.py)), so there is one
-client to get right and one place a nav log is built.
+([`app/chart_scorer.py`](../planning-service/app/chart_scorer.py)), and the
+written briefing is planning-service's too, told from the nav log the
+page already shows, so there is one place a nav log is built.
 
 **Schema ownership**: this app does *not* let Hibernate auto-generate or
 alter its schema in a real environment (`ddl-auto: validate`, not
@@ -675,143 +669,54 @@ endpoints, on purpose.
 
 ## 5. The Gen AI layer
 
-Two independent implementations of the same task exist here specifically
-so you can compare two different ways of building an LLM agent.
+Every Claude call in this project is made from `planning-service` with the
+Anthropic Python SDK directly — no agent framework in between. The
+project once had two (a LangGraph agent served over MCP, with a pgvector
+memory of past briefings, and the same task again in CrewAI, to compare
+the frameworks); the owner removed both on 2026-11-06, because the
+project is a product, not a framework showcase, and every feature they
+offered was one SDK call.
 
 ### What "an agent" actually means here
 
-Both builds do the same things: get the route's nav log from
-planning-service -- the model-scored checkpoints worth flying, a legal
-cruising altitude for each leg from real terrain/airspace/weather
-constraints, dead-reckoning legs from airport to airport with their
-climbs and the fuel check -- retrieve similar past routes from memory,
-and ask an LLM to turn all of that into a natural-language briefing. The *only* place either build actually calls an
-LLM is that last step — everything else is deterministic Python you could
-run without any AI involved at all. That's worth internalizing: "agent"
-doesn't mean "the LLM does everything," it usually means "deterministic
-code does the heavy lifting, and an LLM handles the part that's genuinely
-about language."
+The written briefing ([`app/narrative.py`](../planning-service/app/narrative.py),
+`POST /api/briefing/narrative`) is the clearest case. Everything a pilot
+reads in it — the checkpoints, each leg's legal cruising altitude from
+real terrain/airspace/weather constraints, the dead-reckoning legs with
+their climbs and the fuel check — is worked out by deterministic code
+first, and the page already has it on screen. The *only* place an LLM is
+called is the last step: turning those figures into plain prose. That's
+worth internalizing: "AI-powered" doesn't mean "the LLM does everything,"
+it usually means "deterministic code does the heavy lifting, and an LLM
+handles the part that's genuinely about language."
 
-### LangGraph — explicit state machine
+The call itself is short: one `client.messages.stream(...)` with the
+prompt built from the nav log, each text delta written out as a line of
+newline-delimited JSON as it arrives, so the first sentence reaches the
+phone in a second or two rather than the whole briefing after ten. A
+failure (no key, a limit, the token cap reached mid-sentence) ends the
+stream with an `error` line instead of half a briefing — a cut-off
+briefing could end before its weather, and a pilot would take it as
+whole.
 
-[`nav-log-agent/app/graph.py`](../nav-log-agent/app/graph.py) builds a
-`StateGraph`: a shared, typed state object (`NavLogState`, a
-`TypedDict`) that flows through a fixed sequence of plain Python
-functions, each one reading some keys off the state and returning a dict
-of new/updated keys:
+### When the model does choose: the tool runner
 
-```python
-graph.add_edge(START, "fetch_nav_log")
-graph.add_edge("fetch_nav_log", "retrieve_memory")
-graph.add_edge("retrieve_memory", "generate_briefing")
-graph.add_edge("generate_briefing", "store_memory")
-graph.add_edge("store_memory", END)
-```
-
-Four nodes in a straight line, no branching — control flow is decided
-by *you*, the developer, at graph-build time, not by the LLM at runtime.
-This is the right choice whenever you actually know the steps your task
-needs; you're using LangGraph here for state management and
-observability, not because you need an LLM to decide what to do next.
-
-It used to be seven. The first four assembled the nav log from `wingtip`'s
-pieces -- checkpoints, selection, one altitude, legs -- and so briefed a
-nav log nobody else saw: no legs to or from the airports, one altitude
-for the whole route, no climbs. `fetch_nav_log` asks planning-service
-for the one a pilot sees instead, which is why the graph is short: a
-second copy of a recipe is a second answer waiting to happen. The four
-nodes, with what each one touches outside the graph:
-
-```mermaid
-flowchart TD
-    START([START]) --> fetch[fetch_nav_log]
-    fetch -.->|/api/plan| planner[("planning-service:\ncheckpoints, altitudes,\nlegs, fuel")]
-    fetch --> memory[retrieve_memory]
-    memory -.->|similarity search| pgvector[("pgvector:\nroute_briefings")]
-    memory --> briefing[generate_briefing]
-    briefing -.->|messages.create| claude[("Claude API")]
-    briefing --> store[store_memory]
-    store -.->|embed + INSERT| pgvector
-    store --> END([END])
-```
-
-The dashed edges are where the graph leaves the process — the planner,
-the database, the Claude API. Those are where
-retries and error handling matter, and the diagram shows it.
-
-### MCP (Model Context Protocol)
-
-[`nav-log-agent/app/mcp_server.py`](../nav-log-agent/app/mcp_server.py)
-wraps the compiled LangGraph as three callable **tools**, exposed over
-MCP — a standard protocol for "here is a tool an LLM client can call,
-with a typed signature and a description," transport-agnostic (this one
-runs over SSE — see [`app/main.py`](../nav-log-agent/app/main.py)'s
-`mcp.run(transport="sse")`). The point of MCP specifically: any
-MCP-speaking client (Claude Desktop, another agent, a different app
-entirely) can discover and call these tools without you writing a
-bespoke integration for each one — you write the tool once, against the
-protocol, not against a specific caller.
-
-The three earn their keep by lining up with the graph's own shape. Of
-its four nodes, exactly one — `generate_briefing` — calls Claude; the
-other three are a call to planning-service and two database calls.
-`generate_nav_log_briefing` runs the whole graph and is what `webapp`'s
-own flight planning drawer calls, spending this server's own Anthropic credit on the
-narration. But an MCP client connecting from Claude Desktop, or from
-another agent, already *has* a model — asking it to pay for a second one
-here is backwards. `assemble_nav_log` runs the graph up to
-`retrieve_memory` (`build_graph(narrate=False)`) and hands back the
-checkpoints, the altitude reasoning, the legs, similar past routes, and
-`briefing_prompt` — the exact instruction the server's own narrator
-writes from — so the caller's model can write the prose itself, with
-the same constraints. `remember_briefing` is the other half of that:
-without it, a client-written briefing would be invisible to
-`retrieve_memory`'s own similarity search, and the store would only
-ever learn from narrations that cost the operator money. Three tools
-from one graph, because "does this call Claude" turned out to be
-exactly the line worth cutting it on.
-
-### Vector memory (RAG, in miniature)
-
-`retrieve_memory`/`store_memory` in the graph are a small
-**retrieval-augmented generation** loop: past briefings are embedded (text
-→ a fixed-length numeric vector capturing its meaning, via a local
-`sentence-transformers` model, `all-MiniLM-L6-v2` — no external API call
-needed for this part) and stored in Postgres using the **pgvector**
-extension, which adds vector columns and nearest-neighbor similarity
-search directly to SQL. `retrieve_memory` embeds the *current* query the
-same way and asks pgvector for the most similar stored briefings; those
-get folded into the prompt `generate_briefing` sends to Claude, so the
-model has relevant precedent to draw on instead of starting cold every
-time. `store_memory` then embeds and saves the new briefing, so the store
-grows with use. Schema for this lives in
-[`nav-log-agent/app/migrations/`](../nav-log-agent/app/migrations/),
-applied by a small hand-rolled runner
-([`app/migrations.py`](../nav-log-agent/app/migrations.py)) rather than a
-full ORM/migration framework — see [Section 6](#6-database-migrations).
-
-### CrewAI — agent-driven tool selection
-
-[`crewai-agent/app/tools.py`](../crewai-agent/app/tools.py) wraps the
-*exact same* planner answers nav-log-agent uses (planning-service's
-checkpoints, altitude breakdown and plan, through `wingtip.planner_client`)
-as three `@tool`-decorated functions, each with a
-docstring the LLM reads to decide when/whether to call it. The structural
-difference from LangGraph: instead of you wiring a fixed sequence of
-edges, you hand an `Agent` a goal and a set of tools, and the *LLM itself*
-reasons, at runtime, about which tools to call and in what order. That's
-strictly more flexible and strictly less predictable — worth building once
-yourself on a real task (as this repo does) so you feel the tradeoff
-directly rather than taking it on faith: explicit graphs are easier to
-debug, test, and reason about; agent-driven tool use handles novel
-situations a fixed graph wasn't built for, at the cost of predictability.
+The pilot's assistant ([`app/assistant.py`](../planning-service/app/assistant.py))
+is the one place the model decides what to do next. It is given the
+planner's own functions as tools (the plan, the weather at a field, the
+briefing, the Go / No-Go, a hold's entry, a diversion) and the SDK's
+tool runner loops: the model asks for a tool, the runner calls the
+Python function and hands back the answer, until the model has what it
+needs to write. Every figure in the answer still comes from the
+planner's functions; the model chooses which to ask for and writes the
+words. That is the whole of what an agent framework would add here, and
+the SDK does it in one call.
 
 ---
 
 ## 6. Database migrations
 
-Two independent schemas share the one `db` Postgres container, each owned
-by its own service, each solving the same problem differently:
+The webapp owns the schema of the one `db` Postgres container:
 
 **`webapp` uses Flyway** — an industry-standard migration tool. You add a
 new file, `V<N>__description.sql`, and Flyway applies any files newer than
@@ -820,21 +725,13 @@ startup, in version order, once each, forever. Never edit an already-applied
 migration file — add a new one instead; Flyway (like every migration
 tool) assumes each version's content is immutable once it's run anywhere.
 
-**`nav-log-agent` uses a ~30-line hand-rolled equivalent**
-([`app/migrations.py`](../nav-log-agent/app/migrations.py)), because
-there's no ORM on the Python side to bring a full migration framework
-along with it, and pulling one in for one table would be overkill. It does
-the same conceptual thing at a much smaller scale: a `schema_migrations`
-table tracking applied version numbers, and a loop that runs any
-`V*.sql` file whose version isn't in that table yet, each file and its
-row in one transaction. Its tables live in their own `nav_log_agent`
-schema: Flyway owns `public`, and refuses to start on a `public` holding
-tables it has no history for. Reading this file is
-a good exercise in its own right — it's short enough to fully understand
-in five minutes, and it'll teach you what tools like Flyway are actually
-doing underneath their much larger feature set.
+A database made before 2026-11-06 also holds a `nav_log_agent` schema —
+the removed briefing agent's memory and its own small migrations table.
+Nothing reads it any more; it was left in place rather than dropped by a
+new migration, since a destructive migration is a decision to take on
+purpose.
 
-The pattern **both** replace: letting your ORM auto-generate schema
+The pattern Flyway replaces: letting your ORM auto-generate schema
 changes at startup based on what your code currently looks like (JPA's
 `ddl-auto: update`, or an ad-hoc `CREATE TABLE IF NOT EXISTS` on every
 connection). That works fine until you need to *rename* a column, backfill
@@ -917,7 +814,7 @@ problem you'll meet in any real deployment
   change without anyone choosing to — and the backup bucket is kept if
   the stack goes (`DeletionPolicy: Retain`).
 - **Secrets the stack makes, and one it does not.** The database
-  password, the origin's header and the agent's key are generated by
+  password, and the origin's header are generated by
   Secrets Manager (`GenerateSecretString`), so no person ever sees them;
   the owner's own keys go in one secret filled in by hand, which the
   stack writes once and leaves alone.

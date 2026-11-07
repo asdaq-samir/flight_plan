@@ -76,7 +76,7 @@ env:
 jobs:
   # The Python suites install their requirements with uv, the same
   # pinned lists pip installs into each image, several times faster:
-  # pip spent 50 of test-nav-log-agent's 90 seconds, when the browser
+  # pip spent 50 of a Python suite's 90 seconds, when the browser
   # suite's shards end at about that. No pip cache in the Actions cache
   # either: the suites' pip caches were 6.5 of its 10 GB, and what they
   # pushed out was the browser suite's own planner data.
@@ -283,70 +283,11 @@ jobs:
       - run: ruff check app tests
       - run: pytest tests/ -v
 
-  # The two agents' suites. Each installs its own service's requirements,
-  # the way its image does -- nav-log-agent takes the CPU torch wheel
-  # first for the same reason its Dockerfile does. The suites mock the
-  # database, planning-service and Claude, so nothing here is billed.
-  test-nav-log-agent:
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes]
-    if: needs.changes.outputs.test-nav-log-agent == 'true'
-    defaults:
-      run:
-        working-directory: nav-log-agent
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
-        with:
-          python-version: "3.14"
-      - run: pip install uv
-      - run: uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
-      - run: uv pip install --system -r requirements-dev.txt
-      - run: ruff check app tests
-      - run: pytest tests/ -v
-      # The agent's API documentation, from the packages its tests just
-      # ran with -- its image's own list. pdoc imports every module.
-      - name: pdoc (nav-log-agent)
-        run: |
-          uv pip install --system pdoc
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o /tmp/pdoc-nav-log-agent --no-show-source
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
-        with:
-          name: pdoc-nav-log-agent
-          path: /tmp/pdoc-nav-log-agent
-          retention-days: 30
-
-  test-crewai-agent:
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes]
-    if: needs.changes.outputs.test-crewai-agent == 'true'
-    defaults:
-      run:
-        working-directory: crewai-agent
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
-        with:
-          python-version: "3.13"   # crewai requires <3.14; crewai-agent/Dockerfile matches
-      - run: pip install uv
-      - run: uv pip install --system -r requirements-dev.txt
-      - run: ruff check app tests
-      - run: pytest tests/ -v
-      - name: pdoc (crewai-agent)
-        run: |
-          uv pip install --system pdoc
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o /tmp/pdoc-crewai-agent --no-show-source
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
-        with:
-          name: pdoc-crewai-agent
-          path: /tmp/pdoc-crewai-agent
-          retention-days: 30
-
   # What this run has to do, from what changed: the one job the test
   # jobs and the image builds wait on, and quick (a checkout and a diff).
   # Each test job and each image then runs only if something it reads
   # changed -- a change to the planner's Python runs the planner's tests
-  # and the planner's image, and none of the React, Spring or agent jobs.
+  # and the planner's image, and none of the React or Spring jobs.
   # The browser suite and its images do not wait for it (see e2e).
   #
   # Changed since when: on main, since the last commit whose run went
@@ -371,12 +312,11 @@ jobs:
       test-web: ${{ steps.plan.outputs.test-web }}
       test-webapp: ${{ steps.plan.outputs.test-webapp }}
       test-planning-service: ${{ steps.plan.outputs.test-planning-service }}
-      test-nav-log-agent: ${{ steps.plan.outputs.test-nav-log-agent }}
-      test-crewai-agent: ${{ steps.plan.outputs.test-crewai-agent }}
       docs: ${{ steps.plan.outputs.docs }}
       infra: ${{ steps.plan.outputs.infra }}
       android: ${{ steps.plan.outputs.android }}
       ios: ${{ steps.plan.outputs.ios }}
+      api: ${{ steps.plan.outputs.api }}
       docs-only: ${{ steps.docsonly.outputs.only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -449,16 +389,17 @@ jobs:
               - android/app/src/main/kotlin/app/wingtipmaps/android/api/generated/**
             test-webapp:
               - springboot-app/**
+              # the planner's answers PlannerClient reads are generated from it
+              - planning-service/openapi.json
             test-planning-service:
               - planning-service/**
               - src/**
               - native/**
-            test-nav-log-agent:
-              - nav-log-agent/**
-              - src/**
-            test-crewai-agent:
-              - crewai-agent/**
-              - src/**
+            # The two APIs the phones call, for api-compat.
+            api:
+              - planning-service/openapi.json
+              - springboot-app/openapi.json
+              - .github/api-breaks.txt
             # The production stack's own files.
             infra:
               - infra/cloudformation/**
@@ -505,12 +446,6 @@ jobs:
               - docker/requirements-training.txt
               - src/**
               - native/**
-            nav-log-agent:
-              - nav-log-agent/**
-              - src/**
-              - native/**
-            crewai-agent:
-              - crewai-agent/**
               - src/**
               - native/**
             planning-service:
@@ -539,12 +474,12 @@ jobs:
           # Every image this workflow builds, each a target of
           # .github/images.hcl, which has its context and Dockerfile.
           IMAGES = ("ml", "pipeline-processing", "pipeline-training",
-                    "nav-log-agent", "crewai-agent", "planning-service", "webapp")
+                    "planning-service", "webapp")
           due = lambda name: everything or name in changed
           images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service",
-                       "test-nav-log-agent", "test-crewai-agent", "docs", "infra"):
+                       "docs", "infra", "api"):
               outputs[name] = "true" if due(name) else "false"
           # The phones' builds gate a merge: a pull request, or a run
           # started by hand on one's branch. Main's pushes and the nights
@@ -1545,11 +1480,9 @@ jobs:
   # (Actions -> this run -> Artifacts), so current docs are a click away
   # without regenerating them locally.
   #
-  # The Python documentation (pdoc) is made by the test, test-nav-log-agent
-  # and test-crewai-agent jobs, each from the packages its tests have just
-  # installed, and uploaded as pdoc-wingtip, pdoc-nav-log-agent and
-  # pdoc-crewai-agent. This job used to build the ML, nav-log-agent and
-  # crewai-agent images for pdoc's sake: the image builds' work a second
+  # The Python documentation (pdoc) is made by the test job, from the
+  # packages its tests have just installed, and uploaded as pdoc-wingtip.
+  # This job used to build the ML and agent images for pdoc's sake: the image builds' work a second
   # time, 3.6 to 9.8 minutes and the longest job of a run, and so on
   # pushes to main only. In the suites' jobs it takes seconds, and pull
   # requests get it too.
@@ -1601,7 +1534,7 @@ jobs:
       - name: docker compose config (docker-compose.prod.yml)
         run: |
           printf '%s\n' IMAGE_REGISTRY=registry.example/wingtip PUBLIC_HOST=app.example.com \
-            ORIGIN_HOST=origin.app.example.com ORIGIN_SECRET=x POSTGRES_PASSWORD=x NAV_LOG_AGENT_API_KEY=x \
+            ORIGIN_HOST=origin.app.example.com ORIGIN_SECRET=x POSTGRES_PASSWORD=x \
             MAIL_HOST=smtp.example.com MAIL_FROM=no-reply@example.com > /tmp/prod.env
           docker compose --env-file /tmp/prod.env -f docker-compose.prod.yml config --quiet
       - name: caddy validate (infra/server/Caddyfile)
@@ -1631,6 +1564,53 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.ios == 'true'
     uses: ./.github/workflows/native-ios-test.yml
+  # Nothing a phone already calls may break. An iPhone app in the App
+  # Store keeps calling these servers for months after a release, from
+  # every phone that has not updated, so a field or an endpoint removed
+  # or renamed, a parameter made required, or a type narrowed in either
+  # API's OpenAPI document breaks all of them at once. oasdiff (stock,
+  # pinned by digest) compares each document in the pull request with
+  # the one on main and fails on its ERR-level breaking changes; adding
+  # is always fine. A break that is meant -- an endpoint no released
+  # phone calls -- goes in .github/api-breaks.txt, one line per change
+  # as oasdiff words it, which the pull request commits with the change
+  # (docs/CI.md). Pull requests only, and only when a document changed:
+  # it is one small image and two comparisons, seconds.
+  api-compat:
+    name: API compatibility
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    needs: [changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.api == 'true'
+    env:
+      OASDIFF_IMAGE: tufin/oasdiff:v1.34.1@sha256:67a23cfea7d251e2ae34ee703ac8733c5d96bc2e7b90fd0f4d475ec99367b85f
+    steps:
+      # Two commits deep: a pull request's checkout is its merge with
+      # main, and the merge's first parent is the main it was made on --
+      # so the comparison is with exactly the main this would land on.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 2
+      - uses: ./.github/actions/hub-mirror
+      - name: oasdiff breaking, each document against main's
+        run: |
+          docker pull -q "$OASDIFF_IMAGE"
+          status=0
+          for doc in planning-service/openapi.json springboot-app/openapi.json; do
+            mkdir -p "/tmp/base/$(dirname "$doc")"
+            if ! git show "HEAD^1:$doc" > "/tmp/base/$doc" 2>/dev/null; then
+              echo "$doc is new: nothing on main to break"
+              continue
+            fi
+            echo "::group::$doc"
+            docker run --rm -v /tmp/base:/base:ro -v "$PWD:/head:ro" "$OASDIFF_IMAGE" \
+              breaking "/base/$doc" "/head/$doc" --fail-on ERR --format githubactions \
+              --err-ignore /head/.github/api-breaks.txt || status=1
+            echo "::endgroup::"
+          done
+          if [ "$status" != 0 ]; then
+            echo "::error title=API break::A change above breaks the phones already in pilots' hands. Make it additive (a new field or endpoint beside the old), or, if no released app calls it, add oasdiff's line for it to .github/api-breaks.txt (docs/CI.md)."
+          fi
+          exit $status
 
   # Lighthouse's report against the industry's thresholds: Google's
   # "good" Core Web Vitals (web.dev/vitals -- LCP within 2.5 s, CLS 0.1 at
@@ -1760,7 +1740,7 @@ jobs:
   passed:
     name: CI passed
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra, android, ios]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, e2e, e2e-images, build-images, docs, infra, android, ios, api-compat]
     if: always()
     steps:
       - name: Every job passed or was not needed

@@ -104,9 +104,8 @@ jobs:
     strategy:
       matrix:
         include:
-          # The three images the production server runs
-          # (docker-compose.prod.yml). crewai-agent and the pipeline stay
-          # out of production: the same briefing nav-log-agent writes, and
+          # The two images the production server runs
+          # (docker-compose.prod.yml). The pipeline stays out of production:
           # retraining runs on the owner's machine (docs/README-AWS.md).
           #
           # Repo root as context, for the same reason as images.hcl:
@@ -119,10 +118,6 @@ jobs:
             ecrRepo: planning-service
             context: .
             dockerfile: planning-service/Dockerfile
-          - service: nav-log-agent
-            ecrRepo: nav-log-agent
-            context: .
-            dockerfile: nav-log-agent/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:

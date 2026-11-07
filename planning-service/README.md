@@ -22,8 +22,8 @@ briefing, notes, devml, devservices, system), and the work they share -- resolvi
 (`common.py`), scoring and selecting its checkpoints (`scoring.py`), the
 cruise altitude and course line (`planning.py`), the corridor read
 (`detection.py`) -- sits beside them. The legs themselves are
-`wingtip.navlog`'s; both agents take theirs from this service's `/api/plan`
-(`wingtip.planner_client`) rather than building their own.
+`wingtip.navlog`'s. The written briefing (`app/narrative.py`) is told
+from the nav log the page already shows, by one streamed Claude call.
 Every response, streamed lines included, is a model in `app/schemas.py`:
 FastAPI validates against it and publishes it in `openapi.json`,
 committed here and checked by `tests/test_openapi.py`. After changing a
@@ -125,6 +125,7 @@ once in ten.
 | `GET /api/navlog` | The four altitude plans (lowest, highest, fastest for the winds, and the least fuel, climb and cruise; each stepping under a Class B shelf and up past it), the one chosen (`altitude_choice`), and the dead-reckoning legs, streamed as NDJSON. `depart`, an ISO time, picks the winds forecast period (6, 12 or 24 hours out) and whether the fuel reserve is the day or the night one; the totals carry the fuel check against the aeroplane's usable fuel (`usable_fuel_gal` overrides the profile's). Each leg flies the aeroplane's cruise figures -- the profile's, or a pilot's own (`cruise_tas_kt`, `fuel_burn_gph`, and `cruise_power_pct`, the power they are at) -- in its own air: they are its figures at 6,000 ft on a standard day, and the forecast temperature at the leg's altitude gives the density altitude, the TAS and the burn it flies at (`wingtip.performance`). Each leg carries its climb -- from the field on the first, up to a new level where a plan steps -- at the best rate for the density altitude, falling to 100 fpm at the service ceiling. The slow one. |
 | `GET /api/plan` | All three at once, for non-browser callers. |
 | `GET /api/briefing` | The FAA-sequence weather briefing behind Plan's briefing (the nav log drawer opened wide). |
+| `POST /api/briefing/narrative` | The Brief's written briefing (`app.narrative`): the nav log on screen, sent back by the page, told in plain prose by one streamed Claude call (`messages.stream`, `NARRATIVE_MODEL`, Haiku by default), as newline-delimited JSON -- `delta` lines as it is written, then `done` with the whole briefing, or `error`. A paid feature: webapp checks the subscription and the day's allowance before it forwards the call. |
 | `GET /api/detect/stream` | Chart-vision detections, streamed as NDJSON. |
 | `GET /api/classify` | What the chart draws at one point. |
 | `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | The map's tiles, rendered from the FAA's own GeoTIFF of each sheet (`wingtip.charts`), collar clipped away so sheets butt together; 404 where no sheet of that kind covers the tile. Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to), `ifr_area` (the enroute charts' terminal-area sheets, an overlay over the IFR bases the way the TAC is over the sectional). `chart_layers` on the course lists the kinds, their zooms and which base each overlay belongs over. On AWS the course also carries `chart_tiles_base`, the CloudFront URL the browser fetches tiles from instead (docs/README-AWS.md). |
@@ -137,7 +138,7 @@ once in ten.
 | `GET /api/aircraft-profiles` | The stock performance profiles the nav log can be computed for. `/api/plan` and `/api/navlog` take `aircraft` plus optional `cruise_tas_kt`/`fuel_burn_gph` for a pilot's own aeroplane. |
 | `GET /api/status` | The whole stack in one snapshot for the dev console: which services answer, how fresh the FAA and weather data is, the model registry, and every collected corridor with its label counts. |
 | `POST /api/retrain` | Starts the training run (`python -m wingtip.pipeline run`, compose's `retrain` container) through the `dev-services` sidecar, or a 501 that says how to run it by hand. `/api/status` reports the run, stage by stage, from the file it writes (`data/models/run.json`) and its container's state. |
-| `GET /api/dev/services`, `POST /api/dev/services/{service}/start` | Whether `ml` and `nav-log-agent` are running, and starting one that isn't -- what the dev console's System tab links to. Asks the `dev-services` sidecar (`docker/dev-services`), which holds the Docker socket and answers only these two requests for the names on its list (these, and `retrain`) in this compose project; this service never touches Docker itself. The sidecar is on a network only planning-service shares, so nothing else in the stack can reach it, and it 404s on any other name. |
+| `GET /api/dev/services`, `POST /api/dev/services/{service}/start` | Whether `ml` is running, and starting it if it isn't -- what the dev console's System tab links to. Asks the `dev-services` sidecar (`docker/dev-services`), which holds the Docker socket and answers only these two requests for the names on its list (`ml` and `retrain`) in this compose project; this service never touches Docker itself. The sidecar is on a network only planning-service shares, so nothing else in the stack can reach it, and it 404s on any other name. |
 
 The tile endpoints render on first request and cache on disk, which is
 fine for one corridor and not for a map with no street layer under it.

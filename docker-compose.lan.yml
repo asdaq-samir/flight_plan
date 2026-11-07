@@ -44,7 +44,3 @@ services:
   planning-service:
     ports: !override
       - "8084:8000"
-
-  nav-log-agent:
-    ports: !override
-      - "8082:8000"

@@ -11,7 +11,9 @@ Everything else in this repo sits behind it on a private network.
 It is one of the project's four layers, and the one that should have no
 aviation logic. A figure it needs should come from the planner over HTTP
 (`PlannerClient`, which today asks for a flight's briefing and what
-changed in it), which asks the Rust engine; Spring keeps identity and persistence, the
+changed in it, and reads the planner's answers as models generated at
+build time from `planning-service/openapi.json` by the pom's
+openapi-generator plugin), which asks the Rust engine; Spring keeps identity and persistence, the
 things it is good at. The owner kept Java here on that line on
 2026-11-06 rather than folding it into the Python: the HTTP boundary is
 already clean and a merge would give a pilot nothing. Some rules are
@@ -194,8 +196,8 @@ thrown) whether or not OIDC is configured.
 **Planner writes need a session once anyone can sign in, and the
 developer's work needs the developer role.** `GET /api/planner/**` is
 public apart from the stack's own status and services; `POST`/`DELETE`
-through the proxy (checkpoint notes, corridor builds) and the billed
-`/api/comparison` narrative require a session whenever `SecurityConfig`
+through the proxy (checkpoint notes, corridor builds, the billed
+written briefing at `/api/planner/briefing/narrative`) require a session whenever `SecurityConfig`
 sees a way to obtain one -- OIDC credentials or a configured
 `MAIL_HOST` for the magic link. The developer's work -- picks (the
 model's training labels), a retrain, a chart refresh,

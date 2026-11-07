@@ -1,13 +1,12 @@
 package com.northflyers.wingtip.service;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.util.RawValue;
-import com.northflyers.wingtip.dto.BriefingChangeDto;
-import com.northflyers.wingtip.dto.BriefingSourceDto;
+import com.northflyers.wingtip.planner.model.PlannerChangesWords;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -45,17 +44,11 @@ public class PlannerClient {
      *  aviationweather.gov is slow; the words are one Claude call. */
     private static final Duration TIMEOUT = Duration.ofMinutes(2);
 
-    private static final ObjectMapper JSON = new ObjectMapper();
-
-    /** The planner's answer to what changed between two briefings
-     *  (its /api/words/changes): whether anything did, the sentences
-     *  that say what, the reports they came from, and which model wrote
-     *  them; {@code unavailable} says why there are none when the words
-     *  could not be written. Fields the planner adds later are ignored. */
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Changes(boolean changed, List<BriefingChangeDto> sentences, List<BriefingSourceDto> sources,
-                          String model, String unavailable) {
-    }
+    /** Fields the planner adds later are ignored: its answers are
+     *  generated from its OpenAPI document as this app was built, and a
+     *  planner deployed after it may say more. */
+    static final ObjectMapper JSON = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /** The planner did not answer, or not with what was asked for. */
     public static class Unavailable extends RuntimeException {
@@ -104,12 +97,20 @@ public class PlannerClient {
 
     /**
      * What changed between two briefings of the flight, in words (POST
-     * /api/words/changes). Both briefings go as the JSON they came as.
+     * /api/words/changes): whether anything did, the sentences that say
+     * what, the reports they came from, and which model wrote them;
+     * {@code unavailable} says why there are none when the words could
+     * not be written. The answer is the planner's own ChangesWords,
+     * generated from planning-service/openapi.json at build time (the
+     * pom's openapi-generator-maven-plugin). Both briefings go as the
+     * JSON they came as, which is why the ask is built here rather than
+     * from the generated ChangesAsk: that would parse two whole briefings
+     * only to write them out again.
      *
      * @throws Unavailable when the planner cannot be reached, refuses, or
      *     answers something that is not its answer
      */
-    public Changes changes(String dep, String dest, List<String> stops, String then, String now) {
+    public PlannerChangesWords changes(String dep, String dest, List<String> stops, String then, String now) {
         ObjectNode body = JSON.createObjectNode();
         body.put("dep", dep);
         body.put("dest", dest);
@@ -127,7 +128,7 @@ public class PlannerClient {
                 .build();
         String answer = send(request, "the changes");
         try {
-            return JSON.readValue(answer, Changes.class);
+            return JSON.readValue(answer, PlannerChangesWords.class);
         } catch (JsonProcessingException notItsAnswer) {
             throw new Unavailable("the planner's answer to the changes was not its answer", notItsAnswer);
         }

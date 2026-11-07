@@ -49,7 +49,7 @@ from . import chart_model, chart_refresh, errors, swim, tracing
 from .common import PROCESSED_DIR
 from .planning import StillComputing
 from .routers import airports, airspace as airspace_router, basemaps, briefing, chart, classb, devml, devservices, notes, oral, plan
-from .routers import assistant, clearance, figures, gonogo, packs, route_options, system, traffic, weather_map, words
+from .routers import assistant, clearance, figures, gonogo, narrative, packs, route_options, system, traffic, weather_map, words
 from .schemas import STREAM_MESSAGES, Index
 
 # Nothing else in the process configured logging, so every log.info() in
@@ -350,7 +350,7 @@ def index() -> Index:
 
 
 for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports, airspace_router, oral, traffic, basemaps,
-               route_options, gonogo, figures, clearance, packs, assistant, words, weather_map):
+               route_options, gonogo, figures, clearance, packs, assistant, words, narrative, weather_map):
     app.include_router(module.router)
 
 
