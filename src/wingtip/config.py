@@ -145,6 +145,9 @@ class Settings(BaseSettings):
     chart_landmarks_dir: Path | None = None
     #: Whether the planner refreshes the chart cycle on its own (0 in production).
     charts_auto_refresh: bool = True
+    #: Whether the planner fetches a new edition of the FAA's NASR files and
+    #: obstacle file on its own (0 on a test stack): on in production, whatever the charts do.
+    faa_data_auto_refresh: bool = True
     #: The "HH:MM-HH:MM" window a cycle's render may start in, or blank for any time.
     charts_refresh_window: str = "01:00-06:00"
     #: How many render processes a cycle refresh gets.
@@ -193,7 +196,7 @@ class Settings(BaseSettings):
 
     read_switches = field_validator(
         "charts_fetch_for_tiles", "adsbfi_open_data", "registry_refresh", "cycle_pack", "landmarks_build",
-        "charts_auto_refresh", "chart_reads_in_process", mode="before")(_switch)
+        "charts_auto_refresh", "faa_data_auto_refresh", "chart_reads_in_process", mode="before")(_switch)
 
     @field_validator("assistant_fallbacks", mode="before")
     @classmethod

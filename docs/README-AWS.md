@@ -71,6 +71,12 @@ EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m wingtip.charts 
   `CHART_TILES_URL`). It still reads the chart for checkpoints, from the
   sheets under each route, fetched the first time a route needs them
   and kept on the server's disk.
+- **The planner keeps the FAA's data current** (`FAA_DATA_AUTO_REFRESH`,
+  on): four times a day it looks for a new edition of the NASR files
+  (airports, frequencies, navaids, Class B/C/D, every 28 days) and the
+  obstacle file (every 56), and reads a new one in place. Its own
+  switch, so the charts being off does not leave it reading an old
+  cycle; `0` turns it off.
 - **The server is Spot capacity, and replaceable.** It runs at about a
   third of the on-demand price, in an Auto Scaling group of one. When
   AWS takes it back (a few times a year) or it fails its checks, the

@@ -180,7 +180,9 @@ default) -- unless nothing complete is on disk at all, when it starts
 at once. `refresh now` in the Dev console starts one at once with two
 workers, and `CHARTS_AUTO_REFRESH=0` turns the check off. (The FAA aircraft
 registry has its own switch: `REGISTRY_REFRESH=0` turns off its daily
-download, which is on otherwise, whatever the charts do.) All of that
+download, which is on otherwise, whatever the charts do; and so do the
+NASR and obstacle files: `FAA_DATA_AUTO_REFRESH=0` turns off the check
+for their new editions, four times a day otherwise.) All of that
 policy -- the window, the due check, the worker counts -- is
 `app/chart_refresh.py`; `wingtip.charts` does the work it asks for. `python -m
 wingtip.charts check` looks for daylight between adjacent sheets, which is

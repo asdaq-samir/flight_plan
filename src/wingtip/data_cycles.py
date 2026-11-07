@@ -2,9 +2,9 @@
 it is still in force. Every one is published on a cycle and replaced at
 the next -- NASR and the CIFP every 28 days (AIRAC), the charts and the
 obstacle file every 56 -- and an old one reads as if nothing were wrong:
-a frequency changed, an airspace redrawn, a procedure amended. With the
-planner's own refresh off (production runs CHARTS_AUTO_REFRESH=0), only
-this says so. The rule -- the cycles and their dates -- is the engine's
+a frequency changed, an airspace redrawn, a procedure amended. Where a
+refresh is off (production draws no charts, CHARTS_AUTO_REFRESH=0) or
+fails, only this says so. The rule -- the cycles and their dates -- is the engine's
 (`data_cycle`, native/crates/weather/src/cycles.rs, from the FAA's "28 and
 56 Day Product Schedule" and its DOF page); this module only finds what
 edition each file on disk is.
