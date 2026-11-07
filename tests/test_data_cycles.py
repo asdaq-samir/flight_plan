@@ -59,7 +59,9 @@ def on_disk(monkeypatch, tmp_path):
     (cifp / procedures.CIFP_FILE).write_text("")
     monkeypatch.setattr(terrain, "DEFAULT_FAA_CACHE_DIR", faa)
     monkeypatch.setattr(procedures, "CIFP_DIR", tmp_path / "cifp")
-    monkeypatch.setattr(charts, "serving_cycle", lambda: "10-29-2026")
+    # status() reads the held cloud answer or a pyramid on disk, never the network.
+    monkeypatch.setattr(charts, "CHART_TILES_URL", "https://tiles.example")
+    monkeypatch.setattr(charts, "_serving_cache", {"value": "10-29-2026", "at": 0.0})
     monkeypatch.setattr(pack, "phone_index", lambda: {"cycle": "2026-10-01"})
     return tmp_path
 
