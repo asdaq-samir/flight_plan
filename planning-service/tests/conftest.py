@@ -3,9 +3,9 @@ flyable altitude selection and an NDJSON reader."""
 import json
 
 import pytest
-from wingtip import airports, airspace, faa_data, fixes, model_client, pattern, publications, tfr, weather
+from wingtip import airports, airspace, faa_data, fixes, pattern, publications, tfr, weather
 
-from app import chart_model, detection, planning, prefetch, scoring
+from app import chart_model, chart_scorer, detection, planning, prefetch, scoring
 
 
 @pytest.fixture(autouse=True)
@@ -54,9 +54,10 @@ def no_reads_ahead(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_chart_model(monkeypatch):
-    """No chart model promoted: model-service is not running here, and a
-    test about the chart model's scores stubs this again itself."""
-    monkeypatch.setattr(model_client, "score_detections", lambda rows: None)
+    """No chart model promoted: the checkout's own data/models must not
+    score here, and a test about the chart model's scores stubs this
+    again itself (test_chart_scorer tests the real one)."""
+    monkeypatch.setattr(chart_scorer, "score_detections", lambda rows: None)
 
 
 @pytest.fixture(autouse=True)

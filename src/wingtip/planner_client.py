@@ -10,8 +10,7 @@ answer: no legs to or from the airports, one altitude for the whole
 route, no climbs. Now they fetch the one a pilot sees.
 
 Deliberately `requests` and nothing else (wingtip.retry, which it reads
-error bodies with, needs no more), the way wingtip.model_client is for
-model-service: the agents import this module and none of wingtip's
+error bodies with, needs no more): the agents import this module and none of wingtip's
 geometry, raster or data dependencies, so their images do not install
 them either.
 """
@@ -31,8 +30,8 @@ PLANNING_SERVICE_URL = os.environ.get("PLANNING_SERVICE_URL", "http://planning-s
 # planning-service".
 TIMEOUT_S = PLAN_LIMIT_S + 30
 
-# One Session per process, for the same reason as wingtip.model_client's:
-# a pooled connection to the same host instead of a handshake per call.
+# One Session per process, not one per call: a pooled connection to the
+# same host instead of a handshake per call.
 _session = requests.Session()
 
 

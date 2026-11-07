@@ -91,19 +91,18 @@ explicit path to production on AWS.
 
 ### Architecture
 
-The system runs today as ten Docker services:
+The system runs today as nine Docker services:
 
 | Service | Role |
 |---|---|
 | `webapp` | Spring Boot API — the public-facing route-planning service |
-| `model-service` | FastAPI — serves the chart model's scores (`/score-detections`) |
 | `nav-log-agent` | LangGraph agent (MCP server) that assembles the full nav log and briefing |
 | `crewai-agent` | The same task, built in CrewAI, for framework comparison |
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
 | `ml` | Jupyter environment for model development and experimentation -- on demand, behind the `notebooks` profile: `docker compose up ml` |
-| `planning-service` | FastAPI server for the React app in `web/`: course, checkpoints, nav log, and rating spottability against FAA sectional charts |
+| `planning-service` | FastAPI server for the React app in `web/`: course, checkpoints scored by the chart model in-process, nav log, and rating spottability against FAA sectional charts |
 
 ![Current local architecture](architecture-current.svg)
 
@@ -232,25 +231,22 @@ service discovery at `planning-service.wingtip.internal`.
   would mean handing this service the Docker socket, a far larger grant
   than it needs
 
-**`model-service`** — FastAPI, serving the chart model.
-
-- `/score-detections` — the chart model's score for each of the chart
-  reader's detections the planner sends, from the promoted model
-  (bind-mounted from `data/models/chart/current`); a 503 while none is
-  promoted, and the planner ranks by the palette's constants. A promotion
-  (the Dev console's retrain) writes new files into that directory, and
-  the service notices their timestamps on its next request and serves
-  the new model without a restart
-- `/ping` (health) — whether a chart model is promoted, and when it was
-  trained
-- Interactive API docs (a FastAPI default) at `http://localhost:8000/docs`, raw spec at `/openapi.json`
+- The chart model's score for each of the chart reader's detections,
+  in-process (`app.chart_scorer`), from the promoted model in
+  `data/models/chart/current`; while none is promoted, the planner ranks
+  by the palette's constants. A promotion (the Dev console's retrain)
+  writes new files into that directory, and the planner notices their
+  timestamps on its next score and uses the new model without a
+  restart. This was a `model-service` container of its own, for this
+  one call, until 2026-11-06; scikit-learn and joblib are now pinned in
+  the planner's requirements, exactly as the training image pins them
 
 **`springboot-app` (webapp)** — the public-facing route-planning API.
 
 - Schema owned by Flyway migrations; JPA's `ddl-auto` only validates against them
 - Actuator health probes at `/actuator/health/liveness` and `/actuator/health/readiness`
 - Bean Validation on request bodies (`AircraftRequest`, `SaveFlightRequest`) + a global exception handler turn a bad request into a clean `400`, a wrong method into `405` and a duplicate tail number into `409`, not an opaque `500`
-- Never calls `model-service` itself: scoring belongs to `planning-service`, which it proxies (`/api/planner/*`). Reads through that proxy are public; writes (checkpoint notes, corridor builds) need a session as soon as the deployment offers a way to sign in (OIDC credentials or a mail host), and the developer's work (picks, a retrain, a chart refresh, the stack's status and services) needs the developer role as well. All of it stays open locally where neither is set
+- Never scores anything itself: scoring belongs to `planning-service`, which it proxies (`/api/planner/*`). Reads through that proxy are public; writes (checkpoint notes, corridor builds) need a session as soon as the deployment offers a way to sign in (OIDC credentials or a mail host), and the developer's work (picks, a retrain, a chart refresh, the stack's status and services) needs the developer role as well. All of it stays open locally where neither is set
 - Sign-in with Google or Apple (OIDC), or a passwordless email magic
   link — OIDC is inactive by default; activate with the `oauth` Spring
   profile once `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` or all four
@@ -374,7 +370,7 @@ $29 a month) and the runbook.
 
 | Local component | AWS target |
 |---|---|
-| `webapp`, `planning-service`, `nav-log-agent`, `model-service` | One EC2 server (`docker-compose.prod.yml`), behind Caddy and CloudFront |
+| `webapp`, `planning-service`, `nav-log-agent` | One EC2 server (`docker-compose.prod.yml`), behind Caddy and CloudFront |
 | `db` | Postgres on the same server, dumped to S3 nightly |
 | Chart tiles | A Fargate Spot task per 56-day cycle, published to S3, served by CloudFront |
 | Mailpit | Amazon SES |
@@ -469,8 +465,7 @@ src/wingtip/          shared Python package — pipeline.py, model_registry.py, 
 airflow/dags/     the wingtip_pipeline DAG (local) and wingtip_pipeline_aws_dag.py (AWS, see README-AWS.md)
 docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training / airflow
                   (each including wingtip's own list, src/requirements.txt)
-model-service/    FastAPI app serving the chart model (/score-detections)
-springboot-app/   Spring Boot API (webapp) — routes, DB, calls model-service
+springboot-app/   Spring Boot API (webapp) — routes, DB, proxies planning-service
 nav-log-agent/    LangGraph agent (MCP server) — assembles the full nav log + briefing
 crewai-agent/     the same task, built in CrewAI, for framework comparison
 infra/            CloudFormation template + Go Lambda for the AWS target architecture
@@ -483,7 +478,7 @@ bring up only what you need. Full command reference is in the
 [Appendix](#appendix); the essentials:
 
 ```bash
-docker compose up webapp                           # UI + API at :8080; brings up db, model-service, planning-service
+docker compose up webapp                           # UI + API at :8080; brings up db, planning-service
 docker compose up ml                               # Jupyter at :8888 (token "wingtip")
 docker compose up airflow                          # DAG UI at :8081
 docker compose up nav-log-agent                    # MCP server at :8082
@@ -540,7 +535,6 @@ stack. Anything not listed here does not exist.
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |
 | Planning + chart-vision API docs | [`localhost:8084/docs`](http://localhost:8084/docs) | `planning-service` |
-| Model-serving API docs | [`localhost:8000/docs`](http://localhost:8000/docs) | `model-service` |
 | Airflow DAG UI | [`localhost:8081`](http://localhost:8081) | `airflow` |
 | Jupyter | [`localhost:8888`](http://localhost:8888) (token `wingtip`) | `ml` |
 
@@ -551,19 +545,16 @@ browser reaches the Python service only through `webapp`'s
 `planning-service` with it. Hitting port 8084 directly works and is
 useful when debugging, but nothing in the front end does it.
 
-A request crosses four services, each with one job:
+A request crosses three services, each with one job:
 
 ```
 browser (web/)   the map, the keyboard, the rows
   -> webapp        :8080  serves the page, proxies /api/planner/*, owns auth and the database
-  -> planning-service    :8084  reads sectional tiles, great-circle geometry, checkpoint selection, nav log
-  -> model-service :8000  scores the chart's detections (/score-detections)
+  -> planning-service    :8084  reads sectional tiles, scores them with the chart model, great-circle geometry, checkpoint selection, nav log
   -> db            :5432  pilots, flights, agent memory
 ```
 
-`planning-service` is a *client* of `model-service`, not a version of it — it
-calls `/score-detections` when it needs a score. And despite its name it serves
-no pages; see [Services in detail](#services-in-detail).
+Despite its name, `planning-service` serves no pages; see [Services in detail](#services-in-detail).
 
 ### Notebooks
 
@@ -592,12 +583,10 @@ docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.14-slim \
 docker run --rm -v "$PWD":/w -w /w/planning-service python:3.14-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
 
-# model-service, nav-log-agent and crewai-agent: the same shape, each
-# from its own directory and requirements-dev.txt. nav-log-agent wants
-# the CPU torch wheel first (`pip install torch --index-url
+# nav-log-agent and crewai-agent: the same shape, each from its own
+# directory and requirements-dev.txt. nav-log-agent wants the CPU torch
+# wheel first (`pip install torch --index-url
 # https://download.pytorch.org/whl/cpu`), as its Dockerfile does.
-docker run --rm -v "$PWD":/w -w /w/model-service python:3.14-slim \
-  sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
 
 # Web front end (web/): typecheck plus unit tests. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.
@@ -617,7 +606,7 @@ docker run --rm -v "$PWD/springboot-app":/build -w /build \
 (CI runs `mvn test` directly instead — a GitHub runner has Maven and a
 local Docker daemon, so it needs none of the socket/host plumbing above.)
 
-Six suites, split by what each can actually prove:
+Five suites, split by what each can actually prove:
 
 - **`tests/`** (pytest) — the pure-logic parts of `src/wingtip`: geo math,
   engineered features, dead-reckoning, the model registry, the
@@ -629,10 +618,9 @@ Six suites, split by what each can actually prove:
   status codes, response shape, and that a `WeatherServiceError`
   anywhere underneath reaches the caller as a clean `502`, not a raw
   `500`; plus that the committed `openapi.json`
-  (which `web/` generates its API types from) matches the app.
-- **`model-service/tests/`** (pytest) — `/ping`, `/score-detections` and
-  the reload of a newly promoted model, against real joblib files in a
-  temporary directory.
+  (which `web/` generates its API types from) matches the app, and the
+  chart model's scores and the reload of a newly promoted model against
+  real joblib files in a temporary directory.
 - **`nav-log-agent/tests/`** and **`crewai-agent/tests/`** (pytest) — the
   agents' own logic with the database, planning-service and Claude
   mocked: what goes into the briefing prompt, that a failed narration is
@@ -666,8 +654,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | Command | What it does | Port |
 |---|---|---|
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
-| `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
-| `docker compose up webapp` | Spring Boot API and the three browser pages; brings up `db`, `model-service` and `planning-service` too | `8080` |
+| `docker compose up webapp` | Spring Boot API and the three browser pages; brings up `db` and `planning-service` too | `8080` |
 | `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `wingtip`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()`: downloads a corridor's candidates once, and again only with `--refresh` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
@@ -698,7 +685,7 @@ Notes:
   the nav log and leave the narrative to the agent that connected. Only
   `generate_nav_log_briefing` and the flight planning drawer's streamed narrative
   spend Anthropic credit. `crewai-agent` needs a key for everything.
-- Full port list: `webapp` 8080, `model-service` 8000, `db` 5432
+- Full port list: `webapp` 8080, `db` 5432
   (`wingtip`/`wingtip`/`wingtip`), `airflow` 8081, `nav-log-agent` 8082,
   `planning-service` 8084, `ml` 8888. Addresses are in
   [Where things live](#where-things-live).
@@ -745,13 +732,12 @@ empty commit:
 | `changes` | A path filter (`dorny/paths-filter`) telling both `build-images` and `docs` which service images a change could have touched. Runs on pull requests (where `build-images` uses it to build only the touched images) and on pushes to `main` (where `build-images` ignores it on purpose — main's images stay fully in sync with every dependency bump — but `docs` uses it to skip the three heavy `pdoc` steps below when nothing they document changed). |
 | `test-web` | `tsc --noEmit`, `vitest` and a production build over `web/` — filters, ordering, what counts as rated, and which leg leaves a checkpoint, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
-| `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp, the planner and the model service built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from. Its images and the page are built once for each content key by `build (e2e)` and pulled by all eight shards, on a push and on a pull request from one of this repository's branches; only a fork's or Dependabot's pull request, whose token cannot push, has each shard build its own. |
+| `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp and the planner built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from. Its images and the page are built once for each content key by `build (e2e)` and pulled by all eight shards, on a push and on a pull request from one of this repository's branches; only a fork's or Dependabot's pull request, whose token cannot push, has each shard build its own. |
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/wingtip` ones |
-| `test-model-service` | ruff + pytest over `model-service/tests/`, on the service's own requirements |
 | `test-nav-log-agent` / `test-crewai-agent` | ruff + pytest over each agent's `tests/`, on that agent's own requirements; the database, planning-service and Claude are mocked, so nothing is billed |
 | `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- which each build one of this repo's heavy ML images (torch/tensorflow/Spark) purely so `pdoc` can import the modules inside -- run only on pushes to `main`, and only for whichever of `src/wingtip`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`; the local Airflow image loads its DAG), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
-| `push-ecr` | Pushes the six images the CloudFormation stack deploys (`webapp`, `planning-service`, `model-service`, `nav-log-agent`, `crewai-agent`, `airflow`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
+| `push-ecr` | Pushes the three images the CloudFormation stack deploys (`webapp`, `planning-service`, `nav-log-agent`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 
 `build-images` gates on the test jobs, so a failing test never produces a
 published image. A cold run (every cache empty, every path filter

@@ -2,7 +2,7 @@
 OTEL_EXPORTER_OTLP_ENDPOINT set (docker-compose's tracing profile sets
 it to Jaeger's), every request the planner answers is a span, and every
 call it makes with requests one under it -- aviationweather.gov, the
-FAA, the USGS, model-service -- the webapp's span above it all, so a slow
+FAA, the USGS -- the webapp's span above it all, so a slow
 plan is one trace from the page's call down. Without it, nothing is
 loaded and nothing is sent."""
 import logging

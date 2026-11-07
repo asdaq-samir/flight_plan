@@ -31,7 +31,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 - **Orchestrated training pipeline.** An Airflow DAG runs collection, feature engineering, training, evaluation, and promotion; a new model goes live only if it beats the currently deployed one on held-out metrics.
 - **FAA-accurate flight planning.** Dead-reckoning legs (wind correction angle, true/magnetic heading, groundspeed, ETE, fuel burn) from live NOAA winds-aloft and magnetic-declination data. Cruising-altitude selection accounts for terrain/obstacle clearance (FAA MEF methodology), live Class B/C/D airspace, and current METAR/TAF/SIGMET data.
 - **A Gen AI agent with long-term memory.** A LangGraph agent, served over MCP, assembles the full nav log into a natural-language briefing and recalls similar past routes via a Postgres/pgvector semantic-search store.
-- **The same agent, two frameworks.** A second implementation in CrewAI runs the identical task — same tools, same model-serving backend, same Claude API — so LangGraph's explicit state-graph control flow and CrewAI's agent-driven tool selection can be compared on one real task, side by side, from the UI.
+- **The same agent, two frameworks.** A second implementation in CrewAI runs the identical task — same tools, same planner behind them, same Claude API — so LangGraph's explicit state-graph control flow and CrewAI's agent-driven tool selection can be compared on one real task, side by side, from the UI.
 - **A cheap path to production.** One server behind CloudFront runs the webapp, the planner, the briefing agent and Postgres, and a Fargate Spot task draws each 56-day chart cycle once into S3 for the edge to serve: about $29 a month with the server on Spot capacity, in one CloudFormation template ([`docs/README-AWS.md`](docs/README-AWS.md) has the design, the cost and the runbook).
 
 ## Architecture
@@ -39,8 +39,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 | Service | Role |
 |---|---|
 | `webapp` | Spring Boot — public API, auth, and the React front end |
-| `planning-service` | FastAPI — sectional chart vision, checkpoint selection, dead reckoning |
-| `model-service` | FastAPI — serves the chart model's scores (`/score-detections`) |
+| `planning-service` | FastAPI — sectional chart vision, the chart model's scores, checkpoint selection, dead reckoning |
 | `nav-log-agent` | LangGraph agent, served over MCP — assembles the nav log and briefing |
 | `crewai-agent` | The identical task in CrewAI, for framework comparison |
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |
@@ -48,7 +47,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and training, as isolated jobs |
 | `ml` | Jupyter environment for model development -- on demand: `docker compose up ml` |
 
-Ten services, one `docker compose up`. Full write-up, including the AWS target architecture, is in [`docs/README.md`](docs/README.md).
+Nine services, one `docker compose up`. Full write-up, including the AWS target architecture, is in [`docs/README.md`](docs/README.md).
 
 ## A planning aid
 
@@ -76,7 +75,6 @@ Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the fu
 | [`android/`](android) | The native Android app: Kotlin, Compose and MapLibre over the shared Rust engine (docs/NATIVE-ANDROID.md) |
 | [`native/`](native) | The shared Rust engine, every aviation rule once, and its Python, C and WebAssembly faces |
 | [`planning-service/`](planning-service) | Route planning and chart-vision API |
-| [`model-service/`](model-service) | Model-serving API |
 | [`springboot-app/`](springboot-app) | Public API, authentication, database |
 | [`nav-log-agent/`](nav-log-agent) | LangGraph briefing agent |
 | [`crewai-agent/`](crewai-agent) | CrewAI briefing agent |

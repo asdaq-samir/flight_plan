@@ -4,12 +4,9 @@
 # what the service needs on top. It serves no pages -- the front end is
 # in web/ and ships inside webapp.
 #
-# PINNED, matching model-service/requirements.txt's own convention: this
-# service was the one unpinned service-facing requirements file in the
-# repo, and an unpinned FastAPI/pandas/etc. drifting between builds is
-# exactly the kind of silent version skew that file's own comment warns
-# about for a joblib artifact -- the same risk applies to any dependency
-# this service and its callers both need to agree on. Pinned to what
+# PINNED: an unpinned FastAPI/pandas/etc. drifting between builds is
+# silent version skew, and for the chart model's joblib artifact (below)
+# a model that will not unpickle or mispredicts. Pinned to what
 # python:3.14-slim (this service's own base image) currently resolves.
 -r ../src/requirements-charts.txt   # wingtip's own list, charts included: this service draws them
 # Pillow among them is pinned once, 13.0.0, in src/requirements-charts.txt.
@@ -25,8 +22,14 @@ opentelemetry-exporter-otlp-proto-http==1.45.0
 opentelemetry-instrumentation-fastapi==0.66b0
 opentelemetry-instrumentation-requests==0.66b0
 
-# Deliberately NOT scikit-learn/joblib. Scoring belongs to model-service,
-# which owns the model artifact and its pinned sklearn; this service
-# writes a feature parquet into the shared volume and asks model-service
-# to score it. Installing sklearn here would create a second, unpinned
-# place a model could be loaded from.
+# The chart model's runtime (app.chart_scorer loads the promoted
+# model.joblib in this process). A joblib artifact is a pickle of
+# scikit-learn's own objects, so the version that loads it has to match
+# the version that wrote it: pinned exactly as the training image pins
+# them (docker/requirements-training.txt; numpy and pandas come from
+# src/requirements.txt for both), and tests/test_requirements.py fails if
+# the two differ. Bump both together. Imported on first use, so a
+# planner that never scores pays nothing for them at start. They were
+# model-service's own until it was folded in here (2026-11-06).
+scikit-learn==1.9.1
+joblib==1.6.0

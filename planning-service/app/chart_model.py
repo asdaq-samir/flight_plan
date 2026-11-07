@@ -1,6 +1,6 @@
 """The planner's side of the chart model (wingtip.chartmodel): the table it
 trains on, whether the ratings are enough for it, and its scores for the
-training page's points, from model-service, which serves it.
+training page's points (app.chart_scorer, which loads it in this process).
 
 Here rather than in the pipeline because the planner holds the chart
 reader -- the pipeline images have no GDAL -- and has every rated
@@ -15,10 +15,10 @@ from concurrent.futures.process import BrokenProcessPool
 from contextvars import ContextVar
 
 import pandas as pd
-from wingtip import chartfeatures, chartlabels, chartmodel, model_client
+from wingtip import chartfeatures, chartlabels, chartmodel
 from wingtip.pipeline import _publish
 
-from . import chart_reader, detection
+from . import chart_reader, chart_scorer, detection
 from .common import load_hop
 from .detection import detect_job, faa_airports
 
@@ -290,9 +290,9 @@ def write_training_table():
 
 def predicted_scores(landmarks: list) -> list:
     """The chart model's score for each landmark, in order; all None
-    where none is promoted or model-service does not answer. The
+    where none is promoted or it will not load. The
     features of the whole list at once, as each counts its neighbours."""
     if not landmarks:
         return []
     rows = chartfeatures.build(landmarks)[chartfeatures.FEATURE_COLS].astype(float).to_dict("records")
-    return model_client.score_detections(rows) or [None] * len(landmarks)
+    return chart_scorer.score_detections(rows) or [None] * len(landmarks)

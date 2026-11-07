@@ -183,14 +183,6 @@ Resources:
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
 
-  ModelServiceRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: wingtip/model-service
-      EmptyOnDelete: true
-      LifecyclePolicy:
-        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
-
   # ---------------------------------------------------------------------
   # Storage
   # ---------------------------------------------------------------------
@@ -303,7 +295,6 @@ Resources:
                   - !GetAtt WebappRepository.Arn
                   - !GetAtt PlanningServiceRepository.Arn
                   - !GetAtt NavLogAgentRepository.Arn
-                  - !GetAtt ModelServiceRepository.Arn
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
                 Resource: [!Ref DbPasswordSecret, !Ref AgentKeySecret, !Ref OriginSecret, !Ref AppSecret]
@@ -970,7 +961,6 @@ Resources:
                   - !GetAtt WebappRepository.Arn
                   - !GetAtt PlanningServiceRepository.Arn
                   - !GetAtt NavLogAgentRepository.Arn
-                  - !GetAtt ModelServiceRepository.Arn
               # The server changes with each Spot interruption, so deploys
               # find it by its Name tag and may run only on that.
               - Effect: Allow

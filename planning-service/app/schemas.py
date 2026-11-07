@@ -2548,12 +2548,6 @@ class ServiceStatus(BaseModel):
     detail: str | None = None
 
 
-class ModelServiceStatus(ServiceStatus):
-    #: When the chart model it serves was trained; None while none is
-    #: promoted.
-    trained_at: str | None = None
-
-
 class Services(BaseModel):
     """None for an agent this planner was not told the address of. The
     webapp and its database are probed from here too -- its liveness
@@ -2562,7 +2556,6 @@ class Services(BaseModel):
     tiles on one HTTP/1.1 connection pool and timed out, and the
     console read "no answer" for a gateway that had just served it."""
 
-    model_service: ModelServiceStatus
     nav_log_agent: ServiceStatus | None
     crewai_agent: ServiceStatus | None
     webapp: ServiceStatus | None = None

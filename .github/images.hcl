@@ -27,7 +27,7 @@ variable "PUSH" {
 # Promote workflow walks, promoting each this commit built.
 group "default" {
   targets = ["ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
-             "nav-log-agent", "crewai-agent", "planning-service", "model-service", "webapp"]
+             "nav-log-agent", "crewai-agent", "planning-service", "webapp"]
 }
 
 function "image" {
@@ -115,18 +115,6 @@ target "planning-service" {
   cache-from = image("planning-service").cache-from
   cache-to   = image("planning-service").cache-to
   output     = image("planning-service").output
-}
-
-# Its own directory as the context, where every other image reads from
-# the repository root (the webapp builds web/ into its first stage, the
-# Python images copy src/).
-target "model-service" {
-  context    = "model-service"
-  dockerfile = "Dockerfile"
-  tags       = image("model-service").tags
-  cache-from = image("model-service").cache-from
-  cache-to   = image("model-service").cache-to
-  output     = image("model-service").output
 }
 
 target "webapp" {

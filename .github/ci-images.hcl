@@ -1,4 +1,4 @@
-# The three images the browser suite runs against in CI (the e2e job in
+# The two images the browser suite runs against in CI (the e2e job in
 # workflows/ci.yml), for `docker buildx bake`: the same contexts and
 # Dockerfiles docker-compose.yml builds them from. A bake file rather
 # than the compose files themselves, which bake reads too: its parser
@@ -7,7 +7,7 @@
 #
 # REGISTRY (ghcr.io/<owner>/<repo>, from the workflow): where the
 # registry cache build-images writes on main lives, one `:buildcache` tag
-# per image, and where the e2e-images job pushes these three. Empty, as
+# per image, and where the e2e-images job pushes these two. Empty, as
 # on a machine of one's own, nothing is read.
 variable "REGISTRY" {
   default = ""
@@ -18,17 +18,13 @@ variable "REGISTRY" {
 # beside it, which always names the last one pushed -- what a shard pulls
 # first, for the layers a new key's image will share with it. Pushed
 # with their cache inline, so the next build finds its own last layers
-# too: the model service's `slim` stage is in no other cache, since
-# build-images builds the full image. Empty (a pull request's shard
+# too. Empty (a pull request's shard
 # building one itself): tagged the name docker-compose.ci.yml runs it
 # by, and loaded, not pushed.
 variable "WEBAPP_KEY" {
   default = ""
 }
 variable "PLANNING_SERVICE_KEY" {
-  default = ""
-}
-variable "MODEL_SERVICE_KEY" {
   default = ""
 }
 
@@ -54,7 +50,7 @@ function "pushed" {
 }
 
 group "ci" {
-  targets = ["webapp", "planning-service", "model-service"]
+  targets = ["webapp", "planning-service"]
 }
 
 target "webapp" {
@@ -105,13 +101,4 @@ target "playwright" {
   platforms         = ["linux/amd64"]
   tags              = [PLAYWRIGHT_TAG]
   output            = ["type=registry,compression=zstd,force-compression=true,oci-mediatypes=true"]
-}
-
-target "model-service" {
-  context    = "model-service"
-  dockerfile = "Dockerfile"
-  tags       = tags("model-service", MODEL_SERVICE_KEY)
-  cache-from = cache("model-service")
-  cache-to   = MODEL_SERVICE_KEY == "" ? [] : ["type=inline"]
-  output     = pushed(MODEL_SERVICE_KEY)
 }

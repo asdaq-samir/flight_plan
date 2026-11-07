@@ -129,7 +129,7 @@ once in ten.
 | `GET /api/aircraft-profiles` | The stock performance profiles the nav log can be computed for. `/api/plan` and `/api/navlog` take `aircraft` plus optional `cruise_tas_kt`/`fuel_burn_gph` for a pilot's own aeroplane. |
 | `GET /api/status` | The whole stack in one snapshot for the dev console: which services answer, how fresh the FAA and weather data is, the model registry, and every collected corridor with its label counts. |
 | `POST /api/retrain` | One run of the training DAG through Airflow, or a 501 that says how to run it by hand. |
-| `GET /api/dev/services`, `POST /api/dev/services/{service}/start` | Whether `ml`, `airflow`, `model-service` and `nav-log-agent` are running, and starting one that isn't -- what the dev console's System tab links to. Asks the `dev-services` sidecar (`docker/dev-services`), which holds the Docker socket and answers only these two requests for these four names in this compose project; this service never touches Docker itself. The sidecar is on a network only planning-service shares, so nothing else in the stack can reach it, and it 404s on any other name. |
+| `GET /api/dev/services`, `POST /api/dev/services/{service}/start` | Whether `ml`, `airflow` and `nav-log-agent` are running, and starting one that isn't -- what the dev console's System tab links to. Asks the `dev-services` sidecar (`docker/dev-services`), which holds the Docker socket and answers only these two requests for these three names in this compose project; this service never touches Docker itself. The sidecar is on a network only planning-service shares, so nothing else in the stack can reach it, and it 404s on any other name. |
 
 The tile endpoints render on first request and cache on disk, which is
 fine for one corridor and not for a map with no street layer under it.
@@ -204,11 +204,15 @@ FAA printed it, delete its folder under `data/raw/charts.nosync/` and
 
 ## Things that are not obvious
 
-**scikit-learn is deliberately absent.** This service builds a feature
-parquet and asks `model-service` to score it. Installing sklearn here
-would create a second, unpinned place a model could be loaded from — and
-a joblib artifact is a pickle of sklearn's own objects, so the version
-that loads it must match the version that wrote it.
+**scikit-learn is pinned to the training image's.** The chart model is
+scored in this process (`app/chart_scorer.py`), from the promoted
+`data/models/chart/current`, and read again when a retrain's promotion
+rewrites it — no restart. A joblib artifact is a pickle of sklearn's own
+objects, so the version that loads it must match the version that wrote
+it: `requirements.txt` pins scikit-learn and joblib exactly as
+`docker/requirements-training.txt` does, and `tests/test_requirements.py`
+fails if they differ. Bump both together. (This was a `model-service`
+container of its own until 2026-11-06.)
 
 **Collection runs in-process, not as a container.** `/api/build` starts a
 thread rather than launching a pipeline container, because handing this
@@ -219,8 +223,8 @@ half-finished job rather than resuming something whose partial output is
 already on disk.
 
 **It writes into the shared data volume.** A new corridor's candidates
-and features land in `data/processed`, the same directory `model-service`
-reads feature stores from. On AWS that becomes the S3 bucket the pipeline
+and features land in `data/processed`, the same directory the pipeline
+jobs read feature stores from. On AWS that becomes the S3 bucket the pipeline
 jobs use — and **the Python does not read `VFR_DATA_S3_BUCKET` yet**, so
 a Fargate task would start and then fail to find FAA data. That is the
 one piece of the AWS path still unfinished.
