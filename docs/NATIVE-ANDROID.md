@@ -65,10 +65,13 @@ owner's word. Its package is `app.wingtipmaps.android.native`.
   computes none of its own.
 - The shared fixtures in `web/src/lib/fixtures` are the test APK's
   assets by their path (`build.gradle.kts`'s `androidTest` source set),
-  not a copy: `EngineTest` holds the engine on an Android phone to the
-  same examples the web's vitest tests and the iOS tests read, through
-  this app's own bridge, so a bridge that mangles a string or a number
-  fails CI.
+  not a copy: `EngineTest` and `EngineFixturesTest` hold the engine on
+  an Android phone to the same examples the web's vitest tests and the
+  iOS tests read, through this app's own bridge (the second compares
+  `Engine.callNative`'s raw JSON with every phone-called rule's
+  fixture), so a bridge that mangles a key, a number, a null or a
+  string fails CI. They are instrumented tests, run every night and on
+  a dispatch, not on each pull request.
 - Material 3 and Google's guide to app architecture: a UI layer of
   composables reading state from ViewModels, with changes flowing one
   way (a screen calls a model's function; the model changes its state;
