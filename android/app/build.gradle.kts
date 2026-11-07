@@ -119,6 +119,7 @@ dependencies {
     // The flight pieces: own ship's fixes, the records store, the traffic
     // switch, and the process lifecycle the clock and the notifications read.
     implementation(libs.play.services.location)
+    implementation(libs.androidx.core.location.altitude)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

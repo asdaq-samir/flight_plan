@@ -7,6 +7,7 @@ import app.wingtipmaps.android.api.ChartInfo
 import app.wingtipmaps.android.api.ChartLayer
 import app.wingtipmaps.android.api.Gateway
 import app.wingtipmaps.android.api.Planner
+import app.wingtipmaps.android.engine.CyclePacks
 import app.wingtipmaps.android.tiles.TileTemplate
 import java.io.File
 import kotlinx.coroutines.CancellationException
@@ -53,6 +54,10 @@ class Charts(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) {
                     runCatching { kept.writeText(Gateway.json.encodeToString(fresh)) }
                 }
+                // The airspace kept for the air, fetched again where the
+                // FAA's cycle has turned since it was, as the iOS app's
+                // Charts.load does; a job of its own beside this one.
+                launch { CyclePacks.of(getApplication<Application>()).refresh() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

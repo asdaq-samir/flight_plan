@@ -25,23 +25,23 @@ import { useLiveZoom } from "./useView";
  * FAA's current file could not be had) is drawn in grey, its fixes
  * saying OUT OF DATE, so it is not read as current once the sheet is closed.
  */
-const INK = BADGE.approach;
+export const PROCEDURE_INK = BADGE.approach;
 /** A procedure of an old cycle: grey, not the approaches' indigo. */
-const STALE_INK = "#6b6b6b";
+export const STALE_INK = "#6b6b6b";
 const lineOf = (ink: string): L.PathOptions => ({ color: ink, weight: 3.5, opacity: 1, lineJoin: "round" });
 const missedOf = (ink: string): L.PathOptions => ({ color: ink, weight: 3, opacity: 1, dashArray: "8,7" });
 const holdOf = (ink: string): L.PathOptions => ({ color: ink, weight: 2.5, opacity: 1, lineJoin: "round" });
 const HOLD_CASING: L.PathOptions = { color: "#ffffff", weight: 5.5, opacity: 0.9, lineJoin: "round" };
 /** From this zoom in, the fixes' names and altitudes: further out an
  *  approach is a short line by its field, and its words would cover it. */
-const WORDS_FROM_ZOOM = 9;
+export const PROCEDURE_WORDS_FROM_ZOOM = 9;
 
 const esc = (text: string) => text.replace(/[<>&"]/g, "");
 
 /** A fix: an indigo diamond, and from WORDS_FROM_ZOOM its name, its part
  *  and its altitudes beside it. */
-const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: boolean, own: number | null, direct: boolean) {
-  const ink = stale ? STALE_INK : INK;
+export const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: boolean, own: number | null, direct: boolean) {
+  const ink = stale ? STALE_INK : PROCEDURE_INK;
   const roles = fix.roles.filter(r => r !== "hold");
   const { lines } = altitudeLines(fix);
   const speed = speedWords(fix);
@@ -98,11 +98,11 @@ export const ProcedureLayer = memo(function ProcedureLayer({ drawings, crossings
   // The names from their zoom as a pinch passes it, not once it ends.
   const zoom = useLiveZoom();
   if (drawings.length === 0) return null;
-  const words = zoom >= WORDS_FROM_ZOOM;
+  const words = zoom >= PROCEDURE_WORDS_FROM_ZOOM;
   return (
     <Pane name="procedures" style={{ zIndex: 432 }}>
       {drawings.map(d => {
-        const ink = d.stale ? STALE_INK : INK;
+        const ink = d.stale ? STALE_INK : PROCEDURE_INK;
         return (
         <Fragment key={`${d.airport}-${d.id}-${d.transition ?? ""}`}>
           {d.lines.map((line, i) => <Polyline key={`c${i}`} positions={line.points} pathOptions={LINE_CASING} interactive={false} />)}

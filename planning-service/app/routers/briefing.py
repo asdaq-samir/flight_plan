@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from wingtip import airports, airspace, alternates, altitude, geo, pattern, publications, runway_wind, tfr, weather
+from wingtip import airports, airspace, alternates, altitude, data_cycles, geo, pattern, publications, runway_wind, tfr, weather
 
 from .. import exposure
 from ..common import load_route
@@ -124,7 +124,8 @@ def map_layer_ages() -> MapLayerAges:
     from, for the map's settings to say how old each is: the METARs
     (aviationweather.gov's METAR file, held and refreshed by wingtip.weather)
     and the TFRs (tfr.faa.gov); and each source the planner keeps
-    through an outage, for the pilot's Status page."""
+    through an outage, for the pilot's Status page; and each FAA data
+    set's edition and whether it is still in its cycle."""
     sources = [
         {**s, "fetched_at": exposure.iso(s["fetched_at"]), "kept_until": exposure.iso(s["kept_until"])}
         for s in weather.sources_status()
@@ -134,6 +135,9 @@ def map_layer_ages() -> MapLayerAges:
         "metars_at": exposure.iso(weather.dataset_status().get("metars")),
         "tfrs_at": exposure.iso(tfr.fetched_at()),
         "sources": sources,
+        # Each FAA data set's edition and whether it is in its cycle
+        # (wingtip.data_cycles), for the pilot to see one out of date.
+        "data_cycles": data_cycles.held(),
     }
 
 
