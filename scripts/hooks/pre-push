@@ -45,6 +45,11 @@ if grep -qE '^web/' <<<"$changed"; then
   if command -v npx >/dev/null && [ -d "$here/web/node_modules" ]; then
     note "web: tsc${lint:+, eslint}"
     (cd "$here/web" && sh -c "$web_cmd") || fail "web"
+  elif [ -z "${PRE_PUSH_WEB_DOCKER:-}" ]; then
+    # In Docker the web check took about 12 minutes on a loaded Mac
+    # (2026-11-07), and the owner wants no check to hold up a push: without
+    # node on the host it is left to CI unless PRE_PUSH_WEB_DOCKER=1 asks.
+    note "web: left to CI (no node here; PRE_PUSH_WEB_DOCKER=1 runs it in Docker)"
   elif command -v docker >/dev/null && docker info >/dev/null 2>&1; then
     # scripts/check.sh's image, with web's packages installed for this lock,
     # if a check has built it; the newest one otherwise (a lock a commit or
