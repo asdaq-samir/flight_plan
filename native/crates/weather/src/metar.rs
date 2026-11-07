@@ -213,21 +213,46 @@ pub fn flight_category(ceiling_ft: Option<f64>, visibility_sm: Option<f64>) -> O
     })
 }
 
-/// A sky's ceiling: the lowest broken, overcast or obscured layer's height
-/// (14 CFR 1.1, "ceiling": "the height above the earth's surface of the
-/// lowest layer of clouds or obscuring phenomena that is reported as
-/// 'broken', 'overcast', or 'obscuration'"), None with no such layer; and
-/// whether it is not known -- the lowest such layer sent with no height
-/// ("BKN///", "OVC///", "VV///": an automated station's sensor could not
-/// measure it, FMH-1 ch. 9). Layers are reported from the lowest up
-/// (FMH-1 ch. 9), so one with no height after a measured ceiling is above
-/// it and leaves the ceiling known.
-pub fn sky_ceiling(layers: &[Layer]) -> (Option<f64>, bool) {
-    let mut ceilings = layers.iter().filter(|l| matches!(l.cover.as_str(), "BKN" | "OVC" | "VV"));
-    if ceilings.clone().next().is_some_and(|l| l.base_ft_agl.is_none()) {
+/// The ceiling of a report's sky, ft above the ground, and whether it is
+/// not known: the lowest broken, overcast or obscured layer -- FEW and SCT
+/// are no ceiling (14 CFR 1.1, "ceiling": "the height above the earth's
+/// surface of the lowest layer of clouds or obscuring phenomena that is
+/// reported as 'broken', 'overcast', or 'obscuration'") -- each layer
+/// (cover, base), lowest first as reports list them (FMH-1 ch. 9). An
+/// obscured sky is a ceiling at its vertical visibility: a raw report
+/// writes it VV002, the AWC's feed marks the layer OVX with its height as
+/// the base in a METAR and gives it only as `vertical_visibility_ft` in a
+/// TAF. Counting BKN and OVC alone left fog at the surface, the lowest
+/// ceiling there is, as none at all.
+///
+/// The lowest such layer sent with no height ("BKN///", "OVC///",
+/// "VV///": an automated station's sensor could not measure it, FMH-1
+/// ch. 9; the AWC's data API sends the layer with no base) leaves the
+/// ceiling not known, not absent: (None, true). One with no height above
+/// a measured ceiling leaves it known. A vertical visibility given apart
+/// is the obscuration from the surface, under every layer, so it settles
+/// the ceiling.
+pub fn sky_ceiling_of<'a>(layers: impl IntoIterator<Item = (&'a str, Option<f64>)>, vertical_visibility_ft: Option<f64>) -> (Option<f64>, bool) {
+    let mut ceilings = layers.into_iter().filter(|(cover, _)| matches!(*cover, "BKN" | "OVC" | "OVX" | "VV")).peekable();
+    if vertical_visibility_ft.is_none() && ceilings.peek().is_some_and(|(_, base)| base.is_none()) {
         return (None, true);
     }
-    (ceilings.by_ref().filter_map(|l| l.base_ft_agl).fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.min(b)))), false)
+    let lowest = ceilings
+        .filter_map(|(_, base)| base)
+        .chain(vertical_visibility_ft)
+        .fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.min(b))));
+    (lowest, false)
+}
+
+/// The ceiling (sky_ceiling_of), None where there is none or it is not
+/// known.
+pub fn ceiling_of<'a>(layers: impl IntoIterator<Item = (&'a str, Option<f64>)>, vertical_visibility_ft: Option<f64>) -> Option<f64> {
+    sky_ceiling_of(layers, vertical_visibility_ft).0
+}
+
+/// A report's layers' ceiling and whether it is not known (sky_ceiling_of).
+pub fn sky_ceiling(layers: &[Layer]) -> (Option<f64>, bool) {
+    sky_ceiling_of(layers.iter().map(|l| (l.cover.as_str(), l.base_ft_agl)), None)
 }
 
 /// The flight category where the ceiling may not be known: with a

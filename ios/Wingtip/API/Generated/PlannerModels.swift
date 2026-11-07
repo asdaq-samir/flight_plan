@@ -66,7 +66,9 @@ struct APIFrequency: Codable, Equatable, Sendable {
 
 // MARK: - APIMetar
 struct APIMetar: Codable, Equatable, Sendable {
-    var altimeterInHg, ceilingFt, dewpointC: Double?
+    var altimeterInHg, ceilingFt: Double?
+    var ceilingUnknown: Bool?
+    var dewpointC: Double?
     var flightCategory, observedAt, raw: String?
     var tempC, visibilitySm, windDirTrueDeg, windGustKt: Double?
     var windSpeedKt: Double?
@@ -314,6 +316,7 @@ struct APIOnRoute: Codable, Equatable, Sendable {
 
 // MARK: - APIForecast
 struct APIForecast: Codable, Equatable, Sendable {
+    var ceilingUnknownAt: [String]?
     var minCeilingFt, minVisibilitySm: Double?
     var stations: [APIForecastStation]
 }
@@ -326,8 +329,11 @@ struct APIForecast: Codable, Equatable, Sendable {
 struct APIForecastStation: Codable, Equatable, Sendable {
     var alongTrackNm: Double?
     var ceilingFt: Double?
+    var ceilingUnknown: Bool?
     var eta: String?
-    var etaCeilingFt, etaVisibilitySm: Double?
+    var etaCeilingFt: Double?
+    var etaCeilingUnknown: Bool?
+    var etaVisibilitySm: Double?
     var icaoId: String
     var lat, lon: Double?
     var raw: String?

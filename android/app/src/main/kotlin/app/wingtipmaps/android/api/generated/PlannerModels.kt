@@ -91,6 +91,9 @@ data class Metar (
     @SerialName("ceiling_ft")
     val ceilingFt: Double? = null,
 
+    @SerialName("ceiling_unknown")
+    val ceilingUnknown: Boolean? = null,
+
     @SerialName("dewpoint_c")
     val dewpointC: Double? = null,
 
@@ -510,6 +513,9 @@ data class OnRoute (
 
 @Serializable
 data class Forecast (
+    @SerialName("ceiling_unknown_at")
+    val ceilingUnknownAt: List<String>? = null,
+
     @SerialName("min_ceiling_ft")
     val minCeilingFt: Double? = null,
 
@@ -533,10 +539,16 @@ data class ForecastStation (
     @SerialName("ceiling_ft")
     val ceilingFt: Double? = null,
 
+    @SerialName("ceiling_unknown")
+    val ceilingUnknown: Boolean? = null,
+
     val eta: String? = null,
 
     @SerialName("eta_ceiling_ft")
     val etaCeilingFt: Double? = null,
+
+    @SerialName("eta_ceiling_unknown")
+    val etaCeilingUnknown: Boolean? = null,
 
     @SerialName("eta_visibility_sm")
     val etaVisibilitySm: Double? = null,

@@ -93,15 +93,12 @@ pub fn volumes_at(pack: &Pack, lat: f64, lon: f64) -> Option<Vec<Volume>> {
 pub fn mode_c_veil(pack: &Pack, lat: f64, lon: f64) -> Option<(String, String, f64)> {
     let points = pack.section("veil.pts")?;
     let names = pack.section("veil.names")?;
-    let mut best: Option<(String, String, f64)> = None;
+    let mut airports = Vec::new();
     for r in points.chunks_exact(32) {
-        let d = crate::geo::distance_nm(lat, lon, f64_at(r, 0)?, f64_at(r, 8)?);
-        if d <= rules::MODE_C_VEIL_NM && best.as_ref().is_none_or(|b| d < b.2) {
-            let ident = String::from_utf8_lossy(r[16..24].split(|&c| c == 0).next().unwrap_or(&[])).into_owned();
-            best = Some((ident, text_at(names, r, 24)?.to_owned(), d));
-        }
+        let ident = String::from_utf8_lossy(r[16..24].split(|&c| c == 0).next().unwrap_or(&[])).into_owned();
+        airports.push((f64_at(r, 0)?, f64_at(r, 8)?, ident, text_at(names, r, 24)?.to_owned()));
     }
-    best
+    rules::nearest_veil(lat, lon, airports)
 }
 
 /// The special-use areas holding the point: one a name, the first in
