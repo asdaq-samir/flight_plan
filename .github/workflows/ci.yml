@@ -1992,13 +1992,17 @@ jobs:
 
   # The one check main requires (its ruleset), so the rule holds as jobs
   # come and go: every job above passed, or was not needed -- a job its
-  # paths did not touch is skipped, which counts as passing. The phone
-  # builds (android, ios) among them, on the pull requests that touch
-  # the phones. auto-merge-agents.yml merges a pull request on it.
+  # paths did not touch is skipped, which counts as passing.
+  # auto-merge-agents.yml merges a pull request on it.
+  # The quick jobs only (the owner, 2026-11-07: CI was taking most of the
+  # time). The browser suite (e2e and its images), the image builds and the
+  # phone builds (android, ios) still run on every pull request and report
+  # their result, but a merge does not wait for them; a failure there is
+  # fixed forward.
   passed:
     name: CI passed
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra, android, ios, api-compat]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, docs, infra, api-compat]
     if: always()
     steps:
       - name: Every job passed or was not needed
