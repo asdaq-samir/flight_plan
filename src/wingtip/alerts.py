@@ -12,6 +12,7 @@ the chart, the pilot's own planning (91.103) or looking outside.
 """
 from __future__ import annotations
 
+import json
 import math
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -19,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import requests
 import shapely
+import wingtip_native
 from shapely.geometry import shape
 
 from . import airports, airspace, elevation, faa_data, geo, sua, terrain, tfr
@@ -67,9 +69,6 @@ SWATH_NM = 0.25
 #: A 3-degree approach is about 950 ft above the field at 3 nm.
 NEAR_FIELD_NM = 3.0
 NEAR_FIELD_AGL_FT = 1000.0
-#: Slower than this the airplane is on the ground (lib/map/glide's
-#: AIRBORNE_KT): nothing is alerted.
-AIRBORNE_KT = 40.0
 
 _NM_PER_DEG_LAT = 60.0
 
@@ -361,8 +360,9 @@ def ahead(lat: float, lon: float, track_deg: float, gs_kt: float, alt_ft: float 
     then the airspace is looked at laterally alone and the ground not at
     all), climbing or descending at `vs_fpm`: {"alerts": [...], the
     soonest first and warnings before cautions, "unavailable": [what
-    could not be read]}. Nothing on the ground (under AIRBORNE_KT)."""
-    if gs_kt < AIRBORNE_KT:
+    could not be read]}. Nothing on the ground: under flying speed, the
+    engine's (glide.rs `underway`, own ship's on the web and the phones)."""
+    if not json.loads(wingtip_native.call("underway", json.dumps({"speed_kt": gs_kt}))):
         return {"alerts": [], "unavailable": []}
     now = now or datetime.now(timezone.utc)
     shp_path = shp_path or airspace.ensure_class_airspace_shapefile(faa_cache_dir or terrain.DEFAULT_FAA_CACHE_DIR)

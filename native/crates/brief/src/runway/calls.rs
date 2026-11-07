@@ -377,7 +377,7 @@ fn pattern_json(i: In, v: &Value, p: Option<&Pattern>) -> R<String> {
 
 /// `{"aircraft"?: {"takeoff"?, "landing"?, "crosswind"?: {"demonstrated_kt"?}},
 /// "runway", "end": {"heading_true_deg"?}, "wind"?: {"dir_true_deg"?,
-/// "speed_kt"?, "gust_kt"?}, "elevation_ft", "altimeter_in_hg"?, "temp_c"?,
+/// "speed_kt"?, "gust_kt"?}, "elevation_ft"? (null: not known, no distance), "altimeter_in_hg"?, "temp_c"?,
 /// "weight_lb"?, "kind": "takeoff"|"landing"}`.
 fn end_fit_rule(i: In, v: &Value) -> R<String> {
     let aircraft = i.obj(v, "aircraft")?;
@@ -404,7 +404,7 @@ fn end_fit_rule(i: In, v: &Value) -> R<String> {
         None => None,
     };
     let field = FieldReport {
-        elevation_ft: i.num(v, "elevation_ft")?,
+        elevation_ft: i.opt_num(v, "elevation_ft")?,
         altimeter_in_hg: i.opt_num(v, "altimeter_in_hg")?,
         temp_c: i.opt_num(v, "temp_c")?,
     };
@@ -415,6 +415,6 @@ fn end_fit_rule(i: In, v: &Value) -> R<String> {
     json::opt_number(&mut out, f.needed_ft);
     out.push_str(",\"length_ft\":");
     json::opt_number(&mut out, f.length_ft);
-    out.push_str(&format!(",\"short\":{},\"close\":{}}}", f.short, f.close));
+    out.push_str(&format!(",\"short\":{},\"close\":{},\"unknown\":{},\"beyond\":{}}}", f.short, f.close, f.unknown, f.beyond));
     Ok(out)
 }

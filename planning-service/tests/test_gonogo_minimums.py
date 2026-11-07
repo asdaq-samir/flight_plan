@@ -49,3 +49,21 @@ def test_each_airports_report_the_destinations_forecast_and_the_routes_against_e
         "KDLH forecast visibility 4 sm, under your 5 sm",
         "Along the route, forecast ceiling 1,800 ft, under your 3,000 ft",
     ]
+
+
+def test_a_ceiling_of_unknown_height_is_not_checked_and_said_so():
+    """OVC/// at a field landed at, or forecast along the route: the
+    ceiling is not known (14 CFR 1.1), so no minimum is met or missed
+    there, and the verdict lists it as not checked."""
+    from app.gonogo.minimums import ceiling_unknown_at
+    briefing = {
+        **BRIEFING,
+        "metars": {"C81": {"ceiling_ft": None, "ceiling_unknown": True, "visibility_sm": 10}, "KDLH": None},
+        "forecast": {**BRIEFING["forecast"], "ceiling_unknown_at": ["KMSP", "C81"]},
+    }
+    assert ceiling_unknown_at(briefing, ["C81", "KDLH"]) == ["C81", "KMSP"]
+    assert ceiling_unknown_at(BRIEFING, ["C81", "KDLH"]) == []
+    # Under the minimums only for what is known.
+    assert under_minimums({**NO_MINIMUMS, "ceiling_ft": 3000}, briefing, ["C81"], "KDLH") == [
+        "Along the route, forecast ceiling 1,800 ft, under your 3,000 ft",
+    ]

@@ -40,7 +40,8 @@ fn figures(name: &str, v: &Value) -> R<Figures> {
 /// A report's or a forecast group's ceiling and visibility, as a host's
 /// own reader found its groups (the web's metar-taf-parser): the ceiling
 /// 14 CFR 1.1's (metar::ceiling_of), the vertical visibility into an
-/// obscuration counting as a layer; the visibility in statute miles,
+/// obscuration settling it, and none where the lowest is sent with no
+/// height; the visibility in statute miles,
 /// metres converted as metar.rs reads them and given to the hundredth,
 /// CAVOK the AWC's 6+ (WMO No. 306: 10 km or more).
 fn ceiling_visibility(name: &str, v: &Value) -> R<(Option<f64>, Option<f64>)> {
@@ -55,9 +56,7 @@ fn ceiling_visibility(name: &str, v: &Value) -> R<(Option<f64>, Option<f64>)> {
         }
         Some(_) => return Err(format!("{name}: \"layers\" is not a list")),
     }
-    if let Some(vv) = opt_num(name, v, "vertical_visibility_ft")? {
-        layers.push(metar::Layer { cover: "VV".to_owned(), base_ft_agl: Some(vv) });
-    }
+    let vertical_visibility = opt_num(name, v, "vertical_visibility_ft")?;
     let visibility = if opt_bool(name, v, "cavok")? {
         Some(6.0)
     } else {
@@ -73,7 +72,8 @@ fn ceiling_visibility(name: &str, v: &Value) -> R<(Option<f64>, Option<f64>)> {
             }
         }
     };
-    Ok((metar::ceiling_of(&layers), visibility))
+    let sky = layers.iter().map(|l| (l.cover.as_str(), l.base_ft_agl));
+    Ok((metar::ceiling_of(sky, vertical_visibility), visibility))
 }
 
 /// The rule `name` worked on `v`.
@@ -89,7 +89,15 @@ pub fn call(name: &str, v: &Value) -> R<String> {
             out.push('}');
         }
         "flight_category" => {
-            json::opt_string(&mut out, category_of(opt_num(name, v, "ceiling_ft")?, opt_num(name, v, "visibility_sm")?));
+            let (ceiling, visibility) = (opt_num(name, v, "ceiling_ft")?, opt_num(name, v, "visibility_sm")?);
+            // A ceiling sent with no height ("OVC///") is one not known, not
+            // none (14 CFR 1.1): only what the visibility settles is said.
+            let category = if opt_bool(name, v, "ceiling_unknown")? {
+                crate::metar::flight_category_of(None, true, visibility)
+            } else {
+                category_of(ceiling, visibility)
+            };
+            json::opt_string(&mut out, category);
         }
         "taf_hour" => {
             let prevailing = figures(name, v.get("prevailing").ok_or_else(|| format!("{name}: \"prevailing\" is missing"))?)?;

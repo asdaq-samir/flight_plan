@@ -90,6 +90,11 @@ def destination(ident: str, eta: float) -> dict:
         ceiling, visibility = forecast.get("ceiling_ft"), forecast.get("visibility_sm")
         if ceiling is not None and ceiling < DESTINATION_CEILING_FT:
             reasons.append(f"The TAF has a {ceiling:,.0f} ft ceiling within an hour of the ETA: under 2,000 ft.")
+        # A ceiling forecast with no height ("OVC///") is not known to be
+        # 2,000 ft or more, so the forecast does not show what 91.169(b)(2)(i)
+        # asks for (wingtip.weather._sky_ceiling, 14 CFR 1.1).
+        if forecast.get("ceiling_unknown"):
+            reasons.append("The TAF has a ceiling of unknown height within an hour of the ETA.")
         if visibility is not None and visibility < DESTINATION_VISIBILITY_SM:
             reasons.append(f"The TAF has {visibility:g} sm within an hour of the ETA: under 3 sm.")
     return {
@@ -124,6 +129,11 @@ def alternate(ident: str, eta: float) -> dict:
         if ceiling is not None and ceiling < minimums[0]:
             good = False
             reasons.append(f"The TAF has a {ceiling:,.0f} ft ceiling at the ETA: under {minimums[0]} ft.")
+        # A ceiling of unknown height is not known to meet 91.169(c)'s
+        # minimums: the pilot has to look, as with no TAF.
+        if forecast.get("ceiling_unknown") and good is True:
+            good = None
+            reasons.append("The TAF has a ceiling of unknown height at the ETA.")
         if visibility is not None and visibility < minimums[1]:
             good = False
             reasons.append(f"The TAF has {visibility:g} sm at the ETA: under {minimums[1]} sm.")

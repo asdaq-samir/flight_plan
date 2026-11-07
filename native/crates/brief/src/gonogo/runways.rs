@@ -56,6 +56,13 @@ pub struct EndCheck {
     /// stop's runway out may not be its runway in.
     pub runway: Option<usize>,
     pub end: Option<String>,
+    /// No runway, or its length not known: whether the distance fits is
+    /// not known either, and never taken as "within" (14 CFR 91.103(b)
+    /// asks for the runway lengths).
+    pub unknown: bool,
+    /// Read past the POH's table (Distances::beyond): its edge's figures,
+    /// not the airplane's.
+    pub beyond: bool,
 }
 
 pub struct Check {
@@ -67,9 +74,13 @@ pub struct Check {
     pub runway: Option<usize>,
     pub end: Option<String>,
     pub picked: bool,
-    pub pressure_alt_ft: f64,
-    pub density_alt_ft: f64,
-    pub temp_c: f64,
+    /// None where the field's elevation is not known, and with it the
+    /// distances (see `unchecked`).
+    pub pressure_alt_ft: Option<f64>,
+    pub density_alt_ft: Option<f64>,
+    /// The temperature reported, else a standard day's at the elevation;
+    /// None with neither.
+    pub temp_c: Option<f64>,
     /// The temperature and altimeter were reported (a METAR).
     pub reported: bool,
     pub headwind_kt: f64,
@@ -79,8 +90,14 @@ pub struct Check {
     /// limitation, but beyond what was flown.
     pub crosswind_over: bool,
     pub grass: bool,
+    /// Why the field's distances were not worked out (they are then
+    /// empty), where they were not.
+    pub unchecked: Option<&'static str>,
     pub distances: Vec<EndCheck>,
 }
+
+/// Why a field's distances are not worked out without its elevation.
+pub const NO_ELEVATION: &str = "the field's elevation is not known";
 
 struct OnRunway {
     runway: Option<usize>,
@@ -140,33 +157,50 @@ pub fn runway_checks(airplane: &Airplane, briefed: bool, fields: &[Field], takeo
             };
             OnRunway { runway, end, picked, headwind, crosswind }
         };
-        let air = field_air(field.elevation_ft.unwrap_or(0.0), metar.and_then(|m| m.altimeter_in_hg), metar.and_then(|m| m.temp_c));
+        // The field's air from its elevation. Without one the distances are
+        // not worked out: taken as sea level (as they once were) a high
+        // field's distances come out short -- density altitude lengthens
+        // the takeoff roll (FAA-H-8083-25C, chapter 11) -- and the check
+        // would pass a runway the airplane may not get off. 14 CFR
+        // 91.103(b) asks for the distances at the field, so the check says
+        // it does not know them instead.
+        let air = field
+            .elevation_ft
+            .filter(|e| e.is_finite())
+            .map(|e| field_air(e, metar.and_then(|m| m.altimeter_in_hg), metar.and_then(|m| m.temp_c)));
         let last = i == fields.len() - 1;
         let kinds: &[bool] = if i == 0 { &[true] } else if last { &[false] } else { &[false, true] };
         let first = flown_for(kinds[0]);
-        let distances = kinds
-            .iter()
-            .map(|&takeoff| {
-                let on = flown_for(takeoff);
-                let (table, weight) = if takeoff { (takeoff_table, takeoff_lb) } else { (landing_table, landing_lb) };
-                let (d, over) = end_distance(table, on.runway.map(|r| &runways[r]), air, weight, on.headwind);
-                EndCheck { kind: if takeoff { "takeoff" } else { "landing" }, distances: d, over, runway: on.runway, end: on.end }
-            })
-            .collect();
+        let distances = match air {
+            None => vec![],
+            Some(air) => kinds
+                .iter()
+                .map(|&takeoff| {
+                    let on = flown_for(takeoff);
+                    let (table, weight) = if takeoff { (takeoff_table, takeoff_lb) } else { (landing_table, landing_lb) };
+                    let runway = on.runway.map(|r| &runways[r]);
+                    let (d, over) = end_distance(table, runway, air, weight, on.headwind);
+                    let unknown = runway.and_then(|r| r.length_ft).is_none();
+                    let beyond = d.beyond();
+                    EndCheck { kind: if takeoff { "takeoff" } else { "landing" }, distances: d, over, runway: on.runway, end: on.end, unknown, beyond }
+                })
+                .collect(),
+        };
         checks.push(Check {
             field: i,
             role: if i == 0 { "Departure" } else if last { "Destination" } else { "Stop" },
             runway: first.runway,
             end: first.end.clone(),
             picked: first.picked,
-            pressure_alt_ft: air.0,
-            density_alt_ft: density_altitude_ft(air.0, air.1),
-            temp_c: air.1,
+            pressure_alt_ft: air.map(|a| a.0),
+            density_alt_ft: air.map(|a| density_altitude_ft(a.0, a.1)),
+            temp_c: air.map(|a| a.1).or(metar.and_then(|m| m.temp_c)),
             reported: metar.is_some(),
             headwind_kt: first.headwind,
             crosswind_kt: first.crosswind,
             crosswind_over: airplane.demonstrated_kt.is_some_and(|d| first.crosswind > d),
             grass: soft_surface(first.runway.map(|r| &runways[r])),
+            unchecked: air.is_none().then_some(NO_ELEVATION),
             distances,
         });
     }
@@ -209,23 +243,25 @@ pub fn checks_json(checks: &[Check]) -> String {
         out.push_str(",\"end\":");
         json::opt_string(&mut out, c.end.as_deref());
         out.push_str(&format!(",\"picked\":{},\"pressure_alt_ft\":", c.picked));
-        json::number(&mut out, c.pressure_alt_ft);
+        json::opt_number(&mut out, c.pressure_alt_ft);
         out.push_str(",\"density_alt_ft\":");
-        json::number(&mut out, c.density_alt_ft);
+        json::opt_number(&mut out, c.density_alt_ft);
         out.push_str(",\"temp_c\":");
-        json::number(&mut out, c.temp_c);
+        json::opt_number(&mut out, c.temp_c);
         out.push_str(&format!(",\"reported\":{},\"headwind_kt\":", c.reported));
         json::number(&mut out, c.headwind_kt);
         out.push_str(",\"crosswind_kt\":");
         json::number(&mut out, c.crosswind_kt);
-        out.push_str(&format!(",\"crosswind_over\":{},\"grass\":{},\"distances\":[", c.crosswind_over, c.grass));
+        out.push_str(&format!(",\"crosswind_over\":{},\"grass\":{},\"unchecked\":", c.crosswind_over, c.grass));
+        json::opt_string(&mut out, c.unchecked);
+        out.push_str(",\"distances\":[");
         for (k, d) in c.distances.iter().enumerate() {
             if k > 0 {
                 out.push(',');
             }
             out.push_str(&format!("{{\"kind\":\"{}\",", d.kind));
             distances_json(&mut out, &d.distances);
-            out.push_str(&format!(",\"over\":{},\"runway\":", d.over));
+            out.push_str(&format!(",\"over\":{},\"unknown\":{},\"beyond\":{},\"runway\":", d.over, d.unknown, d.beyond));
             opt_index(&mut out, d.runway);
             out.push_str(",\"end\":");
             json::opt_string(&mut out, d.end.as_deref());

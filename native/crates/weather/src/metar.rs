@@ -213,17 +213,58 @@ pub fn flight_category(ceiling_ft: Option<f64>, visibility_sm: Option<f64>) -> O
     })
 }
 
-/// The ceiling of a sky's layers: the lowest broken, overcast or obscured
-/// one -- "the height above the earth's surface of the lowest layer of
-/// clouds or obscuring phenomena that is reported as 'broken', 'overcast',
-/// or 'obscuration'" (14 CFR 1.1, "ceiling"), an obscured sky's base its
-/// vertical visibility (VV). None where no layer makes one.
-pub fn ceiling_of(layers: &[Layer]) -> Option<f64> {
-    layers
-        .iter()
-        .filter(|l| matches!(l.cover.as_str(), "BKN" | "OVC" | "VV"))
-        .filter_map(|l| l.base_ft_agl)
-        .fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.min(b))))
+/// The ceiling of a report's sky, ft above the ground, and whether it is
+/// not known: the lowest broken, overcast or obscured layer -- FEW and SCT
+/// are no ceiling (14 CFR 1.1, "ceiling": "the height above the earth's
+/// surface of the lowest layer of clouds or obscuring phenomena that is
+/// reported as 'broken', 'overcast', or 'obscuration'") -- each layer
+/// (cover, base), lowest first as reports list them (FMH-1 ch. 9). An
+/// obscured sky is a ceiling at its vertical visibility: a raw report
+/// writes it VV002, the AWC's feed marks the layer OVX with its height as
+/// the base in a METAR and gives it only as `vertical_visibility_ft` in a
+/// TAF. Counting BKN and OVC alone left fog at the surface, the lowest
+/// ceiling there is, as none at all.
+///
+/// The lowest such layer sent with no height ("BKN///", "OVC///",
+/// "VV///": an automated station's sensor could not measure it, FMH-1
+/// ch. 9; the AWC's data API sends the layer with no base) leaves the
+/// ceiling not known, not absent: (None, true). One with no height above
+/// a measured ceiling leaves it known. A vertical visibility given apart
+/// is the obscuration from the surface, under every layer, so it settles
+/// the ceiling.
+pub fn sky_ceiling_of<'a>(layers: impl IntoIterator<Item = (&'a str, Option<f64>)>, vertical_visibility_ft: Option<f64>) -> (Option<f64>, bool) {
+    let mut ceilings = layers.into_iter().filter(|(cover, _)| matches!(*cover, "BKN" | "OVC" | "OVX" | "VV")).peekable();
+    if vertical_visibility_ft.is_none() && ceilings.peek().is_some_and(|(_, base)| base.is_none()) {
+        return (None, true);
+    }
+    let lowest = ceilings
+        .filter_map(|(_, base)| base)
+        .chain(vertical_visibility_ft)
+        .fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.min(b))));
+    (lowest, false)
+}
+
+/// The ceiling (sky_ceiling_of), None where there is none or it is not
+/// known.
+pub fn ceiling_of<'a>(layers: impl IntoIterator<Item = (&'a str, Option<f64>)>, vertical_visibility_ft: Option<f64>) -> Option<f64> {
+    sky_ceiling_of(layers, vertical_visibility_ft).0
+}
+
+/// A report's layers' ceiling and whether it is not known (sky_ceiling_of).
+pub fn sky_ceiling(layers: &[Layer]) -> (Option<f64>, bool) {
+    sky_ceiling_of(layers.iter().map(|l| (l.cover.as_str(), l.base_ft_agl)), None)
+}
+
+/// The flight category where the ceiling may not be known: with a
+/// ceiling of no height reported it could be at any height, so only a
+/// visibility under a mile -- LIFR whatever the ceiling -- says it;
+/// anything better is a guess, and VFR from it would call a sky that may
+/// be on the ground good (the audit, 2026-11-06). None then.
+pub fn flight_category_of(ceiling_ft: Option<f64>, ceiling_unknown: bool, visibility_sm: Option<f64>) -> Option<&'static str> {
+    if ceiling_unknown {
+        return visibility_sm.is_some_and(|v| v < 1.0).then_some("LIFR");
+    }
+    flight_category(ceiling_ft, visibility_sm)
 }
 
 /// A visibility in metres (WMO No. 306) in statute miles, as US reports
@@ -237,9 +278,16 @@ pub fn metres_to_sm(metres: f64) -> f64 {
 }
 
 impl Metar {
-    /// The lowest broken, overcast or obscured layer (14 CFR 1.1, "ceiling").
+    /// The ceiling (sky_ceiling), None where there is none or it is not
+    /// known (ceiling_unknown tells them apart).
     pub fn ceiling_ft(&self) -> Option<f64> {
-        ceiling_of(&self.layers)
+        sky_ceiling(&self.layers).0
+    }
+
+    /// A broken, overcast or obscured layer is the lowest and was sent
+    /// with no height: the ceiling is not known, not absent.
+    pub fn ceiling_unknown(&self) -> bool {
+        sky_ceiling(&self.layers).1
     }
 }
 
@@ -384,6 +432,8 @@ pub fn to_json(m: &Metar) -> String {
     json::opt_number(&mut out, m.visibility_sm);
     out.push_str(",\"ceiling_ft\":");
     json::opt_number(&mut out, m.ceiling_ft());
+    out.push_str(",\"ceiling_unknown\":");
+    out.push_str(if m.ceiling_unknown() { "true" } else { "false" });
     out.push_str(",\"wx\":");
     json::string(&mut out, &m.weather.join(" "));
     out.push_str(",\"temp_c\":");
@@ -395,7 +445,7 @@ pub fn to_json(m: &Metar) -> String {
     out.push_str(",\"flight_category\":");
     // With no sky or no visibility given, the category is not known.
     let known = m.sky_reported && m.visibility_sm.is_some();
-    json::opt_string(&mut out, if known { flight_category(m.ceiling_ft(), m.visibility_sm) } else { None });
+    json::opt_string(&mut out, if known { flight_category_of(m.ceiling_ft(), m.ceiling_unknown(), m.visibility_sm) } else { None });
     out.push('}');
     out
 }
@@ -403,6 +453,30 @@ pub fn to_json(m: &Metar) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_ceiling_layer_with_no_height_is_a_ceiling_not_known() {
+        // 10 SM under an overcast of no height: not VFR, not known (14 CFR 1.1).
+        let m = parse("METAR KXYZ 021355Z AUTO 27005KT 10SM OVC/// 10/05 A2992 RMK AO2").unwrap();
+        assert_eq!((m.ceiling_ft(), m.ceiling_unknown()), (None, true));
+        assert_eq!(flight_category_of(m.ceiling_ft(), m.ceiling_unknown(), m.visibility_sm), None);
+        assert!(to_json(&m).contains("\"ceiling_unknown\":true,") && to_json(&m).contains("\"flight_category\":null"));
+        for sky in ["BKN///", "VV///"] {
+            let m = parse(&format!("METAR KXYZ 021355Z AUTO 27005KT 10SM {sky} 10/05 A2992")).unwrap();
+            assert!(m.ceiling_unknown(), "{sky}");
+        }
+        // Under a mile it is LIFR whatever the ceiling.
+        let m = parse("METAR KXYZ 021355Z AUTO 00000KT 1/4SM FG VV/// 10/10 A2992").unwrap();
+        assert_eq!(flight_category_of(m.ceiling_ft(), m.ceiling_unknown(), m.visibility_sm), Some("LIFR"));
+        // One with no height above a measured ceiling leaves it known.
+        let m = parse("METAR KXYZ 021355Z AUTO 27005KT 10SM BKN008 OVC/// 10/05 A2992").unwrap();
+        assert_eq!((m.ceiling_ft(), m.ceiling_unknown()), (Some(800.0), false));
+        assert_eq!(flight_category_of(m.ceiling_ft(), m.ceiling_unknown(), m.visibility_sm), Some("IFR"));
+        // A few or scattered of no height is no ceiling either way.
+        let m = parse("METAR KXYZ 021355Z AUTO 27005KT 10SM FEW/// 10/05 A2992").unwrap();
+        assert_eq!((m.ceiling_ft(), m.ceiling_unknown()), (None, false));
+        assert_eq!(flight_category_of(m.ceiling_ft(), m.ceiling_unknown(), m.visibility_sm), Some("VFR"));
+    }
 
     #[test]
     fn a_us_report() {
