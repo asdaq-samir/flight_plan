@@ -7,28 +7,43 @@ It is headed for an iOS app. README.md has the services and the layout.
 ## Architecture
 
 Functional core, imperative shell: one core every app shares, and a thin
-shell per app round it (the owner, 2026-11-03).
+shell per app round it (the owner, 2026-11-03). Four layers, each with
+one job (the owner kept both server languages on this split, 2026-11-06):
 
-- **The core is the Rust engine** (`native/engine`, wingtip-engine, a
-  facade over its domain crates in `native/crates`, layered as
-  native/README.md says). Every aviation rule or figure lives there once:
-  altitudes, winds, runways, fuel, weather limits, Go / No-Go, holds,
-  procedures, the clearance reader, currency, the debrief. No network, no
-  screen, no clock of its own. Each rule is a name in `native/engine/src/call.rs`, JSON in and out.
+- **The Rust engine** (`native/engine`, wingtip-engine, a facade over
+  nine domain crates in `native/crates`, layered as native/README.md
+  says). Every aviation rule or figure lives there once: altitudes,
+  winds, runways, fuel, weather limits, Go / No-Go, holds, procedures,
+  the clearance reader, currency, the debrief. No network, no screen, no
+  clock of its own. Each rule is a name in `native/engine/src/call.rs`,
+  JSON in and out, typed in `native/contract/engine.schema.json`.
+- **The planner** (FastAPI, `planning-service` over `src/wingtip`) works
+  out a flight: it fetches the FAA and weather data, runs the chart
+  model and the assistant, and asks the engine every rule
+  (`wingtip_native.call`).
+- **Spring Boot** (`springboot-app`) is who the pilot is and what they
+  saved: accounts, sign-in, records, the public API, scheduled mail. It
+  holds no aviation logic; where it needs a figure (currency for a
+  reminder) it asks the planner over HTTP, which asks the engine.
 - **Each app is a shell that gets data, keeps state and draws**, and asks
   the engine the rest by name: the web through `callEngine`
-  (web/src/lib/engine, the engine built to WebAssembly), the planner
-  through `wingtip_native.call`, the iPhone through `wt_call`. A rule found in
-  a component, a hook, a Swift view or a route handler is a bug: move it
-  into the engine and delete the copy.
+  (web/src/lib/engine, the engine built to WebAssembly), the iPhone
+  through `wt_call`, Android through its JNI shim over `wt_call`. A rule
+  found in a component, a hook, a Swift view, a Java service or a route
+  handler is a bug: move it into the engine and delete the copy. What
+  has not moved yet, and in what order, is issue #482.
 - **Screens are view and view model** (MVVM): the view draws, one hook (web)
-  or observable model (iOS) per screen holds its state and makes its
-  calls. How a figure is written on the screen stays with each app.
+  or observable model (iOS, Android) per screen holds its state and makes
+  its calls. How a figure is written on the screen stays with each app.
 - **Data comes in at the edges**: the planner's endpoints and the cycle
   packs feed the engine; the engine never fetches.
-- Changing a rule: the engine, its test against the shared fixtures
-  (web/src/lib/fixtures), `scripts/build-engine-wasm.sh` (the `.wasm` is
-  committed and CI checks it matches), and the planner's image rebuilt.
+- Adding or changing a rule: the Rust in the lowest crate that can hold
+  it, its name in `call.rs`, its entry in the contract
+  (`engine.schema.json`), `npm run types` in web (and
+  `scripts/engine-contract-apps.sh` when a phone decodes it), its test
+  against the shared fixtures (web/src/lib/fixtures),
+  `scripts/build-engine-wasm.sh` (the `.wasm` is committed and CI checks
+  it matches), and the planner's image rebuilt.
 
 ## Branches
 

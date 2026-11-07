@@ -1,6 +1,14 @@
 # native
 
-Wingtip's Rust: the engine, over its crates, and its three faces:
+Wingtip's Rust: the engine, over its crates, and its three faces.
+
+The engine is the lowest of the project's four layers: under the planner
+(FastAPI, which works out a flight and asks the engine every rule), Spring
+Boot (accounts and saved records, no aviation logic) and the apps (web,
+iOS, Android, which draw and ask the engine the rest). Every aviation
+rule and figure belongs here once; the ones still written in Python,
+Java, TypeScript, Swift or Kotlin are listed, in the order they move, in
+issue #482.
 
 - `engine/` (`wingtip-engine`): the figures that must come out the same
   wherever they are worked out -- route options' straight lines over the
@@ -68,6 +76,39 @@ they had in the one crate (`use wingtip_geo::json;` in its lib.rs), so
 the code still reads `crate::json` and the move changed no rule. A new
 module goes in the lowest crate whose modules it needs; one that would
 need a crate above its own belongs higher, never in a cycle.
+
+## The contract, and adding a rule
+
+Every name in `engine/src/call.rs` has its input and its answer in
+`contract/engine.schema.json`, a JSON Schema written from the Rust, with
+the AIM, 14 CFR or ACS source of each figure in its descriptions. The
+apps' types come from it rather than from hand-written copies: the web's
+`web/src/lib/engine/contract.ts` (json-schema-to-typescript, in `npm run
+types`), which types `callEngine` by name, so a renamed field fails the
+web's typecheck rather than a screen on a phone; and the phones' answer
+types for the names they decode (quicktype, through
+`scripts/engine-contract-apps.sh`): `ios/Wingtip/Engine/EngineContract.swift`
+and
+`android/app/src/main/kotlin/app/wingtipmaps/android/engine/EngineContract.kt`.
+`engine/tests/contract.rs` holds the schema's names to the dispatcher's
+and the shared fixtures' answers to the schema; `contract.test.ts` holds
+the generated file to the schema.
+
+A rule goes in this way, each step in the same pull request:
+
+1. The Rust, in the lowest crate whose modules it needs (above), with its
+   source cited in a comment.
+2. Its name in `engine/src/call.rs`, reading and writing JSON.
+3. Its entry in `contract/engine.schema.json`.
+4. `npm run types` in `web/`, and `scripts/engine-contract-apps.sh` when
+   a phone decodes the answer with a generated type; commit what they
+   write.
+5. A test against the shared fixtures in `web/src/lib/fixtures`, so the
+   web, the phones and the planner are held to the same examples.
+6. `scripts/build-engine-wasm.sh`, and the `.wasm` committed; the
+   planner's image rebuilt for the Python side.
+
+Then the callers switch to the name and the old copy is deleted.
 
 ## The engine's rules
 
