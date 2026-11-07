@@ -26,7 +26,7 @@ variable "PUSH" {
 # Every image, for a bake with no target named -- and the list the
 # Promote workflow walks, promoting each this commit built.
 group "default" {
-  targets = ["ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
+  targets = ["ml", "pipeline-processing", "pipeline-training",
              "planning-service", "webapp"]
 }
 
@@ -70,24 +70,6 @@ target "pipeline-training" {
   cache-from = image("pipeline-training").cache-from
   cache-to   = image("pipeline-training").cache-to
   output     = image("pipeline-training").output
-}
-
-target "airflow" {
-  context    = "."
-  dockerfile = "docker/Dockerfile.airflow"
-  tags       = image("airflow").tags
-  cache-from = image("airflow").cache-from
-  cache-to   = image("airflow").cache-to
-  output     = image("airflow").output
-}
-
-target "airflow-aws" {
-  context    = "."
-  dockerfile = "docker/Dockerfile.airflow.aws"
-  tags       = image("airflow-aws").tags
-  cache-from = image("airflow-aws").cache-from
-  cache-to   = image("airflow-aws").cache-to
-  output     = image("airflow-aws").output
 }
 
 target "planning-service" {

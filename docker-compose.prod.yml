@@ -1,12 +1,12 @@
 # The production stack: one EC2 server behind CloudFront
 # (infra/cloudformation/template.yaml, docs/README-AWS.md). A file of its
 # own rather than an overlay on docker-compose.yml, which is the
-# development stack -- source mounted, Mailpit, Airflow, the dev ports
-# -- none of which a production server should inherit by accident.
+# development stack -- source mounted, Mailpit, the training run, the dev
+# ports -- none of which a production server should inherit by accident.
 #
 # What is not here, on purpose:
 # - Mailpit: sign-in mail goes through Amazon SES (MAIL_* below).
-# - Airflow and the pipelines: retraining runs on the owner's machine.
+# - The pipelines and the training run: retraining runs on the owner's machine.
 # - web-build and dev-services: development tools.
 # - Chart tile drawing: CHARTS_AUTO_REFRESH=0. A scheduled Fargate Spot
 #   task draws each 56-day cycle once and publishes it to S3, and the

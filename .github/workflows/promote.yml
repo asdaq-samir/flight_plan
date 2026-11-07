@@ -105,7 +105,7 @@ jobs:
       matrix:
         include:
           # The two images the production server runs
-          # (docker-compose.prod.yml). Airflow stays out of production:
+          # (docker-compose.prod.yml). The pipeline stays out of production:
           # retraining runs on the owner's machine (docs/README-AWS.md).
           #
           # Repo root as context, for the same reason as images.hcl:

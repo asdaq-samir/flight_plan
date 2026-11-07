@@ -26,8 +26,12 @@ owner's word. Its package is `app.wingtipmaps.android.native`.
   - `api/`: the data layer. `Gateway` (the session's cookies, kept by
     `CookieStore`; the CSRF header; a cache the servers' Cache-Control
     fills), `Planner` (the planner through the gateway's proxy),
-    `Models.kt` (the answers' shapes, by hand, in the document's names
-    through `@SerialName`), `NavLog.kt` (the nav log's streamed lines);
+    `Models.kt` (the answers' shapes, in the document's names through
+    `@SerialName`: most are typealiases of `api/generated`, which
+    `scripts/api-models-apps.sh` writes from the planner's and the
+    gateway's OpenAPI documents with quicktype, committed and checked by
+    CI, so a renamed field fails the build; the pilot and AirportPin
+    stay by hand), `NavLog.kt` (the nav log's streamed lines, by hand);
   - `Charts`, `Session`, `Plan`: the models of state, ViewModels with
     their state in flows (which chart, who is signed in, the route and
     what the planner said of it), and `Links` (the site's links the app
@@ -61,10 +65,13 @@ owner's word. Its package is `app.wingtipmaps.android.native`.
   computes none of its own.
 - The shared fixtures in `web/src/lib/fixtures` are the test APK's
   assets by their path (`build.gradle.kts`'s `androidTest` source set),
-  not a copy: `EngineTest` holds the engine on an Android phone to the
-  same examples the web's vitest tests and the iOS tests read, through
-  this app's own bridge, so a bridge that mangles a string or a number
-  fails CI.
+  not a copy: `EngineTest` and `EngineFixturesTest` hold the engine on
+  an Android phone to the same examples the web's vitest tests and the
+  iOS tests read, through this app's own bridge (the second compares
+  `Engine.callNative`'s raw JSON with every phone-called rule's
+  fixture), so a bridge that mangles a key, a number, a null or a
+  string fails CI. They are instrumented tests, run every night and on
+  a dispatch, not on each pull request.
 - Material 3 and Google's guide to app architecture: a UI layer of
   composables reading state from ViewModels, with changes flowing one
   way (a screen calls a model's function; the model changes its state;
@@ -128,7 +135,9 @@ the location button over the map (`ui/MapButtons`) as Apple Maps has
 it: a tap turns the reading on and follows, a drag lets go, a tap again
 turns it off. The system's permission dialogs for location and for
 notifications are asked from `RootScreen`, the one screen, since a
-request needs an Activity.
+request needs an Activity. Setup's Map section has the Traffic switch
+(`TrafficSwitch`, kept in the DataStore settings file under "traffic",
+on until turned off), where the iOS app's Setup has it.
 
 Still to come: the tile store and the route's tiles for the air, the
 briefing, the checkpoints and the side view, the altitude wheel, the

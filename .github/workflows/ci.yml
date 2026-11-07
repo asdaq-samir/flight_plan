@@ -171,6 +171,21 @@ jobs:
       # The API types, generated from planning-service/openapi.json --
       # test-planning-service proves that file matches the running app.
       - run: npm run types
+      # The phones' models of the same two documents (quicktype, in
+      # scripts/api-models-apps.sh), committed because neither app's build
+      # has Node: generated again here, they must be the committed files
+      # byte for byte, or a field a server renamed reaches a phone at
+      # runtime instead of failing its build.
+      - name: The phones' API models are the committed ones
+        working-directory: .
+        run: |
+          scripts/api-models-apps.sh
+          generated="ios/Wingtip/API/Generated android/app/src/main/kotlin/app/wingtipmaps/android/api/generated"
+          if [ -n "$(git status --porcelain -- $generated)" ]; then
+            git status --short -- $generated
+            echo "::error title=Phone API models out of date::the phones' generated API models are not what the OpenAPI documents give: run scripts/api-models-apps.sh and commit the files."
+            exit 1
+          fi
       - run: npx tsc --noEmit
       - run: npx eslint .
       - run: npx vitest run
@@ -300,6 +315,8 @@ jobs:
       docs: ${{ steps.plan.outputs.docs }}
       infra: ${{ steps.plan.outputs.infra }}
       api: ${{ steps.plan.outputs.api }}
+      android: ${{ steps.plan.outputs.android }}
+      ios: ${{ steps.plan.outputs.ios }}
       docs-only: ${{ steps.docsonly.outputs.only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -366,6 +383,10 @@ jobs:
               - planning-service/openapi.json
               - springboot-app/openapi.json
               - native/contract/**
+              # The phones' models of the two documents, checked there.
+              - scripts/api-models-apps.*
+              - ios/Wingtip/API/Generated/**
+              - android/app/src/main/kotlin/app/wingtipmaps/android/api/generated/**
             test-webapp:
               - springboot-app/**
               # the planner's answers PlannerClient reads are generated from it
@@ -384,10 +405,30 @@ jobs:
               - infra/cloudformation/**
               - infra/server/**
               - docker-compose.prod.yml
-            # Javadoc and godoc; each Python suite's job makes its pdoc.
+            # The phone apps, each by what it builds from: its own tree
+            # (with its API models, scripts/api-models-apps.* makes them),
+            # the engine it links (native/**), the shared fixtures its
+            # tests read and its build's workflow. On a pull request only
+            # (the plan, below): main's pushes and the nights run them in
+            # native-android.yml and native-ios.yml.
+            android:
+              - android/**
+              - native/**
+              - web/src/lib/fixtures/**
+              - scripts/api-models-apps.*
+              - .github/workflows/native-android-build.yml
+            # And the web's files ios/project.yml bundles.
+            ios:
+              - ios/**
+              - native/**
+              - web/src/lib/fixtures/**
+              - web/src/lib/acs.json
+              - tests/fixtures/native/**
+              - scripts/api-models-apps.*
+              - .github/workflows/native-ios-test.yml
+            # Javadoc; each Python suite's job makes its pdoc.
             docs:
               - springboot-app/**
-              - infra/lambda-retrain-trigger/**
             # The images, each by what its Dockerfile reads: native/** for
             # every one with the wingtip-native stage (docker/Dockerfile.native).
             ml:
@@ -405,14 +446,6 @@ jobs:
               - docker/requirements-training.txt
               - src/**
               - native/**
-            airflow:
-              - docker/Dockerfile.airflow
-              - airflow/**
-              - src/**
-              - native/**
-            airflow-aws:
-              - docker/Dockerfile.airflow.aws
-              - airflow/dags/wingtip_pipeline_aws_dag.py
               - src/**
               - native/**
             planning-service:
@@ -432,6 +465,7 @@ jobs:
         env:
           CHANGED: ${{ steps.filter.outputs.changes }}
           ALL: ${{ steps.base.outputs.all }}
+          EVENT: ${{ github.event_name }}
         run: |
           python3 - <<'EOF'
           import json, os
@@ -439,7 +473,7 @@ jobs:
           everything = os.environ.get("ALL") == "true" or "global" in changed
           # Every image this workflow builds, each a target of
           # .github/images.hcl, which has its context and Dockerfile.
-          IMAGES = ("ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
+          IMAGES = ("ml", "pipeline-processing", "pipeline-training",
                     "planning-service", "webapp")
           due = lambda name: everything or name in changed
           images = [{"service": s} for s in IMAGES if due(s)]
@@ -447,6 +481,13 @@ jobs:
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service",
                        "docs", "infra", "api"):
               outputs[name] = "true" if due(name) else "false"
+          # The phones' builds gate a merge: a pull request, or a run
+          # started by hand on one's branch. Main's pushes and the nights
+          # have native-android.yml and native-ios.yml for them, so they
+          # are not run twice there.
+          gate = os.environ["EVENT"] in ("pull_request", "workflow_dispatch")
+          for name in ("android", "ios"):
+              outputs[name] = "true" if gate and due(name) else "false"
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               for key, value in outputs.items():
                   out.write(f"{key}={value}\n")
@@ -1433,8 +1474,8 @@ jobs:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
 
-  # Regenerates the webapp's and the retrain trigger's documentation, so
-  # a broken {@link} or a Go package that stops building is caught here
+  # Regenerates the webapp's documentation, so a broken {@link} is
+  # caught here
   # rather than discovered later. Output is uploaded as a build artifact
   # (Actions -> this run -> Artifacts), so current docs are a click away
   # without regenerating them locally.
@@ -1466,23 +1507,11 @@ jobs:
         working-directory: springboot-app
         run: mvn -q javadoc:javadoc
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7
-        with:
-          go-version: "1.27"
-      - name: godoc (lambda-retrain-trigger)
-        working-directory: infra/lambda-retrain-trigger
-        run: |
-          go build ./...
-          go vet ./...
-          go doc -all -u . > /tmp/godoc-retrain-trigger.txt
-
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: documentation
           retention-days: 30
-          path: |
-            springboot-app/target/reports/apidocs
-            /tmp/godoc-retrain-trigger.txt
+          path: springboot-app/target/reports/apidocs
 
   # The production stack's files, each checked by its own tool: the
   # CloudFormation template by cfn-lint, the server's scripts by
@@ -1561,6 +1590,28 @@ jobs:
             echo "::error title=API break::A change above breaks the phones already in pilots' hands. Make it additive (a new field or endpoint beside the old), or, if no released app calls it, add oasdiff's line for it to .github/api-breaks.txt (docs/CI.md)."
           fi
           exit $status
+
+  # The phone apps, built and tested as their own workflows build them on
+  # main, here so "CI passed" waits for them: #499 merged with the
+  # Android app not compiling while Native Android ran beside CI, where
+  # the ruleset could not require it (a path-filtered workflow stays
+  # pending on every pull request it skips). Only where the pull request
+  # touches what the app builds from (`changes`); skipped otherwise.
+  # Android on GitHub's Linux runner: the engine, unit tests, lint and an
+  # APK, about 5 min; its emulator tests stay nightly. iOS on MAC_RUNNER
+  # or GitHub's macOS runner, ten times a Linux minute's price on a
+  # private repository (docs/CI.md).
+  android:
+    name: Native Android
+    needs: [changes]
+    if: needs.changes.outputs.android == 'true'
+    uses: ./.github/workflows/native-android-build.yml
+
+  ios:
+    name: Native iOS
+    needs: [changes]
+    if: needs.changes.outputs.ios == 'true'
+    uses: ./.github/workflows/native-ios-test.yml
 
   # Lighthouse's report against the industry's thresholds: Google's
   # "good" Core Web Vitals (web.dev/vitals -- LCP within 2.5 s, CLS 0.1 at
@@ -1684,12 +1735,13 @@ jobs:
 
   # The one check main requires (its ruleset), so the rule holds as jobs
   # come and go: every job above passed, or was not needed -- a job its
-  # paths did not touch is skipped, which counts as passing.
-  # auto-merge-agents.yml merges a pull request on it.
+  # paths did not touch is skipped, which counts as passing. The phone
+  # builds (android, ios) among them, on the pull requests that touch
+  # the phones. auto-merge-agents.yml merges a pull request on it.
   passed:
     name: CI passed
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes, test, test-web, test-webapp, test-planning-service, e2e, e2e-images, build-images, docs, infra, api-compat]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, e2e, e2e-images, build-images, docs, infra, api-compat, android, ios]
     if: always()
     steps:
       - name: Every job passed or was not needed

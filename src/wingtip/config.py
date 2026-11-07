@@ -7,7 +7,7 @@ that whole chain in for three constants. Keeping them here means a consumer
 pays for pathlib and nothing else.
 
 wingtip.pipeline re-exports these, so `from wingtip.pipeline import
-CANDIDATES_PATH` keeps working for the notebooks and the DAG.
+CANDIDATES_PATH` keeps working for the notebooks and the training run.
 """
 import os
 from pathlib import Path
