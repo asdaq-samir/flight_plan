@@ -1,5 +1,10 @@
-import { test, expect, type Locator } from "@playwright/test";
-import { cardClose, grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers";
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import { cardClose, drawn, grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers";
+
+/** The traffic patterns the map draws, by name ("pattern-at-KDLH",
+ *  "departure-at-C81": PatternsGl's lines). A line can come back once for
+ *  each tile it crosses, so the names, each once. */
+const circuitsOf = (page: Page) => async () => [...new Set((await drawn(page, "patterns")).map(p => String(p.name)))].sort();
 
 /**
  * The route's Procedures (ProceduresRoute), FPL's list, at the pilot's ask: a field's
@@ -49,7 +54,7 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   await expect(folded).toHaveText(name);
   await expect(folded).toHaveAttribute("aria-checked", "true");
   await expect(page).toHaveURL(new RegExp(`[?&]pattern=[^&]*KDLH(%3A|:)${name}(%2C|,|&|$)`));
-  await expect(page.locator("path.traffic-pattern.pattern-at-KDLH")).toHaveCount(1, { timeout: slow(10000) });
+  await expect.poll(circuitsOf(page), { timeout: slow(10000) }).toContain("pattern-at-KDLH");
 
   // No None: every landing is on a runway (the owner's "Why is none even an
   // option?"), and the chip picked tapped again keeps it.
@@ -90,9 +95,7 @@ test("the field left from is drawn off its runway and out of the pattern, not ro
   page.on("request", r => { if (r.url().includes("/navlog?")) asked.push(new URL(r.url())); });
   await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81%3A24%2CKDLH%3A27&auto=-");
   await settle(page);
-  await expect(page.locator("path.traffic-pattern.pattern-at-KDLH")).toHaveCount(1, { timeout: slow(20000) });
-  await expect(page.locator("path.traffic-pattern.departure-at-C81")).toHaveCount(1);
-  await expect(page.locator("path.traffic-pattern.pattern-at-C81")).toHaveCount(0);
+  await expect.poll(circuitsOf(page), { timeout: slow(20000) }).toEqual(["departure-at-C81", "pattern-at-KDLH"]);
   await expect.poll(() => asked.some(u => u.searchParams.get("runways") === "C81:24" && u.searchParams.get("patterns") === "KDLH:27"), { timeout: slow(20000) }).toBe(true);
 });
 
@@ -251,7 +254,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   const procedures = page.getByTestId("procedures");
   const kdlh = procedures.getByRole("region", { name: "KDLH · Arrive" });
   await expect(kdlh.getByRole("radio", { name: /^Runway 27/ })).toHaveAttribute("aria-checked", "true", { timeout: slow(20000) });
-  await expect(page.locator("path.traffic-pattern.pattern-at-KDLH")).toHaveCount(1, { timeout: slow(10000) });
+  await expect.poll(circuitsOf(page), { timeout: slow(10000) }).toContain("pattern-at-KDLH");
   // The ILS to 9 added from its pull-down, from DLH: the runway is 9,
   // landed straight in, and no pattern drawn.
   await kdlh.locator('[data-testid=procedure-kind][data-kind=approach]').click();
@@ -296,7 +299,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   // Said in the runway's chip's name, the info button gone (the owner's
   // "No need for info button").
   await expect(kdlh.getByRole("radio", { name: /Straight in/ })).toBeVisible();
-  await expect(page.locator("path.traffic-pattern.pattern-at-KDLH")).toHaveCount(0);
+  await expect.poll(circuitsOf(page)).not.toContain("pattern-at-KDLH");
   // Its plate has no circling line: no other runway. By its number: the
   // live wind may name 27 into it first.
   await openRunways(kdlh);
@@ -314,7 +317,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await circle.click();
   await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)27(%2C|,|&|$)/);
   await expect(kdlh.getByRole("radio", { name: /Circle to land/ })).toBeVisible();
-  await expect(page.locator("path.traffic-pattern.pattern-at-KDLH")).toHaveCount(0);
+  await expect.poll(circuitsOf(page)).not.toContain("pattern-at-KDLH");
 });
 
 /**

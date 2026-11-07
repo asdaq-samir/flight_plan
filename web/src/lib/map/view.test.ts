@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import L from "leaflet";
 import { describe, expect, it, vi } from "vitest";
 
 // view.ts asks the window whether it hovers as it loads; jsdom has no
@@ -9,7 +8,7 @@ vi.hoisted(() => {
 });
 const { aheadOf, within } = await import("./view");
 
-const bounds = (s: number, w: number, n: number, e: number) => L.latLngBounds([s, w], [n, e]);
+const bounds = (s: number, w: number, n: number, e: number) => ({ getSouth: () => s, getWest: () => w, getNorth: () => n, getEast: () => e });
 
 describe("aheadOf", () => {
   it("adds the view's own size on every side, out to the half degree", () => {

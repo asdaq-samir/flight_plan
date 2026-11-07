@@ -1,6 +1,10 @@
-import type { LineLayerSpecification } from "maplibre-gl";
+import type { LineLayerSpecification, MapGeoJSONFeature } from "maplibre-gl";
 import { useMemo } from "react";
 import { useGlData, useGlLayer, type Slot } from "./glLayer";
+import { useGlProbe } from "./useGlProbe";
+
+// Each line drawn, by its name where it has one, for the browser tests.
+const DRAWN = (f: MapGeoJSONFeature) => (f.properties.name ? { drawn: true, name: f.properties.name } : { drawn: true });
 
 export interface GlRun {
   /** [lat, lon], as the app keeps its lines. */
@@ -8,6 +12,9 @@ export interface GlRun {
   colour: string;
   width: number;
   opacity?: number;
+  /** What the browser tests know it by (data-<id>), as the Leaflet map's
+   *  class on its path: "pattern-at-KDLH". */
+  name?: string;
 }
 
 /**
@@ -37,9 +44,11 @@ export function useGlLines(id: string, slot: Slot, runs: GlRun[] | null, casing:
   const data = useMemo<GeoJSON.FeatureCollection | null>(() => (runs ? {
     type: "FeatureCollection",
     features: runs.filter(r => r.points.length > 1).map(r => ({
-      type: "Feature", properties: { colour: r.colour, width: r.width, opacity: r.opacity ?? 1 },
+      type: "Feature", properties: { colour: r.colour, width: r.width, opacity: r.opacity ?? 1, ...(r.name ? { name: r.name } : {}) },
       geometry: { type: "LineString", coordinates: r.points.map(([lat, lon]) => [lon, lat]) },
     })),
   } : null), [runs]);
   useGlData(id, data);
+  // Whether it is drawn, for the browser tests (data-<id>, useGlProbe).
+  useGlProbe(id, [id], DRAWN);
 }

@@ -8,7 +8,6 @@ import { openMapSettings, settle, slow } from "./helpers";
  * and the sheets solid white with black figures. Off takes it away. Auto
  * reads the phone's light sensor, which the test's browser has none of.
  */
-const TILE = ".leaflet-layer.chart-tiles img.leaflet-tile";
 
 test.beforeEach(async ({ page }) => {
   // Once: a reload after Off must find Off kept, not On put back.
@@ -32,9 +31,9 @@ test("Sunlight On: the page is marked bright, the figure strip is solid white wi
   expect(await strip.evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(255, 255, 255)");
   expect(await strip.evaluate(el => getComputedStyle(el).color)).toBe("rgb(0, 0, 0)");
 
-  // The tiles at more contrast, each tile as the night's dimming is.
-  await expect(page.locator(TILE).first()).toBeAttached({ timeout: slow(15_000) });
-  await expect.poll(() => page.locator(TILE).first().evaluate(el => getComputedStyle(el).filter)).toBe("contrast(1.25) saturate(1.2)");
+  // The tiles at more contrast, by the map's own raster paint (ChartGl's
+  // data-chart-look).
+  await expect.poll(() => page.getByTestId("gl-map").getAttribute("data-chart-look"), { timeout: slow(15_000) }).toBe("bright");
 
   // Off, from the map's settings: the page as it was, and kept so.
   await openMapSettings(page);

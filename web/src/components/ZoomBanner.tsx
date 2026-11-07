@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type L from "leaflet";
+import type { Map as GlMap } from "maplibre-gl";
 import { cn } from "cn";
 import { GLASS } from "./mapChrome";
 import { TEXT } from "../lib/text";
@@ -17,11 +17,11 @@ const METRES_PER_NM = 1852;
 /** The bar's lengths, in nm: the largest that fits BAR_MOST is drawn. */
 const NICE_NM = [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 
-/** The bar for zoom `zoom` about `center`: its length in nm and in px. */
-function scaleAt(map: L.Map, center: L.LatLng, zoom: number) {
-  const at = map.project(center, zoom);
-  const metres = map.distance(map.unproject(at, zoom), map.unproject(at.add([BAR_MOST, 0]), zoom));
-  const nmPerPx = metres / METRES_PER_NM / BAR_MOST;
+/** The bar at the map's middle now: its length in nm and in px. */
+function scaleOf(map: GlMap) {
+  const { clientWidth: w, clientHeight: h } = map.getContainer();
+  const a = map.unproject([w / 2, h / 2]), b = map.unproject([w / 2 + BAR_MOST, h / 2]);
+  const nmPerPx = a.distanceTo(b) / METRES_PER_NM / BAR_MOST;
   const nm = [...NICE_NM].reverse().find(n => n / nmPerPx <= BAR_MOST) ?? 0.25;
   return { nm, px: Math.round(nm / nmPerPx) };
 }
@@ -34,11 +34,11 @@ function scaleAt(map: L.Map, center: L.LatLng, zoom: number) {
  * Only for the pilot's own zooms -- a pinch, a double tap, a wheel, a key
  * -- not the app's (a route fitted, the map brought to own ship on
  * opening). A pinch zooms in fractions (lib/map/pinch.ts, zoomSnap 0), so
- * to a tenth. Written straight into the elements on each of Leaflet's zoom
+ * to a tenth. Written straight into the elements on each of the map's zoom
  * events, not through React's state, so a pinch's every frame is not a
  * render; left out for VoiceOver, which would read it at every frame.
  */
-export default function ZoomBanner({ map }: { map: L.Map | null }) {
+export default function ZoomBanner({ map }: { map: GlMap | null }) {
   const box = useRef<HTMLDivElement>(null);
   const figure = useRef<HTMLSpanElement>(null);
   const bar = useRef<HTMLSpanElement>(null);
@@ -60,21 +60,21 @@ export default function ZoomBanner({ map }: { map: L.Map | null }) {
     const down = () => { fingers += 1; input(); };
     const up = () => { fingers = Math.max(0, fingers - 1); input(); };
     const own = () => fingers > 0 || performance.now() - lastInput < OWN_MS;
-    const say = (zoom: number, center: L.LatLng) => {
+    const say = () => {
       if (!own()) return;
       clearTimeout(timer);
-      const shown = String(Math.round(zoom * 10) / 10);
+      // In the app's levels, Leaflet's: MapLibre's zoom is one less (glStyle).
+      const shown = String(Math.round((map.getZoom() + 1) * 10) / 10);
       if (text.textContent !== shown) text.textContent = shown;
-      const { nm, px } = scaleAt(map, center, zoom);
+      const { nm, px } = scaleOf(map);
       const nmShown = `${nm} nm`;
       if (length.textContent !== nmShown) length.textContent = nmShown;
       line.style.width = `${px}px`;
       el.hidden = false;
     };
-    const onZoom = () => say(map.getZoom(), map.getCenter());
-    // An animated zoom (a double tap, the buttons) says where it is going
-    // as it sets off.
-    const onAnim = (e: L.ZoomAnimEvent) => say(e.zoom, e.center);
+    // Every frame of a zoom, animated or under the fingers: MapLibre's
+    // `zoom` fires through the animation.
+    const onZoom = say;
     const onEnd = () => {
       if (el.hidden) return;
       clearTimeout(timer);
@@ -87,7 +87,6 @@ export default function ZoomBanner({ map }: { map: L.Map | null }) {
     container.addEventListener("wheel", input, capture);
     container.addEventListener("keydown", input, capture);
     map.on("zoom", onZoom);
-    map.on("zoomanim", onAnim);
     map.on("zoomend", onEnd);
     return () => {
       clearTimeout(timer);
@@ -97,7 +96,6 @@ export default function ZoomBanner({ map }: { map: L.Map | null }) {
       container.removeEventListener("wheel", input, capture);
       container.removeEventListener("keydown", input, capture);
       map.off("zoom", onZoom);
-      map.off("zoomanim", onAnim);
       map.off("zoomend", onEnd);
     };
   }, [map]);

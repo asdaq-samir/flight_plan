@@ -268,7 +268,7 @@ test("a link with a stop opens on the route through it", { tag: "@smoke" }, asyn
   await openPanel(page);
   await expect(sideDrawer(page).getByRole("group", { name: "Stop 1 KMSN" })).toBeVisible({ timeout: slow(15000) });
   // Its airport on the map, as the route's two ends are.
-  await expect(page.locator(".leaflet-marker-icon", { hasText: "KMSN" }).first()).toBeVisible({ timeout: slow(15000) });
+  await expect(page.locator(".maplibregl-marker", { hasText: "KMSN" }).first()).toBeVisible({ timeout: slow(15000) });
 });
 
 test("a stop is left again at the time picked on its Depart step, 30 minutes after it lands until one is", async ({ page }) => {
@@ -669,7 +669,7 @@ test("a stop may be a VFR waypoint, offered after the airports as it is typed an
   await expect(page).toHaveURL(/[?&]stops=VPBNG(&|$)/);
 
   // On the map in the sectional's magenta, not as an airport's chip.
-  await expect(page.locator(".leaflet-marker-icon", { hasText: "VPBNG" }).first()).toBeVisible({ timeout: slow(15000) });
+  await expect(page.locator(".maplibregl-marker", { hasText: "VPBNG" }).first()).toBeVisible({ timeout: slow(15000) });
 });
 
 test("a point's menu has its altitude before Remove: an airport's pattern in feet, a waypoint's cruise as a flight level, each the pilot's to set and give back", async ({ page }) => {
@@ -756,13 +756,13 @@ test("a VFR waypoint on the chart is a magenta triangle with its ident, and its 
   await page.route(url => url.pathname.endsWith("/waypoints/in-view"), route =>
     route.fulfill({ json: { waypoints: [{ ident: "VPBNG", lat: 42.2673, lon: -88.1311, description: "3 nm SW of Campbell" }] } }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
+  const departure = page.locator(".maplibregl-marker", { hasText: "C81" }).first();
   await expect(departure).toBeVisible({ timeout: slow(30000) });
   const box = (await departure.boundingBox())!;
   // C81 dragged to the middle of the map first: the route's fit leaves it
   // near the screen's foot, and VPBNG, 4 nm south-west, was zoomed in to
   // past it, under the bottom edge (2026-11-03).
-  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const map = (await page.locator(".maplibregl-map").boundingBox())!;
   const middle = { x: map.x + map.width / 2, y: map.y + map.height / 2 };
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -801,13 +801,13 @@ test("a VFR waypoint on the chart is a magenta triangle with its ident, and its 
   // What it is beside its ident, where it is on a line of its own: in its
   // popup over the chart, or on a phone its card in the map's sheet
   // (MapPopup), its name and line in the bar's row beside the close.
-  const popup = page.locator(".leaflet-popup, [data-sheet-card], [data-testid=tab-card-head]");
+  const popup = page.locator(".maplibregl-popup, [data-sheet-card], [data-testid=tab-card-head]");
   await expect(popup.getByText("VFR waypoint", { exact: true })).toBeVisible();
   await expect(popup.getByText("3 nm SW of Campbell", { exact: true })).toBeVisible();
   // And the map holds still under the open card, once it has panned it
   // into sight: it crept a point a second as the card was drawn again.
   await mapStill(page);
-  const pane = () => page.evaluate(() => document.querySelector<HTMLElement>(".leaflet-map-pane")!.style.transform);
+  const pane = () => page.evaluate(() => document.querySelector<HTMLElement>("[data-testid=gl-map]")!.dataset.center);
   const before = await pane();
   await page.waitForTimeout(2000);
   expect(await pane()).toBe(before);

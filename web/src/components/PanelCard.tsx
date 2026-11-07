@@ -28,7 +28,7 @@ export function PanelCard({ testId, flush = false, children }: {
   useEffect(() => {
     const from = document.activeElement as HTMLElement | null;
     const node = card.current;
-    if (!node || !from?.closest(".leaflet-container")) return;
+    if (!node || !from?.closest(".maplibregl-map")) return;
     node.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
     return () => {
       const at = document.activeElement;

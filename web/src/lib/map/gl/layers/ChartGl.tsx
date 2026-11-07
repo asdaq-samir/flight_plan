@@ -35,6 +35,16 @@ export function ChartGl({ course, previewing = false }: { course: Course | null;
     return { part, spec: { ...spec, sources, layers: spec.layers.filter(l => ids.includes(l.id)) } };
   }).filter(p => p.spec.layers.length) : []), [spec]);
   const night = dark && chartNight === "dimmed";
+  // Which charts are drawn and how, on the map's element, for the browser
+  // tests: each part's kind (its tiles' path) and the paint's look.
+  const { map } = useGlMap();
+  const kinds = parts.map(p => /\/(?:chart-tile\/)?([a-z_]+)\/\{z\}/.exec(Object.values(p.spec.sources).at(-1)?.tiles?.[0] ?? "")?.[1] ?? "").join(" ");
+  const look = night ? "dimmed" : sunlight ? "bright" : "normal";
+  useEffect(() => {
+    const el = map.getContainer();
+    el.dataset.chartKinds = kinds;
+    el.dataset.chartLook = look;
+  }, [map, kinds, look]);
   return parts.map(({ part, spec }) => <ChartSources key={`${part}:${JSON.stringify(spec.sources)}`} spec={spec} night={night} sunlight={sunlight} />);
 }
 
@@ -55,8 +65,17 @@ function ChartSources({ spec, night, sunlight }: { spec: ChartStyle; night: bool
       if (!performance.getEntriesByName("chart-drawn").length) map.once("render", () => performance.mark("chart-drawn"));
     };
     map.on("sourcedata", drawn);
-    return () => { map.off("sourcedata", drawn); };
-  }, [map, spec.maxZoom]);
+    // The level of the chart's tiles drawn now, on the map's element, for
+    // the browser tests: the zoom rounded, as raster tiles are chosen, no
+    // further than the chart's own last level.
+    const chart = spec.sources.chart;
+    const level = () => {
+      if (chart) map.getContainer().dataset.chartZoom = String(Math.min(chart.maxzoom ?? 22, Math.round(map.getZoom() + 1)));
+    };
+    level();
+    map.on("moveend", level);
+    return () => { map.off("sourcedata", drawn); map.off("moveend", level); };
+  }, [map, spec]);
   return null;
 }
 

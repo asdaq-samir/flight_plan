@@ -5,8 +5,7 @@ import { api } from "../../../api/client";
 import type { AirportPin } from "../../../api/types";
 import { usePreferences } from "../../../preferences";
 import { airportMarkSvg } from "../../airportMark";
-import { airportsQuery } from "../../AirportsLayer";
-import { useDrawnAirports } from "../../declutter";
+import { airportsQuery } from "../../airportsQuery";
 import { colourOf } from "../../flightCategory";
 import { addSvgImages, useGlData, useGlLayer, useGlMap, useGlMiss, useGlTap } from "../glLayer";
 import { glZoom } from "../glStyle";
@@ -114,22 +113,19 @@ export function AirportsGl({ selected, onSelect, others, route }: {
       const use = a.military === "military" ? "military" : a.private ? "private" : null;
       const icon = markId(a.airspace_class ?? null, weather, use);
       looks.set(icon, () => airportMarkSvg(a.airspace_class ?? null, weather, use, ""));
-      return { type: "Feature", properties: { ident: a.ident, icon, rank: rankOf(a) }, geometry: { type: "Point", coordinates: [a.lon, a.lat] } };
+      return { type: "Feature", properties: { ident: a.ident, icon, rank: rankOf(a), space: a.airspace_class ?? "", use: use ?? "", weather }, geometry: { type: "Point", coordinates: [a.lon, a.lat] } };
     });
     void addSvgImages(map, looks).then(() => { if (live) setFeatures({ type: "FeatureCollection", features: feats }); });
-    // The fields drawn, for the layers that keep off them and the specs.
-    useDrawnAirports.setState({ fields: [...marks, ...others] });
     return () => { live = false; };
-  }, [map, shown, level, others]);
-  useEffect(() => { if (inView !== undefined) useDrawnAirports.setState({ airportsIn: true }); }, [inView]);
-  useEffect(() => () => useDrawnAirports.setState({ fields: [] }), []);
+  }, [map, shown, level]);
   useGlData(SOURCE, features);
   const ring = useMemo<GeoJSON.FeatureCollection | null>(() => (selected
     ? { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [selected.lon, selected.lat] } }] }
     : null), [selected]);
   useGlData(SELECTED, ring);
+  useGlProbe("selected-airport", ["airport-selected"], () => ({ ring: true }));
   // The specs' view of the marks drawn (AirportCanvas' data-airport-marks).
-  useGlProbe("airport-marks", ["airports"], f => ({ ident: f.properties.ident }));
+  useGlProbe("airport-marks", ["airports"], f => ({ ident: f.properties.ident, chip: true, space: f.properties.space, use: f.properties.use, weather: f.properties.weather }));
   useGlTap(["airports"], TAP.mark, TAP.rank.mark, feature => onSelect(String(feature.properties.ident)));
   // The chart itself tapped: the airport's card put away, as on Leaflet.
   useGlMiss(() => onSelect(null));

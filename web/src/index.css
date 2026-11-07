@@ -33,7 +33,7 @@
     height: env(safe-area-inset-top);
     background: linear-gradient(rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.15));
     pointer-events: none;
-    /* Over the map's own layers (Leaflet's controls at 1000) and every
+    /* Over the map's own layers (MapLibre's controls) and every
        sheet and menu. */
     z-index: 9999;
   }
@@ -53,66 +53,24 @@ input, select, textarea {
   user-select: text;
 }
 
-/* Leaflet insets a popup's content by `13px 24px 13px 20px` -- wider on
-   the right to clear the close button it draws in the corner. `MapPopup`
-   turns that button off, because the cards carry their own, so the
-   reservation became dead space: the card's own close sat 25px from the
-   right edge and 14px from the top. Evened out, and a little tighter,
-   since these are cards with their own spacing rather than the loose
-   paragraph of text Leaflet's default assumes. */
-.leaflet-popup-content-wrapper .leaflet-popup-content {
-  margin: 12px 14px;
-}
-
-/* A map card's corners at the app's one radius for what floats (10, the
-   theme's own -- sheets, pop-ups, dialogs, list cards, toasts), where
-   Leaflet's were 12, the sheets' 14 and the pop-ups' 8. */
-.leaflet-container .leaflet-popup-content-wrapper {
-  border-radius: 10px;
-}
-
-/* Leaflet draws its popups white with its own dark text; in dark mode
-   the app's popover tokens take over so the rating menu and the marker
-   popups match every other surface. */
-.dark .leaflet-popup-content-wrapper,
-.dark .leaflet-popup-tip {
-  background: var(--popover);
-  color: var(--popover-foreground);
-}
-/* And its tooltips -- a checkpoint's card on hover (MapCard) -- whose
-   notes are the dark theme's light grey: on Leaflet's white they read
-   2.58:1 (the iOS audit's P15, landscape, CI 55671f43). Their arrow the
-   same, by the side it points from. */
-.dark .leaflet-tooltip {
-  background: var(--popover);
-  color: var(--popover-foreground);
-  border-color: var(--border);
-}
-.dark .leaflet-tooltip-top::before { border-top-color: var(--popover); }
-.dark .leaflet-tooltip-bottom::before { border-bottom-color: var(--popover); }
-.dark .leaflet-tooltip-left::before { border-left-color: var(--popover); }
-.dark .leaflet-tooltip-right::before { border-right-color: var(--popover); }
-
-/* The map's words in the app's own typeface. Leaflet's stylesheet sets
-   its container to Helvetica Neue, so every popup, chip and marker number
-   read in another face from the drawer beside it -- on an iPhone, which
-   has Helvetica Neue, plainly so. Its body selector outranks Leaflet's. */
-body .leaflet-container {
+/* The map's words in the app's own typeface: its credits and anything
+   MapLibre writes in its container, which otherwise reads in its own
+   Helvetica Neue stack beside an app in Inter. */
+.maplibregl-map {
   font-family: inherit;
 }
-
-/* Safari only, Leaflet's own stylesheet sets the tiles' image-rendering to
-   -webkit-optimize-contrast, which WebKit takes as crisp edges: past the
-   chart's last drawn zoom the tiles were blown up in hard blocks, undoing
-   the smooth enlargement the owner chose to match ForeFlight's close zoom
-   (2026-10-28). The browser's own smoothing, as everywhere else. */
-.leaflet-safari .chart-tiles .leaflet-tile { image-rendering: auto; }
+/* Its credits flush with the corner they sit in, as the sheet's top is
+   their foot (below): MapLibre gives each control a 10-point margin. */
+.maplibregl-map :is(.maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right) .maplibregl-ctrl {
+  margin-bottom: 0;
+}
 
 /* Clear of the map panel (MapPanel): its edge's corner controls sit
    past what the panel covers at rest (MapPage sets the insets), and past
    the home indicator, moving in the sheet's time (mapChrome's
    SHEET_SECONDS). */
-.leaflet-container .leaflet-bottom {
+.maplibregl-map .maplibregl-ctrl-bottom-left,
+.maplibregl-map .maplibregl-ctrl-bottom-right {
   bottom: max(var(--map-inset-bottom, 0px), env(safe-area-inset-bottom));
   transition: bottom 0.3s cubic-bezier(0, 0, 0.58, 1);
 }
@@ -121,11 +79,13 @@ body .leaflet-container {
    moves only once the sheet has turned, the traffic credit was left
    half way up the map over a sheet down at its tabs (the owner's
    screenshot, 2026-10-28). */
-body[data-map-sheet] .leaflet-container .leaflet-bottom {
+body[data-map-sheet] .maplibregl-map .maplibregl-ctrl-bottom-left,
+body[data-map-sheet] .maplibregl-map .maplibregl-ctrl-bottom-right {
   bottom: max(var(--sheet-cover, var(--map-inset-bottom, 0px)), env(safe-area-inset-bottom));
   transition: bottom var(--sheet-cover-ease, 0s);
 }
-.leaflet-container .leaflet-top {
+.maplibregl-map .maplibregl-ctrl-top-left,
+.maplibregl-map .maplibregl-ctrl-top-right {
   top: max(var(--map-inset-top, 0px), env(safe-area-inset-top));
   transition: top 0.3s cubic-bezier(0, 0, 0.58, 1);
 }
@@ -545,35 +505,11 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
 }
 
 /* The chart at night (Settings' "Chart at night", lib/preferences
-   chartNight, set on <html> by ChartTiles): the FAA's sectional is a
-   white paper chart, the brightest thing in a dark cockpit, so in the
-   dark theme its tiles alone -- not the marks, the course or the sheets
-   over them -- are dimmed: paper to a fifth of its light (relative
-   luminance 0.21), the inks a touch deeper so its black type still reads
-   5:1 on it, its colours kept so blue and magenta airspace stay told
-   apart.
-   A GPU colour matrix, applied to each tile image, not to the tile
-   layer's container: Leaflet's container is a box of no size whose
-   tiles overflow it under a 3D transform, and Safari's engine drew a
-   filter there through an offscreen pass in bands, which showed on the
-   owner's iPhone as thin light lines straight across the chart about
-   150 points apart (2026-10-30); WebKit in the Playwright image left
-   that container undimmed altogether, and dims each tile. */
-html.dark[data-chart-night="dimmed"] .chart-tiles .leaflet-tile {
-  filter: brightness(0.5) contrast(1.15);
-}
-/* The course over a dimmed chart in the palette's lighter magenta
-   (#F277E6), cased in the night's navy where a white casing would be the
-   brightest line on the screen. */
-html.dark[data-chart-night="dimmed"] .course-core {
-  stroke: #f277e6;
-}
-html.dark[data-chart-night="dimmed"] .course-casing {
-  stroke: #0b1422;
-}
-/* Where a tile is not in yet, the night's ground rather than Leaflet's
-   light grey. */
-.dark .leaflet-container {
+   chartNight): its tiles alone are dimmed, by the map's own raster paint
+   (lib/map/gl/glStyle chartPaint, the brightness and contrast these tiles
+   had here as a CSS filter). Where a tile is not in yet, the night's
+   ground. */
+.dark .maplibregl-map {
   background: var(--background);
 }
 
@@ -582,26 +518,9 @@ html.dark[data-chart-night="dimmed"] .course-casing {
    hand; the owner's canvas "Sunlight mode", 2026-11-03): a screen held
    up in a sunlit cockpit, where the glass and a sectional's pale inks
    wash out. The chart's tiles at a quarter more contrast and a fifth
-   more colour, each tile as the night's dimming is; the course wider and
-   cased in black (CourseLine's classes; the stylesheet's stroke-width
-   outranks Leaflet's attribute); and no glass -- every sheet, button and
-   figure strip solid white with black figures and a deep blue tint,
-   AA-large on white. The airspace rings draw on a canvas at their own
-   width and are not reached from here: AirspaceLinesCanvas reads the
-   attribute itself and draws them half again as heavy. */
-html[data-chart-light="bright"] .chart-tiles .leaflet-tile,
-html.dark[data-chart-light="bright"] .chart-tiles .leaflet-tile {
-  filter: contrast(1.25) saturate(1.2);
-}
-html[data-chart-light="bright"] .course-casing {
-  stroke: #000;
-  stroke-width: 9;
-  stroke-opacity: 1;
-}
-html[data-chart-light="bright"] .course-core {
-  stroke: #e4007c;
-  stroke-width: 5;
-}
+   more colour (the map's raster paint, glStyle chartPaint); and no
+   glass -- every sheet, button and figure strip solid white with black figures and a deep blue tint,
+   AA-large on white. */
 :root[data-chart-light="bright"],
 :root.dark[data-chart-light="bright"] {
   --background: #ffffff;
@@ -649,9 +568,6 @@ html[data-chart-light="bright"] [data-slot="section-summary"] {
    casing kept at night. A card -- a grouped list's box (ListGroup), the
    stock Card -- white with no edge, 18-point corners and the canvas's
    soft shade, in one rule rather than on each. */
-html[data-brand="ink"]:not([data-chart-light="bright"]) :is(.course-core, .course-ink) {
-  stroke: var(--ink-magenta);
-}
 html[data-brand="ink"]:not([data-chart-light="bright"]) :is([data-slot="card"], [data-slot="item-group"][role="group"]) {
   border-color: transparent;
   border-radius: 1.125rem;
@@ -766,12 +682,11 @@ body[data-scroll-locked]::before {
    own ::after is the line variant's underline. A calendar's days are 44
    to a finger (calendar.tsx), so theirs is the cell itself, square, its
    rounded corners included; its month buttons get the 44 round them. A
-   desktop keeps the tighter targets. Leaflet's markers are placed by
+   desktop keeps the tighter targets. The map's markers are placed by
    their own size and are left alone. */
 @media (pointer: coarse) {
   button:not([data-slot="tabs-trigger"])::after,
-  a[data-slot="button"]::after,
-  .leaflet-popup-close-button::after {
+  a[data-slot="button"]::after {
     content: "";
     position: absolute;
     inset: min(0px, calc(50% - 22px));
@@ -797,7 +712,7 @@ html[data-tv] :focus {
   outline: 4px solid var(--tint) !important;
   outline-offset: 3px;
 }
-html[data-tv] .leaflet-container:focus {
+html[data-tv] .maplibregl-canvas:focus {
   outline-offset: -6px;
 }
 
@@ -849,23 +764,6 @@ html[data-tv] .leaflet-container:focus {
 @keyframes wave {
   0%, 100% { transform: scaleY(0.4); }
   50% { transform: scaleY(1); }
-}
-
-/* What the map draws over the chart comes in over a fifth of a second,
-   as Maps' labels do, where the VORs and the VFR waypoints each appeared
-   in one frame as a zoom reached them (the owner's audit, 2026-11-02:
-   the overlay "very dynamic while zooming in"); the airports' marks, the
-   airspace's rings and its altitudes, and the VORs and fixes, fade on
-   their canvases (AirportCanvas, AirspaceLinesCanvas, AirspaceLabelsCanvas,
-   NavaidCanvas). Once, as each is put on the map, not as it moves. At
-   once under Reduce Motion. */
-@keyframes overlay-in {
-  from { opacity: 0; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .leaflet-waypoints-pane .leaflet-marker-icon {
-    animation: overlay-in 0.2s ease-out;
-  }
 }
 
 /* The toasts in the app's typeface: sonner sets its own system stack,
@@ -1025,13 +923,3 @@ body[data-map-sheet][data-map-panel="full"] [data-sonner-toast][data-type="loadi
   }
 }
 
-/* An animated zoom of more than a level (lib/map/clear's
-   hideLinesWhileZooming): the map's lines and circles drawn by Leaflet's
-   SVG -- every pane's -- out of sight until it lands, where Leaflet
-   scaled them with the chart. Not the canvases: the airports' marks and
-   the altitudes are drawn at each frame of the zoom at their size, and
-   the airspace's rings and the plate are scaled with the chart as its
-   tiles are, and came back at the end as if drawn afresh (the owner,
-   2026-11-03: "the rings redraw when I tap the current position
-   button"). */
-.map-big-zoom .leaflet-pane > svg { visibility: hidden; }
