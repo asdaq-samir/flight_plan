@@ -44,7 +44,7 @@ To rewrite `springboot-app/openapi.json`, run the same command with `-e WRITE_OP
 
 ## 3. The running stack
 
-The stack runs with three compose files and the `ai` profile. Name the services, so that airflow, which has no profile, stays down:
+The stack runs with three compose files and the `ai` profile. Name the services, so that only these start:
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compose.web-dev.yml --profile ai up -d webapp planning-service web-build nav-log-agent crewai-agent db mailpit dev-services
 ```

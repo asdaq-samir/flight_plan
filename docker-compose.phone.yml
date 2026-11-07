@@ -20,7 +20,7 @@
 # `docker compose up -d` puts the loopback-only bindings back.
 #
 # Unlike docker-compose.lan.yml this opens nothing else: no Jupyter, no
-# Airflow, no direct planner port.
+# direct planner port.
 services:
   webapp:
     ports: !override

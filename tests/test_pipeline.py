@@ -3,8 +3,10 @@ network/real data, out of unit-test scope (see docs/README.md's Testing &
 CI section for their manual live-verification record) -- this covers the
 pure helper functions around them: the local-vs-remote-path guard, the
 temp-and-rename every output is written through, and SageMaker
-script-mode channel resolution.
+script-mode channel resolution -- and run(), the whole training run, with
+its stages stood in for.
 """
+import json
 from pathlib import Path
 
 import pytest
@@ -252,3 +254,66 @@ def test_the_readiness_says_what_became_of_each_rating(tmp_path):
     assert (ready["rated"], ready["zeros"], ready["off_landmark"], ready["same_landmark"]) == (4, 1, 1, 1)
     assert ready["message"].startswith("1 of the 30 ratings training needs. Of your 4: 1 rated 0")
     assert "Rate 29 more" in ready["message"]
+
+
+# --- run(): the whole training run, the stages Airflow's DAG ran ---
+
+
+def _stage(ran: list, name: str):
+    return name, lambda: ran.append(name) or f"{name} done"
+
+
+def test_run_runs_every_stage_in_order_and_writes_its_status(tmp_path):
+    from wingtip import pipeline
+
+    ran = []
+    branches = [[_stage(ran, "collect"), _stage(ran, "retrain")], [_stage(ran, "chart_retrain")]]
+    status = pipeline.run(tmp_path / "run.json", branches)
+    assert ran == ["collect", "retrain", "chart_retrain"]
+    assert status["state"] == "success" and status["error"] is None and status["finished_at"]
+    assert json.loads((tmp_path / "run.json").read_text()) == status
+
+
+def test_a_stage_with_nothing_to_do_skips_the_rest_of_its_branch_only(tmp_path):
+    # A candidate that did not beat the promoted model (or too few
+    # ratings): its branch stops there, promote never runs, and the run
+    # is still a success that went on to the chart model.
+    from wingtip import pipeline
+
+    def evaluate():
+        raise pipeline._Skip("the promoted model stays")
+
+    ran = []
+    branches = [
+        [_stage(ran, "retrain"), ("evaluate", evaluate), _stage(ran, "promote")],
+        [_stage(ran, "chart_retrain")],
+    ]
+    status = pipeline.run(tmp_path / "run.json", branches)
+    assert ran == ["retrain", "chart_retrain"]
+    states = {s["name"]: s["state"] for s in status["stages"]}
+    assert states == {"retrain": "success", "evaluate": "skipped", "promote": "skipped", "chart_retrain": "success"}
+    assert status["state"] == "success"
+
+
+def test_a_failed_stage_fails_the_run_but_not_the_other_branch(tmp_path):
+    from wingtip import pipeline
+
+    def collect():
+        raise RuntimeError("Overpass answered 504")
+
+    ran = []
+    branches = [[("collect", collect), _stage(ran, "retrain")], [_stage(ran, "chart_retrain")]]
+    status = pipeline.run(tmp_path / "run.json", branches)
+    assert ran == ["chart_retrain"]
+    assert status["state"] == "failed"
+    assert status["error"] == "collect: RuntimeError: Overpass answered 504"
+
+
+def test_the_runs_stages_are_the_dags():
+    # The same stages, in the same order, as the Airflow DAG it replaced.
+    from wingtip import pipeline
+
+    assert [name for name, _ in pipeline._landmark_branch()] == [
+        "landmarks_ready", "collect", "feature_engineer", "retrain", "evaluate", "promote",
+    ]
+    assert [name for name, _ in pipeline._chart_branch()] == ["chart_retrain", "chart_evaluate", "chart_promote"]

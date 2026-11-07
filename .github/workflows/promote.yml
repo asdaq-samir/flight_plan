@@ -105,9 +105,9 @@ jobs:
       matrix:
         include:
           # The three images the production server runs
-          # (docker-compose.prod.yml). crewai-agent and Airflow stay out
-          # of production: the same briefing nav-log-agent writes, and
-          # retraining run on the owner's machine (docs/README-AWS.md).
+          # (docker-compose.prod.yml). crewai-agent and the pipeline stay
+          # out of production: the same briefing nav-log-agent writes, and
+          # retraining runs on the owner's machine (docs/README-AWS.md).
           #
           # Repo root as context, for the same reason as images.hcl:
           # the Dockerfile builds web/ as its first stage.

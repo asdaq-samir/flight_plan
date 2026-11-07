@@ -31,7 +31,7 @@ if [ -n "$(docker ps -q --filter "label=com.docker.compose.project=$OLD")" ]; th
   exit 1
 fi
 
-for volume in pgdata_pg18 airflow_home_v3 webapp-cds; do
+for volume in pgdata_pg18 webapp-cds; do
   from="${OLD}_$volume" to="${NEW}_$volume"
   if ! docker volume inspect "$from" >/dev/null 2>&1; then echo "no $from: nothing to copy"; continue; fi
   if docker volume inspect "$to" >/dev/null 2>&1; then echo "$to is there already"; continue; fi

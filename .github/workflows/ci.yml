@@ -443,10 +443,9 @@ jobs:
               - infra/cloudformation/**
               - infra/server/**
               - docker-compose.prod.yml
-            # Javadoc and godoc; each Python suite's job makes its pdoc.
+            # Javadoc; each Python suite's job makes its pdoc.
             docs:
               - springboot-app/**
-              - infra/lambda-retrain-trigger/**
             # The images, each by what its Dockerfile reads: native/** for
             # every one with the wingtip-native stage (docker/Dockerfile.native).
             ml:
@@ -462,16 +461,6 @@ jobs:
             pipeline-training:
               - docker/Dockerfile.training
               - docker/requirements-training.txt
-              - src/**
-              - native/**
-            airflow:
-              - docker/Dockerfile.airflow
-              - airflow/**
-              - src/**
-              - native/**
-            airflow-aws:
-              - docker/Dockerfile.airflow.aws
-              - airflow/dags/wingtip_pipeline_aws_dag.py
               - src/**
               - native/**
             nav-log-agent:
@@ -506,7 +495,7 @@ jobs:
           everything = os.environ.get("ALL") == "true" or "global" in changed
           # Every image this workflow builds, each a target of
           # .github/images.hcl, which has its context and Dockerfile.
-          IMAGES = ("ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
+          IMAGES = ("ml", "pipeline-processing", "pipeline-training",
                     "nav-log-agent", "crewai-agent", "planning-service", "webapp")
           due = lambda name: everything or name in changed
           images = [{"service": s} for s in IMAGES if due(s)]
@@ -1500,8 +1489,8 @@ jobs:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
 
-  # Regenerates the webapp's and the retrain trigger's documentation, so
-  # a broken {@link} or a Go package that stops building is caught here
+  # Regenerates the webapp's documentation, so a broken {@link} is
+  # caught here
   # rather than discovered later. Output is uploaded as a build artifact
   # (Actions -> this run -> Artifacts), so current docs are a click away
   # without regenerating them locally.
@@ -1535,23 +1524,11 @@ jobs:
         working-directory: springboot-app
         run: mvn -q javadoc:javadoc
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7
-        with:
-          go-version: "1.27"
-      - name: godoc (lambda-retrain-trigger)
-        working-directory: infra/lambda-retrain-trigger
-        run: |
-          go build ./...
-          go vet ./...
-          go doc -all -u . > /tmp/godoc-retrain-trigger.txt
-
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: documentation
           retention-days: 30
-          path: |
-            springboot-app/target/reports/apidocs
-            /tmp/godoc-retrain-trigger.txt
+          path: springboot-app/target/reports/apidocs
 
   # The production stack's files, each checked by its own tool: the
   # CloudFormation template by cfn-lint, the server's scripts by
