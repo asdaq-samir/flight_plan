@@ -572,7 +572,7 @@ export function FavoriteStrip({ home, favorites, onOpen, onAddHome, onAddFavorit
  * The pilot's own airplane's glyph: the app icon in miniature, its
  * airplane seen from above in the dashed airspace ring -- the owner's
  * pick ("I like 3 for my plane", 2026-11-04, beside the icon's A), for
- * the Plane tile that is to airplanes what Home is to airports; the
+ * the Airplane tile that is to airplanes what Home is to airports; the
  * airplane in it the pilot's own one's shape (lib/aircraftKind). Drawn in
  * currentColor and sized by its container's svg rule, as a lucide glyph
  * is; the ring needs more room than a glyph, so its marks size it up
