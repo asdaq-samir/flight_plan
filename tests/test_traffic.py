@@ -2,7 +2,9 @@
 often adsb.lol is asked, with adsb.lol stubbed in its own shape (readsb's
 JSON, `ac`) and the clock stood in for."""
 import json
+import sys
 import threading
+import types
 from unittest.mock import Mock, patch
 
 import pytest
@@ -11,6 +13,37 @@ import requests
 from wingtip import traffic
 from wingtip.config import get_settings
 
+
+class _OnePackage(types.ModuleType):
+    """wingtip.traffic as these tests knew it when it was one module: a name
+    the package does not re-export (a clock, a cache, a helper) is read from
+    the part that has it, and one set on the package -- monkeypatch's stand-ins
+    and its undoing of them -- is set in every part holding that same object,
+    so `_clock` stands in for the whole package's clock, as it did."""
+
+    def __getattr__(self, name):
+        for part in _parts():
+            if name in vars(part):
+                return vars(part)[name]
+        raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        was = getattr(self, name, _UNSET)
+        if was is not _UNSET:
+            for part in _parts():
+                if vars(part).get(name, _UNSET) is was:
+                    setattr(part, name, value)
+        super().__setattr__(name, value)
+
+
+_UNSET = object()
+
+
+def _parts() -> list[types.ModuleType]:
+    return [module for name, module in list(sys.modules.items()) if name.startswith("wingtip.traffic.")]
+
+
+traffic.__class__ = _OnePackage
 CESSNA = {"hex": "a128b9", "type": "adsr_icao", "flight": "N174HA  ", "r": "N174HA", "t": "C172", "alt_baro": 1200,
           "alt_geom": 1325, "gs": 93.7, "track": 320.19, "baro_rate": -512, "geom_rate": -384, "lat": 42.301282,
           "lon": -88.145246, "seen_pos": 0.291}
