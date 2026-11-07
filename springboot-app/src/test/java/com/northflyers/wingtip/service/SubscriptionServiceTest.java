@@ -98,7 +98,8 @@ class SubscriptionServiceTest {
         assertThat(status.trialAvailable()).isTrue();
         assertThat(status.trialDays()).isEqualTo(30);
         assertThat(status.uses()).extracting(SubscriptionDto.FeatureUse::feature)
-                .containsExactly(PaidFeature.NARRATIVE, PaidFeature.CHECKPOINT_NOTES, PaidFeature.ORAL);
+                .containsExactly(PaidFeature.NARRATIVE, PaidFeature.CHECKPOINT_NOTES, PaidFeature.ORAL,
+                        PaidFeature.ASSISTANT, PaidFeature.WORDS);
 
         Optional<SubscriptionService.Refusal> refused = service().refusal(who, PaidFeature.NARRATIVE);
         assertThat(refused).hasValueSatisfying(r -> {

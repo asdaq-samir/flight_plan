@@ -14,6 +14,8 @@ public enum PaidFeature {
     NARRATIVE("The written briefing comes", "written briefings", true),
     CHECKPOINT_NOTES("Checkpoint descriptions come", "checkpoint descriptions", true),
     ORAL("The mock oral comes", "mock-oral questions and grades", true),
+    ASSISTANT("The assistant comes", "questions to the assistant", true),
+    WORDS("The readings in words come", "readings in words", true),
     DEBRIEF("The debrief comes", "debriefs", false);
 
     private final String comes;

@@ -4,14 +4,18 @@ import com.northflyers.wingtip.domain.PaidFeature;
 import com.northflyers.wingtip.service.PilotService;
 import com.northflyers.wingtip.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
 import java.net.http.HttpRequest;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,7 +28,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -107,6 +110,17 @@ public class PlannerProxyController {
      *  more than app.narrative.MAX_LEGS legs. Every byte is prompt text a
      *  billed Claude call reads. */
     static final int NARRATIVE_BODY_LIMIT = 256 * 1024;
+    /** The largest body forwarded on any POST. The biggest sent is a flown
+     *  track for its debrief: a three-hour flight logged once a second is
+     *  about a megabyte. A String @RequestBody read whatever was sent
+     *  before anything here could look, on routes open to anyone. */
+    static final int BODY_LIMIT = 4 * 1024 * 1024;
+    /** The pilot's assistant: Opus, with up to eight rounds of the
+     *  planner's tools an ask (the planner's app.assistant). */
+    static final String ASSISTANT_PATH = "/api/assistant";
+    /** The readings in words, one route for each kind (notams, weather,
+     *  risk, debrief, changes): Haiku, a call each (the planner's app.words). */
+    private static final PathPattern WORDS_PATTERN = PathPatternParser.defaultInstance.parse("/api/words/{kind}");
     /** The ForeFlight pack: a file, its name in Content-Disposition. */
     private static final String PACK_PATH = "/api/foreflight-pack/";
 
@@ -212,7 +226,7 @@ public class PlannerProxyController {
             route("POST", "/api/words/{kind}"),
             // The pilot's assistant, streamed line by line (NDJSON) as the
             // planner answers; StreamingProxy passes each chunk on as it comes.
-            route("POST", "/api/assistant"),
+            route("POST", ASSISTANT_PATH),
             // The Brief's narrative, streamed line by line (NDJSON) as
             // Claude writes it (the planner's app.narrative).
             route("POST", NARRATIVE_PATH),
@@ -246,15 +260,22 @@ public class PlannerProxyController {
     private final StreamingProxy proxy;
     private final String plannerBaseUrl;
     private final PilotService pilots;
-    /** A day's checkpoint-note generations per pilot: each is one Claude
-     *  call per checkpoint without a note, which this app pays for. */
-    private final SlidingWindowLimiter noteGenerations = new SlidingWindowLimiter(Duration.ofDays(1));
-    private final int paidCallsPerDay;
-    /** A day's narratives per pilot, counted on their own: each is a
-     *  Claude call this app pays for, and a signed-in session could
-     *  otherwise ask for them without end. */
-    private final SlidingWindowLimiter narratives = new SlidingWindowLimiter(Duration.ofDays(1));
     private final SubscriptionService subscriptions;
+
+    /** A day's uses of one paid feature, per pilot (or per address, where
+     *  nobody is signed in), and what the 429 past it says. */
+    private record Allowance(SlidingWindowLimiter limiter, int perDay, String used, String still) {
+        Allowance(int perDay, String used, String still) {
+            this(new SlidingWindowLimiter(Duration.ofDays(1)), perDay, used, still);
+        }
+    }
+
+    /** Each paid feature's daily allowance, counted on its own: each use
+     *  is a Claude call this app pays for, and a signed-in session could
+     *  otherwise ask for them without end. The month's cap
+     *  (SubscriptionService) bounds a month; this bounds a runaway day.
+     *  The mock oral is a developer's and has none. */
+    private final Map<PaidFeature, Allowance> allowances;
 
     /** The planner's paid features, each a Claude call this app pays for:
      *  checked against the pilot's subscription and its monthly cap
@@ -264,19 +285,40 @@ public class PlannerProxyController {
             NARRATIVE_PATH, PaidFeature.NARRATIVE,
             "/api/checkpoint-notes/generate", PaidFeature.CHECKPOINT_NOTES,
             "/api/oral/question", PaidFeature.ORAL,
-            "/api/oral/grade", PaidFeature.ORAL);
+            "/api/oral/grade", PaidFeature.ORAL,
+            ASSISTANT_PATH, PaidFeature.ASSISTANT);
+
+    /** The paid feature a POST to the planner is, if any: a path of
+     *  PAID_PATHS, or one of the readings in words, whatever its kind. */
+    static PaidFeature paidFeatureOf(String path) {
+        PaidFeature paid = PAID_PATHS.get(path);
+        if (paid == null && WORDS_PATTERN.matches(PathContainer.parsePath(path))) {
+            return PaidFeature.WORDS;
+        }
+        return paid;
+    }
 
     public PlannerProxyController(
             StreamingProxy proxy,
             @Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl,
             PilotService pilots,
             SubscriptionService subscriptions,
-            @Value("${app.paid-calls.per-day:40}") int paidCallsPerDay) {
+            @Value("${app.paid-calls.per-day:40}") int paidCallsPerDay,
+            @Value("${app.paid-calls.assistant-per-day:20}") int assistantPerDay,
+            @Value("${app.paid-calls.words-per-day:150}") int wordsPerDay) {
         this.proxy = proxy;
         this.plannerBaseUrl = plannerBaseUrl.replaceAll("/+$", "");
         this.pilots = pilots;
         this.subscriptions = subscriptions;
-        this.paidCallsPerDay = paidCallsPerDay;
+        this.allowances = new EnumMap<>(Map.of(
+                PaidFeature.CHECKPOINT_NOTES, new Allowance(paidCallsPerDay, "checkpoint-note generations used",
+                        "Notes already written still show; more tomorrow."),
+                PaidFeature.NARRATIVE, new Allowance(paidCallsPerDay, "AI narratives used",
+                        "The nav log and briefing still work; narratives are back tomorrow."),
+                PaidFeature.ASSISTANT, new Allowance(assistantPerDay, "questions to the assistant",
+                        "The plan and the Brief still work; the assistant is back tomorrow."),
+                PaidFeature.WORDS, new Allowance(wordsPerDay, "readings in words",
+                        "The Brief's figures still show in full; the words are back tomorrow.")));
     }
 
     @Operation(summary = "Any planner GET",
@@ -286,11 +328,21 @@ public class PlannerProxyController {
         return forward(request, servletResponse, "GET", null);
     }
 
-    @Operation(summary = "Any planner POST", description = "picks, build")
+    // The body is read here, bounded, rather than as a @RequestBody: the
+    // document still says what it takes.
+    @Operation(summary = "Any planner POST", description = "picks, build",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(type = "string"))))
     @PostMapping("/**")
-    public ResponseEntity<StreamingResponseBody> post(HttpServletRequest request, HttpServletResponse servletResponse,
-                                                      @RequestBody(required = false) String body) {
-        return forward(request, servletResponse, "POST", body);
+    public ResponseEntity<StreamingResponseBody> post(HttpServletRequest request, HttpServletResponse servletResponse)
+            throws IOException {
+        // Read up to the limit and no further, where a String @RequestBody
+        // would have read all of it before this method could look.
+        byte[] bytes = request.getInputStream().readNBytes(BODY_LIMIT + 1);
+        if (bytes.length > BODY_LIMIT) {
+            return StreamingProxy.error(413, "a request to the planner is at most " + (BODY_LIMIT / 1024 / 1024) + " MB");
+        }
+        return forward(request, servletResponse, "POST", bytes.length == 0 ? null : new String(bytes, StandardCharsets.UTF_8));
     }
 
     @Operation(summary = "Any planner DELETE", description = "picks")
@@ -305,25 +357,23 @@ public class PlannerProxyController {
         if (!isForwarded(method, path)) {
             return StreamingProxy.error(404, "no such planner endpoint: " + method + " " + path);
         }
-        PaidFeature paid = "POST".equals(method) ? PAID_PATHS.get(path) : null;
+        if ("POST".equals(method) && path.equals(NARRATIVE_PATH)
+                && body != null && body.getBytes(StandardCharsets.UTF_8).length > NARRATIVE_BODY_LIMIT) {
+            return StreamingProxy.error(413, "a nav log is at most " + (NARRATIVE_BODY_LIMIT / 1024) + " KB");
+        }
+        PaidFeature paid = "POST".equals(method) ? paidFeatureOf(path) : null;
         if (paid != null) {
+            // The subscription (and app.claude-features) before the day's
+            // allowance, so a refusal for want of one spends none of it.
             var refused = subscriptions.refusal(SecurityContextHolder.getContext().getAuthentication(), paid);
             if (refused.isPresent()) {
                 return StreamingProxy.error(refused.get().status(), refused.get().detail());
             }
-        }
-        if ("POST".equals(method) && path.equals("/api/checkpoint-notes/generate")
-                && !noteGenerations.allow(SlidingWindowLimiter.callerOf(request), paidCallsPerDay, Instant.now())) {
-            return StreamingProxy.error(429, "That is today's " + paidCallsPerDay
-                    + " checkpoint-note generations used. Notes already written still show; more tomorrow.");
-        }
-        if ("POST".equals(method) && path.equals(NARRATIVE_PATH)) {
-            if (body != null && body.getBytes(StandardCharsets.UTF_8).length > NARRATIVE_BODY_LIMIT) {
-                return StreamingProxy.error(413, "a nav log is at most " + (NARRATIVE_BODY_LIMIT / 1024) + " KB");
-            }
-            if (!narratives.allow(SlidingWindowLimiter.callerOf(request), paidCallsPerDay, Instant.now())) {
-                return StreamingProxy.error(429, "That is today's " + paidCallsPerDay
-                        + " AI narratives used. The nav log and briefing still work; narratives are back tomorrow.");
+            Allowance allowance = allowances.get(paid);
+            if (allowance != null
+                    && !allowance.limiter().allow(SlidingWindowLimiter.callerOf(request), allowance.perDay(), Instant.now())) {
+                return StreamingProxy.error(429, "That is today's " + allowance.perDay() + " " + allowance.used()
+                        + ". " + allowance.still());
             }
         }
         URI target = URI.create(plannerBaseUrl + path + query(request));

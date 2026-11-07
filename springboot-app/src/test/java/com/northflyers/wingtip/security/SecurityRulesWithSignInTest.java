@@ -131,6 +131,9 @@ class SecurityRulesWithSignInTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/planner/status").with(oidcLogin())).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/planner/dev/services").with(oidcLogin())).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/planner/detect/stream").with(oidcLogin())).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/planner/classify").with(oidcLogin())).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/planner/model-comparison").with(oidcLogin())).andExpect(status().isForbidden());
     }
 
     @Test
@@ -141,6 +144,8 @@ class SecurityRulesWithSignInTest {
         mockMvc.perform(post("/api/planner/oral/grade").with(oidcLogin()).with(csrf())).andExpect(notRefused());
         mockMvc.perform(get("/api/planner/status").with(oidcLogin())).andExpect(notRefused());
         mockMvc.perform(get("/api/planner/dev/services").with(oidcLogin())).andExpect(notRefused());
+        mockMvc.perform(get("/api/planner/detect/stream").with(oidcLogin())).andExpect(notRefused());
+        mockMvc.perform(get("/api/planner/classify").with(oidcLogin())).andExpect(notRefused());
     }
 
     /** No session at all is a 401, the answer that tells the page to
@@ -149,6 +154,16 @@ class SecurityRulesWithSignInTest {
     void theStacksStatusIsNotReadWithoutASession() throws Exception {
         mockMvc.perform(get("/api/planner/status")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/planner/dev/services")).andExpect(status().isUnauthorized());
+        // Each corridor read is a chart-vision job the planner runs and keeps.
+        mockMvc.perform(get("/api/planner/detect/stream")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/planner/classify")).andExpect(status().isUnauthorized());
+    }
+
+    /** The assistant and the readings in words are billed Claude calls. */
+    @Test
+    void theAssistantAndTheWordsNeedASession() throws Exception {
+        mockMvc.perform(post("/api/planner/assistant").with(csrf())).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/planner/words/notams").with(csrf())).andExpect(status().isUnauthorized());
     }
 
     /** Every narrative is a real, billed Claude call. */

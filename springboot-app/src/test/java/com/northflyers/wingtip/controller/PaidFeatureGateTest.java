@@ -89,6 +89,38 @@ class PaidFeatureGateTest {
         }
     }
 
+    /** The assistant is Opus with up to eight tool rounds an ask: the
+     *  gate's answer, with app.claude-features OFF a 404, stops it. */
+    @Test
+    void theAssistantIsGatedLikeTheOtherClaudeFeatures() throws Exception {
+        refuse(PaidFeature.ASSISTANT, 404, "The assistant comes later; it is not offered yet.");
+        finish(post("/api/planner/assistant").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("The assistant comes later; it is not offered yet."));
+    }
+
+    /** Every kind of reading in words is the one feature, matched by its
+     *  path's pattern. */
+    @Test
+    void everyKindOfReadingInWordsIsGated() throws Exception {
+        refuse(PaidFeature.WORDS, 402, "The readings in words come with the subscription.");
+        for (String kind : new String[] {"notams", "weather", "risk", "debrief", "changes"}) {
+            finish(post("/api/planner/words/" + kind).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isPaymentRequired())
+                    .andExpect(jsonPath("$.detail").value("The readings in words come with the subscription."));
+        }
+    }
+
+    @Test
+    void theWordsPathsAreOneFeatureAndNothingElseIs() {
+        org.assertj.core.api.Assertions.assertThat(PlannerProxyController.paidFeatureOf("/api/words/weather"))
+                .isEqualTo(PaidFeature.WORDS);
+        org.assertj.core.api.Assertions.assertThat(PlannerProxyController.paidFeatureOf("/api/assistant"))
+                .isEqualTo(PaidFeature.ASSISTANT);
+        org.assertj.core.api.Assertions.assertThat(PlannerProxyController.paidFeatureOf("/api/words")).isNull();
+        org.assertj.core.api.Assertions.assertThat(PlannerProxyController.paidFeatureOf("/api/go-no-go")).isNull();
+    }
+
     @Test
     void aPilotsOwnNoteIsFreeAndNeverChecked() throws Exception {
         refuse(PaidFeature.CHECKPOINT_NOTES, 402, "Checkpoint descriptions come with the subscription.");

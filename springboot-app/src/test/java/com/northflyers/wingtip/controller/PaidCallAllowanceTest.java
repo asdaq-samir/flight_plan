@@ -38,6 +38,8 @@ import org.springframework.test.web.servlet.ResultActions;
         // A deployment that sells the subscription, whose gate these are.
         "app.subscription.enabled=true",
         "app.paid-calls.per-day=0",
+        "app.paid-calls.assistant-per-day=0",
+        "app.paid-calls.words-per-day=0",
         "planner-service.base-url=http://127.0.0.1:9",
 })
 class PaidCallAllowanceTest {
@@ -71,6 +73,31 @@ class PaidCallAllowanceTest {
                         .content(huge))
                 .andExpect(status().isPayloadTooLarge())
                 .andExpect(jsonPath("$.detail").value("a nav log is at most 256 KB"));
+    }
+
+    @Test
+    void anAssistantQuestionPastTheDaysAllowanceIsA429ThatSaysSo() throws Exception {
+        finish(post("/api/planner/assistant").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("questions to the assistant")));
+    }
+
+    @Test
+    void aReadingInWordsPastTheDaysAllowanceIsA429ThatSaysSo() throws Exception {
+        finish(post("/api/planner/words/notams").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("readings in words")));
+    }
+
+    /** Any POST's body is read only up to the limit, on routes open to
+     *  anyone: one past it is a 413 before the planner is asked. */
+    @Test
+    void aBodyPastTheLimitIsA413OnAnyPost() throws Exception {
+        byte[] huge = new byte[PlannerProxyController.BODY_LIMIT + 1];
+        java.util.Arrays.fill(huge, (byte) ' ');
+        finish(post("/api/planner/go-no-go").contentType(MediaType.APPLICATION_JSON).content(huge))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.detail").value("a request to the planner is at most 4 MB"));
     }
 
     @Test

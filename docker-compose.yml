@@ -381,6 +381,11 @@ services:
       # most runs, though for a collected route they are already written
       # and cost nothing. Deployed, 40 a day each per pilot.
       APP_PAID_CALLS_PER_DAY: "500"
+      # The assistant's and the readings in words' own, the same way: the
+      # Brief asks three readings each time it opens on a route, and the
+      # suite opens it often. Deployed, 20 and 150 a day per pilot.
+      APP_PAID_CALLS_ASSISTANT_PER_DAY: "500"
+      APP_PAID_CALLS_WORDS_PER_DAY: "5000"
       # The HTTPS port for a phone on the same Wi-Fi (HttpsConnectorConfig):
       # the certificate infra/local-https/make-certs.sh writes, read
       # only once that file exists. HSTS off: this machine's plain port

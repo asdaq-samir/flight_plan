@@ -163,6 +163,13 @@ public class SecurityConfig {
                             // until a CFI has reviewed what it says.
                             .requestMatchers(HttpMethod.POST, "/api/planner/oral/**").access(developer)
                             .requestMatchers("/api/planner/status", "/api/planner/dev/**").access(developer)
+                            // The training page's chart reads: each corridor
+                            // read is a chart-vision job on a thread of the
+                            // planner's, kept on disk, and the classifier
+                            // reads tiles; neither is for planning a route.
+                            .requestMatchers(HttpMethod.GET, "/api/planner/detect/stream", "/api/planner/classify",
+                                    "/api/planner/model-comparison")
+                            .access(developer)
                             // The web app's speed over time (SpeedController).
                             .requestMatchers(HttpMethod.GET, "/api/speed").access(developer);
                     // Reading from the planner: planning a route needs no

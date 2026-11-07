@@ -17998,6 +17998,8 @@
             "name": "lat",
             "required": true,
             "schema": {
+              "maximum": 90,
+              "minimum": -90,
               "title": "Lat",
               "type": "number"
             }
@@ -18007,6 +18009,8 @@
             "name": "lon",
             "required": true,
             "schema": {
+              "maximum": 180,
+              "minimum": -180,
               "title": "Lon",
               "type": "number"
             }
@@ -18321,6 +18325,8 @@
             "required": false,
             "schema": {
               "default": 4.0,
+              "exclusiveMinimum": 0,
+              "maximum": 10.0,
               "title": "Half Width Nm",
               "type": "number"
             }

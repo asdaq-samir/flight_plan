@@ -92,12 +92,15 @@ public class SubscriptionService {
             @Value("${app.subscription.caps.narrative:60}") int narrativeCap,
             @Value("${app.subscription.caps.checkpoint-notes:60}") int notesCap,
             @Value("${app.subscription.caps.oral:60}") int oralCap,
+            @Value("${app.subscription.caps.assistant:100}") int assistantCap,
+            @Value("${app.subscription.caps.words:1000}") int wordsCap,
             @Value("${app.subscription.comped-emails:}") String compedEmails,
             @Value("${app.subscription.enabled:false}") boolean sold,
             @Value("${app.claude-features:EVERYONE}") ClaudeFeatures claude) {
         this(subscriptions, pilots, signIn, Clock.systemUTC(), trialDays,
                 Map.of(PaidFeature.NARRATIVE, narrativeCap, PaidFeature.CHECKPOINT_NOTES, notesCap,
-                        PaidFeature.ORAL, oralCap),
+                        PaidFeature.ORAL, oralCap, PaidFeature.ASSISTANT, assistantCap,
+                        PaidFeature.WORDS, wordsCap),
                 compedEmails, sold, claude);
     }
 

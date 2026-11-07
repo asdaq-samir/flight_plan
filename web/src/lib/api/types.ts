@@ -281,7 +281,7 @@ export type ClaudeFeatures = SignInCapabilities["claudeFeatures"];
  *  and this month's uses of each Claude-written feature against its cap.
  *  For showing: the server checks it again on every paid call. */
 export type Subscription = Webapp["SubscriptionDto"];
-/** What the subscription unlocks: NARRATIVE, CHECKPOINT_NOTES, ORAL, DEBRIEF. */
+/** What the subscription unlocks: NARRATIVE, CHECKPOINT_NOTES, ORAL, ASSISTANT, WORDS, DEBRIEF. */
 export type PaidFeature = Subscription["uses"][number]["feature"];
 /** The iOS app's Apple sign-in, done: where to go next. */
 export type AppleSignedIn = Webapp["SignedIn"];

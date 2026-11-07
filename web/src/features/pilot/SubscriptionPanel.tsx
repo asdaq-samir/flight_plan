@@ -12,6 +12,8 @@ const COUNTED: Record<PaidFeature, string> = {
   NARRATIVE: "Written briefings",
   CHECKPOINT_NOTES: "Checkpoint descriptions",
   ORAL: "Mock-oral questions and grades",
+  ASSISTANT: "Questions to the assistant",
+  WORDS: "Readings in words",
   DEBRIEF: "Debriefs",
 };
 
