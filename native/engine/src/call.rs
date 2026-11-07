@@ -292,6 +292,15 @@
 //! - `magnetic_variation`: degrees east, the World Magnetic Model's (wmm,
 //!   as wingtip.magnetic), from `{"lat", "lon", "date": "YYYY-MM-DD"}`.
 //!
+//! The FAA's data sets on their cycles (crate::cycles):
+//!
+//! - `data_cycle`: whether an edition is in force on a day, `{"kind",
+//!   "cycle_days", "current", "current_ident", "next", "effective",
+//!   "expires", "state": "in_force"|"expired"|"not_yet"|"unknown",
+//!   "behind"}`, from `{"kind": "airac"|"chart"|"dof", "effective"?:
+//!   "YYYY-MM-DD" (the date the edition is named by), "on": "YYYY-MM-DD"}`
+//!   (the FAA's 28 and 56 Day Product Schedule; the DOF page).
+//!
 //! Instrument approaches taught and debriefed (crate::approach, the web's
 //! lib/approachDebrief and lib/approachLesson), a drawing the planner's
 //! /api/procedure answer as it comes, a track's points `{"t", "lat",
@@ -621,6 +630,17 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             let mut out = String::new();
             json::number(&mut out, crate::wmm::declination(ask.num("lat")?, ask.num("lon")?, decimal));
             Ok(out)
+        }
+        "data_cycle" => {
+            let kind = ask.str("kind")?;
+            let kind = crate::cycles::Kind::from_name(kind).ok_or_else(|| format!("data_cycle: \"kind\" is not airac, chart or dof: {kind:?}"))?;
+            let on = ask.str("on")?;
+            let on = crate::cycles::day_of(on).ok_or_else(|| format!("data_cycle: \"on\" is not YYYY-MM-DD: {on:?}"))?;
+            let effective = match ask.opt_str("effective")? {
+                "" => None,
+                e => Some(crate::cycles::day_of(e).ok_or_else(|| format!("data_cycle: \"effective\" is not YYYY-MM-DD: {e:?}"))?),
+            };
+            Ok(crate::cycles::to_json(&crate::cycles::cycle(kind, effective, on)))
         }
         _ if crate::wording::NAMES.contains(&name) => crate::wording::answer(name, ask.v),
         // A field's weather (forecast::calls), the traffic list's filters and

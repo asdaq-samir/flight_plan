@@ -2376,6 +2376,119 @@
       ],
       "additionalProperties": false
     },
+    "data_cycle": {
+      "description": "Whether an FAA data set's edition is in force on a day, by its cycle: AIRAC's 28 days (NASR, CIFP, d-TPP), the 56-day charting cycle (sectional, terminal area and IFR enroute charts, the Chart Supplement) or the Digital Obstacle File's 56-day releases, from the FAA's 28 and 56 Day Product Schedule and its DOF page.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "DataCycleInput",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "airac",
+                "chart",
+                "dof"
+              ],
+              "description": "The schedule the data set is published on."
+            },
+            "effective": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "YYYY-MM-DD: the date the edition held is named by (its effective date; a DOF file's last day of changes). Missing or null where nothing says."
+            },
+            "on": {
+              "type": "string",
+              "description": "YYYY-MM-DD: the UTC day it is used on."
+            }
+          },
+          "required": [
+            "kind",
+            "on"
+          ]
+        },
+        "answer": {
+          "title": "DataCycleAnswer",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "airac",
+                "chart",
+                "dof"
+              ]
+            },
+            "cycle_days": {
+              "type": "integer",
+              "description": "The cycle's length, 28 or 56 days."
+            },
+            "current": {
+              "type": "string",
+              "description": "YYYY-MM-DD: the day the edition in force on `on` took effect (a DOF's release)."
+            },
+            "current_ident": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The AIRAC cycle's number, YYNN (\"2611\"); null off AIRAC."
+            },
+            "next": {
+              "type": "string",
+              "description": "YYYY-MM-DD: the day the next edition takes its place."
+            },
+            "effective": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "YYYY-MM-DD: the day the edition held counts from; null where unknown."
+            },
+            "expires": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "YYYY-MM-DD: the first day the edition held no longer counts; null where unknown."
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "in_force",
+                "expired",
+                "not_yet",
+                "unknown"
+              ]
+            },
+            "behind": {
+              "type": "integer",
+              "description": "How many editions have come out since the one held; 0 unless expired."
+            }
+          },
+          "required": [
+            "kind",
+            "cycle_days",
+            "current",
+            "current_ident",
+            "next",
+            "effective",
+            "expires",
+            "state",
+            "behind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
     "gonogo_verdict": {
       "description": "POST /api/go-no-go's line and items: each tab's finding, the IFR alternate's in the weather's (14 CFR 91.169), and the line over them. The findings are the planner's; the decision is the pilot in command's (14 CFR 91.3).",
       "type": "object",
@@ -9805,6 +9918,7 @@
     "magnetic_variation",
     "weather_expires_at",
     "weather_in_force",
+    "data_cycle",
     "gonogo_verdict",
     "gonogo_verdict_items",
     "gonogo_verdict_line",
