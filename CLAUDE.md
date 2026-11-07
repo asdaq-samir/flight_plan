@@ -54,6 +54,10 @@ one job (the owner kept both server languages on this split, 2026-11-06):
   once the "CI passed" check is green and Claude's review has run
   (auto-merge-agents.yml); nothing merges red. The branch is deleted on
   merge (the repository's setting).
+- A session works only in a worktree of its own (`git worktree add
+  ../wingtip-<topic> -b claude/<topic> origin/main`, or the harness's);
+  the main checkout stays on `main`, and no session switches it or
+  commits on it.
 - Never push to `main`. Never force-push. Merge `main` into a branch to
   bring it up to date; never rebase a pushed one.
 - On a pull request, Claude's review is put right on the branch ("Address
