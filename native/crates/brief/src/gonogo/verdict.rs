@@ -39,6 +39,11 @@ pub fn risk_finding(level: &str) -> &'static str {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Weather {
+    /// The section was not sent, or not what it decides by (its lists):
+    /// nothing was checked, so nothing is said to be clear. A missing
+    /// figure is "unknown", as the fuel's is, never "ok" (14 CFR 91.103:
+    /// the pilot is to become familiar with all available information).
+    pub missing: bool,
     /// The briefing is still being fetched, or failed (its words).
     pub pending: bool,
     pub failed: Option<String>,
@@ -58,6 +63,8 @@ pub struct Weather {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Airspace {
+    /// Not sent, as Weather's.
+    pub missing: bool,
     pub pending: bool,
     /// tfr.faa.gov did not answer.
     pub unchecked: bool,
@@ -72,6 +79,8 @@ pub struct Airspace {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Altitude {
+    /// Not sent, as Weather's.
+    pub missing: bool,
     pub pending: bool,
     /// No VFR altitude fits, in a line.
     pub problem: Option<String>,
@@ -95,11 +104,20 @@ pub struct Fuel {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Runways {
+    /// Not sent, as Weather's.
+    pub missing: bool,
     pub pending: bool,
     /// Not worked out: no POH tables for this airplane.
     pub worked: bool,
     pub short: Vec<String>,
     pub crosswind: Vec<String>,
+    /// Fields whose distances were read past the POH's table -- higher,
+    /// hotter, heavier or a stronger tailwind than it goes -- so the
+    /// figures are the table's edge, shorter than the airplane will need.
+    pub beyond: Vec<String>,
+    /// Fields whose distances could not be held against the runway: its
+    /// length or the field's elevation is not known.
+    pub unchecked: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -154,8 +172,15 @@ fn plural(n: f64) -> &'static str {
     }
 }
 
+/// What a section not sent says: nothing was checked.
+fn not_sent() -> (&'static str, String) {
+    ("unknown", "Not worked out".into())
+}
+
 fn weather(w: &Weather) -> (&'static str, String) {
-    if said(&w.failed) {
+    if w.missing && !w.pending && !said(&w.failed) {
+        not_sent()
+    } else if said(&w.failed) {
         ("unknown", format!("Not fetched: {}", w.failed.as_deref().unwrap_or_default()))
     } else if w.pending {
         ("pending", "Fetching METARs, TAFs and hazards…".into())
@@ -181,6 +206,8 @@ fn airspace(a: &Airspace) -> (&'static str, String) {
     let maybe = a.special_use.iter().find(|(_, when)| when == "by-notam" || when == "unknown");
     if a.pending {
         ("pending", "Checking TFRs along the route…".into())
+    } else if a.missing {
+        not_sent()
     } else if let Some(first) = a.in_force.first() {
         ("stop", format!("TFR {first} in force when you get there"))
     } else if a.unchecked {
@@ -209,6 +236,8 @@ fn altitude(a: &Altitude) -> (&'static str, String) {
         ("stop", a.problem.clone().unwrap_or_default())
     } else if a.pending {
         ("pending", "Planning altitudes…".into())
+    } else if a.missing {
+        not_sent()
     } else if let Some(first) = a.cautions.first() {
         ("caution", first.clone())
     } else {
@@ -250,10 +279,28 @@ fn runways(r: &Runways) -> (&'static str, String) {
         ("unknown", "Not worked out for this airplane".into())
     } else if r.pending {
         ("pending", "Waiting on the runways and the weather…".into())
+    } else if r.missing {
+        not_sent()
     } else if !r.short.is_empty() {
         ("stop", format!("Too short at {}", r.short.join(", ")))
-    } else if !r.crosswind.is_empty() {
-        ("caution", format!("Crosswind past the POH's demonstrated at {}", r.crosswind.join(", ")))
+    } else if !r.crosswind.is_empty() || !r.beyond.is_empty() {
+        // Past the POH's table the distance is its edge's, not the
+        // airplane's (FAA-H-8083-25C, chapter 11: performance charts hold
+        // only within their stated conditions), so "within" is not known:
+        // a caution naming the field, beside any crosswind's.
+        let mut parts = Vec::new();
+        if !r.crosswind.is_empty() {
+            parts.push(format!("Crosswind past the POH's demonstrated at {}", r.crosswind.join(", ")));
+        }
+        if !r.beyond.is_empty() {
+            parts.push(format!("Past the POH's tables at {}: its distances will be longer", r.beyond.join(", ")));
+        }
+        ("caution", parts.join("; "))
+    } else if !r.unchecked.is_empty() {
+        // A runway whose length, or a field whose elevation, is not known
+        // cannot be held to the distance needed (14 CFR 91.103(b)): not
+        // known, never "within".
+        ("unknown", format!("Not checked at {}: runway length or field elevation not known", r.unchecked.join(", ")))
     } else {
         ("ok", "Takeoff and landing within each runway".into())
     }

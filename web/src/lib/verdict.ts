@@ -89,6 +89,11 @@ export interface VerdictInput {
     worked: boolean;
     short: string[];
     crosswind: string[];
+    /** Fields whose distances were read past the POH's table. */
+    beyond: string[];
+    /** Fields whose distances could not be held to the runway: its length
+     *  or the field's elevation not known. */
+    unchecked: string[];
   };
   balance: {
     pending: boolean;
