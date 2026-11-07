@@ -429,6 +429,8 @@ jobs:
               - native/contract/**
             test-webapp:
               - springboot-app/**
+              # the planner's answers PlannerClient reads are generated from it
+              - planning-service/openapi.json
             test-planning-service:
               - planning-service/**
               - src/**
