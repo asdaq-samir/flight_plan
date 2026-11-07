@@ -17,7 +17,7 @@ import { useLiveZoom } from "./useView";
  * out of the pattern dashed from its end (departurePattern). Not
  * tappable: a picture of the pattern, the chart under it.
  */
-const TEAL = "#0e8f8a";
+export const TEAL = "#0e8f8a";
 /** A name's ground, darker: white words on the line's teal were 3.95:1,
  *  under the 4.5:1 small words need (WCAG 1.4.3; the iOS audit). This is
  *  5.2:1. */
@@ -29,14 +29,14 @@ const ENTRY: L.PathOptions = { color: TEAL, weight: 3, opacity: 1, dashArray: "7
 /** From this zoom in, the legs' arrows and names: further out the pattern
  *  is a few pixels round its field, and its words would cover the field's
  *  mark. */
-const WORDS_FROM_ZOOM = 11;
+export const PATTERN_WORDS_FROM_ZOOM = 11;
 
 const pair = (p: LatLon): [number, number] => [p.lat, p.lon];
 /** A point `f` of the way from `a` to `b`. */
 const along = (a: LatLon, b: LatLon, f: number): LatLon => ({ lat: a.lat + (b.lat - a.lat) * f, lon: a.lon + (b.lon - a.lon) * f });
 
 /** An arrowhead the way a leg is flown, at its middle. */
-function arrowIcon(bearing: number) {
+export function arrowIcon(bearing: number) {
   return L.divIcon({
     className: "", iconSize: [16, 16], iconAnchor: [8, 8],
     html: `<svg viewBox="-8 -8 16 16" width="16" height="16" style="transform:rotate(${Math.round(bearing)}deg)" aria-hidden="true">` +
@@ -54,7 +54,7 @@ function touching(a: L.Point, aWords: string, b: L.Point, bWords: string): boole
 }
 
 /** A leg's name on the chart, white words on teal. */
-function labelIcon(words: string) {
+export function labelIcon(words: string) {
   const width = labelWidth(words);
   return L.divIcon({
     className: "", iconSize: [width, 18], iconAnchor: [width / 2, 9],
@@ -67,7 +67,7 @@ export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns:
   const zoom = useLiveZoom();
   const map = useMap();
   if (patterns.length === 0) return null;
-  const words = zoom >= WORDS_FROM_ZOOM;
+  const words = zoom >= PATTERN_WORDS_FROM_ZOOM;
   return (
     <Pane name="patterns" style={{ zIndex: 430 }}>
       {patterns.map(p => {

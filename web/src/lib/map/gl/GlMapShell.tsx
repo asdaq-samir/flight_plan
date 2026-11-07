@@ -1,0 +1,250 @@
+import * as maplibregl from "maplibre-gl";
+import type { LngLatBoundsLike, MapMouseEvent, PaddingOptions, StyleSpecification } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+// The worker MapLibre parses its sources in: a file of its own, which a
+// bundle cannot find beside maplibre-gl.mjs as the library looks for it.
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
+// The app's own typeface for the map's words (MapLibre draws them from
+// the font file, no glyph server): the Latin subset the page loads.
+import interUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import MapControls from "../../../components/MapControls";
+import MapBanners from "../../../components/MapBanners";
+import { MapInsetsContext, SHEET_SECONDS, type MapInsets } from "../../../components/mapChrome";
+import { SheetCard } from "../../../components/SheetCard";
+import type { SheetTurn } from "../../../components/MapPanel";
+import type { Course } from "../../api/types";
+import { chartQuery } from "../../queryClient";
+import { prefersReducedMotion } from "../../motion";
+import { BUTTONS_CLEAR } from "../clear";
+import { CardCloseContext } from "../cardClose";
+import { COUNTRY_ZOOM, OPEN_ZOOM, useOwnShip } from "../ownShip";
+import { GlMapContext, SLOTS, slotId, type GlMapApi, type GlTap } from "./glLayer";
+import { glZoom } from "./glStyle";
+
+maplibregl.setWorkerUrl(workerUrl);
+
+const COUNTRY: [number, number] = [39.5, -98.35];
+/** As MapShell's: the least the map is fitted to round a route, ~10 nm. */
+const MIN_FIT_DEG = 0.08;
+/** RouteMap's: how close in an airport's card brings the map. */
+const PLACE_ZOOM = 9;
+/** Round a fit, over what the panel covers: a margin, and clear of the
+ *  map's buttons at the sides (MapShell's). */
+export const FIT_MARGIN = { top: 30, bottom: 30, left: 30 + BUTTONS_CLEAR, right: 30 + BUTTONS_CLEAR };
+const flight = () => (prefersReducedMotion() ? 0 : SHEET_SECONDS * 1000 * 2);
+
+interface Props {
+  course: Course | null;
+  /** A checkpoint picked: the map flies to it, in to `focusZoom`. */
+  focus: { lat: number; lon: number } | null;
+  focusZoom: number;
+  /** The airport whose card is open: the map flies to it. */
+  place: { lat: number; lon: number } | null;
+  /** Its layers (lib/map/gl/layers), drawn once the map is made. */
+  children: ReactNode;
+}
+
+/**
+ * The WebGL map (MapLibre GL): the container, the camera and what moves
+ * it -- a route's fit, a point picked, the sheet -- and the one tap the
+ * layers share (glLayer). Every layer is a child: the chart, the
+ * airspace, the route, own ship. MapShell's twin for the Leaflet map,
+ * behind the map's settings' Map Engine until every layer is moved.
+ *
+ * The map follows the sheet with MapLibre's own padding: the middle of
+ * what the sheet leaves stays the middle, eased in the sheet's own time
+ * from the sheet's turn (MapPanel's sheetturn), and a route is fitted to
+ * what the sheet leaves, clear of the map's buttons.
+ */
+export default function GlMapShell({ course, focus, focusZoom, place, children }: Props) {
+  const box = useRef<HTMLDivElement>(null);
+  const [map, setMap] = useState<maplibregl.Map | null>(null);
+  const insets = useContext(MapInsetsContext);
+  const insetsRef = useRef(insets);
+  const { data: chartOnly } = useQuery({ ...chartQuery, enabled: !course });
+  const known = !!(course ?? chartOnly);
+
+  // Made once the chart is known, at the pilot's last position or the
+  // country, in the middle of what the panel leaves (padding), with an
+  // empty layer for each slot the layers are put under.
+  useEffect(() => {
+    if (!box.current || !known) return;
+    const last = useOwnShip.getState().lastFix;
+    const [lat, lon] = last ? [last.lat, last.lon] : COUNTRY;
+    const style: StyleSpecification = {
+      version: 8, sources: {},
+      layers: SLOTS.map(s => ({ id: slotId(s), type: "background", layout: { visibility: "none" } })),
+      "font-faces": { Inter: [{ url: interUrl, "unicode-range": ["U+0000-00FF", "U+2000-206F"] }] },
+    };
+    const m = new maplibregl.Map({
+      container: box.current, style, center: [lon, lat], zoom: glZoom(last ? OPEN_ZOOM : COUNTRY_ZOOM),
+      minZoom: glZoom(3), attributionControl: false,
+      // A chart is read north up, as Leaflet's is: no turn, no tilt.
+      dragRotate: false, pitchWithRotate: false, touchPitch: false, keyboard: false,
+      // Symbols placed at once, not faded in over 0.3 s.
+      fadeDuration: 0,
+      renderWorldCopies: false,
+    });
+    m.touchZoomRotate.disableRotation();
+    m.setPadding(padOf(insetsRef.current));
+    // A terminal sheet's tile where it has none is a 404, as Leaflet's
+    // overlay leaves blank: not an error to say.
+    m.on("error", () => {});
+    m.on("load", () => setMap(m));
+    return () => { setMap(null); m.remove(); };
+  }, [known]);
+
+  // The one tap: the nearest thing's, in the taps' rank order.
+  // Held in state, not refs: made once, read in the map's own handler.
+  const [registry] = useState(() => ({ taps: new Set<GlTap>(), misses: new Set<(event: MapMouseEvent) => void>() }));
+  const addTap = useCallback((tap: GlTap) => {
+    registry.taps.add(tap);
+    return () => { registry.taps.delete(tap); };
+  }, [registry]);
+  const addMiss = useCallback((miss: (event: MapMouseEvent) => void) => {
+    registry.misses.add(miss);
+    return () => { registry.misses.delete(miss); };
+  }, [registry]);
+  const [card, setCard] = useState<ReactNode | null>(null);
+  const closeCard = useCallback(() => setCard(null), []);
+  useEffect(() => {
+    if (!map) return;
+    const tap = (e: MapMouseEvent) => {
+      for (const t of [...registry.taps].sort((a, b) => a.rank - b.rank)) {
+        const layers = t.layers.filter(l => map.getLayer(l));
+        if (!layers.length) continue;
+        const r = t.reach;
+        const hit = map.queryRenderedFeatures([[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]], { layers })[0];
+        if (hit) {
+          t.onTap(hit, e);
+          return;
+        }
+      }
+      // The chart itself: a card open is put away, as Leaflet's popup.
+      setCard(null);
+      for (const miss of registry.misses) miss(e);
+    };
+    map.on("click", tap);
+    return () => { map.off("click", tap); };
+  }, [map, registry]);
+  const api = useMemo<GlMapApi | null>(() => (map ? { map, addTap, addMiss, openCard: setCard } : null), [map, addTap, addMiss]);
+
+  // Fit to the route: once per route, clear of the panel and the buttons,
+  // as MapShell's.
+  const routeKey = course ? `${course.departure.ident}->${course.destination.ident}` : null;
+  const fit = useCallback((animate: boolean) => {
+    if (!map || !course) return;
+    const line = course.course_line as [number, number][];
+    const lats = line.map(p => p[0]), lons = line.map(p => p[1]);
+    const pad = MIN_FIT_DEG / 2;
+    const bounds: LngLatBoundsLike = [[Math.min(...lons) - pad, Math.min(...lats) - pad], [Math.max(...lons) + pad, Math.max(...lats) + pad]];
+    const ownShip = useOwnShip.getState();
+    if (ownShip.enabled && ownShip.follow) ownShip.setFollow(false);
+    // Over the map's own padding, the room the panel leaves (MapLibre adds
+    // the two): a margin, and the map's buttons cleared.
+    map.fitBounds(bounds, {
+      padding: FIT_MARGIN,
+      duration: animate ? flight() : 0,
+    });
+  }, [map, course]);
+  const fitted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!routeKey) { fitted.current = null; return; }
+    if (!map || fitted.current === routeKey) return;
+    fit(fitted.current !== null);
+    fitted.current = routeKey;
+  }, [map, routeKey, fit]);
+  // The whole route again, from the location arrow (MyPositionButton).
+  const routeAsked = useOwnShip(s => s.routeAsked);
+  const routeAskedWas = useRef(routeAsked);
+  useEffect(() => {
+    if (routeAsked === routeAskedWas.current) return;
+    routeAskedWas.current = routeAsked;
+    useOwnShip.getState().setFollow(false);
+    fit(true);
+  }, [routeAsked, fit]);
+  useEffect(() => {
+    useOwnShip.setState({ routeDrawn: !!course && !!map });
+    return () => { useOwnShip.setState({ routeDrawn: false, routeOutOfView: false }); };
+  }, [course, map]);
+  // Whether the route is out of sight at each rest, for the location
+  // arrow to offer it back (MapShell's).
+  useEffect(() => {
+    if (!map || !course) return;
+    const line = course.course_line as [number, number][];
+    const check = () => {
+      const { top, bottom, left } = insetsRef.current;
+      const { clientWidth: w, clientHeight: h } = map.getContainer();
+      const out = line.some(([lat, lon]) => {
+        const p = map.project([lon, lat]);
+        return p.x < left - 8 || p.x > w + 8 || p.y < top - 8 || p.y > h - bottom + 8;
+      });
+      if (useOwnShip.getState().routeOutOfView !== out) useOwnShip.setState({ routeOutOfView: out });
+    };
+    check();
+    map.on("moveend", check);
+    return () => { map.off("moveend", check); };
+  }, [map, course]);
+
+  // The map follows the sheet: MapLibre's padding is what the panel
+  // covers, eased in the sheet's own time, so what was in the middle of
+  // the room left stays in the middle -- from the sheet's turn as it sets
+  // off (MapPanel's sheetturn), not only once the page hears it landed.
+  const follow = useCallback((to: MapInsets) => {
+    const was = insetsRef.current;
+    insetsRef.current = to;
+    if (!map || (was.top === to.top && was.bottom === to.bottom && was.left === to.left)) return;
+    // Half way to all the way up and back the map stays put (MapShell).
+    if (to.up !== was.up && to.out === was.out) {
+      map.setPadding(padOf(to));
+      return;
+    }
+    map.easeTo({ padding: padOf(to), duration: prefersReducedMotion() ? 0 : SHEET_SECONDS * 1000, easing: easeOut });
+  }, [map]);
+  useEffect(() => { follow(insets); }, [insets, follow]);
+  useEffect(() => {
+    if (!map) return;
+    const doc = map.getContainer().ownerDocument;
+    const turned = (event: Event) => {
+      const going = (event as CustomEvent<SheetTurn | null>).detail?.insets;
+      if (going) follow(going);
+    };
+    doc.addEventListener("sheetturn", turned, true);
+    return () => doc.removeEventListener("sheetturn", turned, true);
+  }, [map, follow]);
+
+  // A point picked -- a checkpoint, an airport's card -- flown to, in
+  // close enough, as FocusOn; own ship stops pulling the map back.
+  const flyTo = useCallback((point: { lat: number; lon: number } | null, zoom: number) => {
+    if (!map || !point) return;
+    const ownShip = useOwnShip.getState();
+    if (ownShip.enabled && ownShip.follow) ownShip.setFollow(false);
+    map.flyTo({ center: [point.lon, point.lat], zoom: Math.max(map.getZoom(), glZoom(zoom)), duration: flight() });
+  }, [map]);
+  useEffect(() => { flyTo(focus, focusZoom); }, [flyTo, focus, focusZoom]);
+  useEffect(() => { flyTo(place, PLACE_ZOOM); }, [flyTo, place]);
+
+  return (
+    <div className="relative h-full w-full">
+      <div ref={box} className="h-full w-full bg-slate-100 dark:bg-slate-900" data-testid="gl-map" />
+      {api && <GlMapContext.Provider value={api}>{children}</GlMapContext.Provider>}
+      {card && (
+        <SheetCard onClose={closeCard}>
+          <CardCloseContext.Provider value={closeCard}>{card}</CardCloseContext.Provider>
+        </SheetCard>
+      )}
+      <MapBanners map={null} />
+      <MapControls />
+    </div>
+  );
+}
+
+/** What the panel covers, as MapLibre's padding: its middle is the map's. */
+function padOf({ top, bottom, left }: MapInsets): PaddingOptions {
+  return { top, bottom, left, right: 0 };
+}
+
+/** The sheet's own ease-out (MapPanel: the owner's "no spring"). */
+const easeOut = (t: number) => 1 - (1 - t) ** 3;

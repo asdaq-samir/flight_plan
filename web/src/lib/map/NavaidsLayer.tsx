@@ -271,7 +271,7 @@ const VOR_BLUE = BLUE;
 const FIX_INK = "#1c1a17";
 
 /** Made only once it is opened, so only an open card hears own ship. */
-function VorCard({ vor }: { vor: VorPin }) {
+export function VorCard({ vor }: { vor: VorPin }) {
   const ship = useOwnFix();
   const away = useAwayWords(vor.lat, vor.lon);
   // The radial the airplane is on and the course back to the station, to
@@ -330,7 +330,7 @@ function VorCard({ vor }: { vor: VorPin }) {
   );
 }
 
-function FixCard({ fix, vors }: { fix: FixPin; vors: readonly VorPin[] }) {
+export function FixCard({ fix, vors }: { fix: FixPin; vors: readonly VorPin[] }) {
   const away = useAwayWords(fix.lat, fix.lon);
   // Where it is off the nearest VOR in view, as a controller says it.
   const frd = fixRadialDistance(fix, vors);
