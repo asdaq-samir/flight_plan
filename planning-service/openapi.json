@@ -3329,6 +3329,16 @@
             "title": "Revision",
             "type": "integer"
           },
+          "scales": {
+            "default": [
+              1
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Scales",
+            "type": "array"
+          },
           "sheets": {
             "default": [],
             "items": {
@@ -17512,6 +17522,75 @@
           }
         },
         "summary": "Chart Tile"
+      }
+    },
+    "/api/chart-tile/{kind}/{z}/{x}/{y}@2x.png": {
+      "get": {
+        "description": "The same tile at twice the pixels, 512 on a side, for a 2x or 3x\nscreen: drawn from the FAA's sheet at that size, where the browser\nstretching the 256-pixel tile blurred every line and letter.\n`chart_layers` says which kinds have them (`scales`).",
+        "operationId": "chart_tile_2x_api_chart_tile__kind___z___x___y__2x_png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "z",
+            "required": true,
+            "schema": {
+              "title": "Z",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "x",
+            "required": true,
+            "schema": {
+              "title": "X",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "y",
+            "required": true,
+            "schema": {
+              "title": "Y",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "No sheet covers the tile"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chart Tile 2X"
       }
     },
     "/api/charts/refresh": {

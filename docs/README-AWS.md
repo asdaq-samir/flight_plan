@@ -109,7 +109,7 @@ Prices in us-east-1, October 2026, at today's traffic:
 | EC2 t3a.medium on Spot, all month (on demand: $27.45) | ~$10, as Spot's price moves |
 | Its public IPv4 address | $3.65 |
 | 20 GB system disk and 30 GB data disk, gp3 | $4.00 |
-| S3 tiles: 1.5 million uploads a cycle ($7.50 per 56 days) and up to three cycles stored | ~$4.50 |
+| S3 tiles: 1.5 million uploads a cycle ($7.50 per 56 days), 0.73 million more for the 512-pixel "@2x" tiles phones draw ($3.70), and up to three cycles stored (about 25 GB more a cycle with the @2x tiles) | ~$7.50 |
 | Secrets Manager, four secrets | $1.60 |
 | Route 53 hosted zone | $0.50 |
 | Daily snapshots of the data disk, seven kept | ~$1 |
@@ -117,7 +117,7 @@ Prices in us-east-1, October 2026, at today's traffic:
 | ECR, CloudWatch logs, backups, the Fargate Spot refresh (under $1 a cycle) | ~$1.50 |
 | CloudFront | $0 within the always-free 1 TB and 10 million requests |
 | SES | $0.10 per 1,000 sign-in emails |
-| **Total** | **about $29** |
+| **Total** | **about $32** |
 
 With `ServerPricing=on-demand`, for a server AWS never takes back, it
 is about $46, or about $36 with a one-year Savings Plan. The next

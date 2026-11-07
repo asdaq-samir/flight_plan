@@ -102,7 +102,7 @@ enum KeepRoute {
     /// kept as it goes.
     static func keep(_ tiles: Set<Tile>, template: TileTemplate, store: TileStore = .shared, progress: @escaping @Sendable (Int, Int) -> Void) async {
         let all = Array(tiles.union(parents(of: tiles)))
-        let missing = all.filter { store.read(cycle: template.cycle, kind: template.kind, z: $0.z, x: $0.x, y: $0.y) == nil }
+        let missing = all.filter { store.read(cycle: template.cycle, kind: template.kind, z: $0.z, x: $0.x, y: $0.y, scale: template.scale) == nil }
         var done = all.count - missing.count
         progress(done, all.count)
         await withTaskGroup(of: Bool.self) { group in
@@ -114,7 +114,7 @@ enum KeepRoute {
                     group.addTask {
                         guard let (data, response) = try? await URLSession.shared.data(from: template.url(z: next.z, x: next.x, y: next.y)),
                               (response as? HTTPURLResponse)?.statusCode == 200 else { return false }
-                        store.write(data, cycle: template.cycle, kind: template.kind, z: next.z, x: next.x, y: next.y)
+                        store.write(data, cycle: template.cycle, kind: template.kind, z: next.z, x: next.x, y: next.y, scale: template.scale)
                         return true
                     }
                 }

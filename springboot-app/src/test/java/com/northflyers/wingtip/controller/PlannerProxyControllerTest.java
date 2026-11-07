@@ -194,6 +194,8 @@ class PlannerProxyControllerTest {
     @Test
     void theRouteTableCoversWhatTheBrowserCalls() {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/chart-tile/sectional/10/262/380.png")).isTrue();
+        // The 512-pixel tile for a 2x or 3x screen, by the same route.
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/chart-tile/sec/10/262/380@2x.png")).isTrue();
         assertThat(PlannerProxyController.isForwarded("POST", "/api/dev/services/ml/start")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/chart")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KBUR/procedures")).isTrue();
