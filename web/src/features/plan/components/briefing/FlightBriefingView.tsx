@@ -25,6 +25,7 @@ import { feetRange, flightLevel, grouped } from "../../../../lib/units";
 import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { useLoad } from "../../hooks/useLoad";
+import { armText } from "../../../../lib/weightBalance";
 import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
 import OnRouteRow from "./OnRouteRow";
 import { underMinimums } from "../../../../lib/minimums";
@@ -640,7 +641,7 @@ export default memo(function FlightBriefingView({
     balance: {
       pending: !nav, worked: !!loading && !!loaded,
       problems: loaded?.problems ?? [],
-      takeoff: loaded ? `${grouped(loaded.takeoff.weightLb)} lb at ${loaded.takeoff.armIn.toFixed(1)} in` : null,
+      takeoff: loaded ? `${grouped(loaded.takeoff.weightLb)} lb at ${armText(loaded.takeoff)}` : null,
     },
     risk: assessment ? { level: assessment.level, line: riskLine(assessment) } : null,
   });

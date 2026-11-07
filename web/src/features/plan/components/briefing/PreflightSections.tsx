@@ -14,6 +14,7 @@ import { windOnRunway } from "../../format";
 import { TEXT } from "../../../../lib/text";
 import { altFt, pounds } from "../../../../lib/units";
 import { useLoad } from "../../hooks/useLoad";
+import { armText } from "../../../../lib/weightBalance";
 import { phasesOf, type Phase } from "./sections";
 
 /** The envelope's picture: Recharts, loaded with the section. */
@@ -50,7 +51,7 @@ function NumberField({ value, onChange, unit, label, testId }: {
 export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: AircraftProfile | null | undefined; tripFuelGal: number | null }) {
   const { loading, load, result, setLoad } = useLoad(aircraft, tripFuelGal);
   const summary = !result ? "Built in for the Cessna 172S"
-    : `${pounds(result.takeoff.weightLb)} at ${result.takeoff.armIn.toFixed(1)} in${result.problems.length ? "" : " · within limits"}`;
+    : `${pounds(result.takeoff.weightLb)} at ${armText(result.takeoff)}${result.problems.length ? "" : " · within limits"}`;
   return (
     <AccordionSection
       title="Weight & Balance" summary={summary}
@@ -91,8 +92,8 @@ export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: Airc
           </ListGroup>
           {/* The loading's source (its POH); the start and taxi's fuel off at takeoff, the trip's at landing. */}
           <ListGroup title="Balance">
-            <ListRow title="Takeoff" value={`${pounds(result.takeoff.weightLb)} · ${result.takeoff.armIn.toFixed(1)} in`} />
-            <ListRow title="Landing" value={`${pounds(result.landing.weightLb)} · ${result.landing.armIn.toFixed(1)} in`} />
+            <ListRow title="Takeoff" value={`${pounds(result.takeoff.weightLb)} · ${armText(result.takeoff)}`} />
+            <ListRow title="Landing" value={`${pounds(result.landing.weightLb)} · ${armText(result.landing)}`} />
             {result.problems.length === 0 ? (
               <ListRow media={<FindingIcon finding="ok" />} title="Within the weight and the envelope" data-testid="wb-ok" />
             ) : result.problems.map(problem => (

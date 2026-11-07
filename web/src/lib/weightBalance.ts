@@ -20,8 +20,14 @@ export interface Load {
 
 export interface Condition {
   weightLb: number;
-  /** The centre of gravity, inches aft of the datum. */
-  armIn: number;
+  /** The centre of gravity, inches aft of the datum; null where the
+   *  weight is zero and there is none. */
+  armIn: number | null;
+}
+
+/** A condition's centre of gravity as the pages write it. */
+export function armText(c: Condition): string {
+  return c.armIn === null ? "no CG" : `${c.armIn.toFixed(1)} in`;
 }
 
 export interface Balance {
@@ -59,7 +65,7 @@ export function balance(loading: Loading, load: Load, tripFuelGal: number | null
       trip_fuel_gal: tripFuelGal,
     });
   // The engine's arm is null where the weight is zero (no centre of
-  // gravity); NaN keeps it a number, as the pages read it.
-  const condition = (c: { weight_lb: number; arm_in: number | null }): Condition => ({ weightLb: c.weight_lb, armIn: c.arm_in ?? NaN });
+  // gravity); it stays null for the pages to say so.
+  const condition = (c: { weight_lb: number; arm_in: number | null }): Condition => ({ weightLb: c.weight_lb, armIn: c.arm_in });
   return { takeoff: condition(b.takeoff), landing: condition(b.landing), problems: b.problems };
 }
