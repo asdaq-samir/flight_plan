@@ -41,9 +41,9 @@ gets the same answer:
 
 | Layer | Where | Its job |
 |---|---|---|
-| The engine | [`native/`](native) (Rust) | Every aviation rule and figure, once: altitudes, winds, runways, fuel, weather limits, Go / No-Go, holds, procedures, currency. No network, no screen, no clock. A facade (`wingtip-engine`) over nine domain crates; each rule is a name in `native/engine/src/call.rs`, JSON in and out, typed by a contract (`native/contract/engine.schema.json`) the apps' types are generated from. |
+| The engine | [`native/`](native) (Rust) | Every aviation rule and figure, once: altitudes, winds, runways, fuel, weather limits, Go / No-Go, holds, procedures (currency is to join them, #482). No network, no screen, no clock. A facade (`wingtip-engine`) over nine domain crates; each rule is a name in `native/engine/src/call.rs`, JSON in and out, typed by a contract (`native/contract/engine.schema.json`) the apps' types are generated from. |
 | The planner | [`planning-service/`](planning-service) over [`src/wingtip`](src) (FastAPI) | Works out a flight: fetches the FAA and weather data, reads the chart and scores its checkpoints with the chart model, runs the AI assistant, and asks the engine every rule. |
-| Spring Boot | [`springboot-app/`](springboot-app) | Who the pilot is and what they saved: accounts, sign-in, records, the public API, scheduled mail. No aviation logic: where it needs a figure it asks the planner, which asks the engine. |
+| Spring Boot | [`springboot-app/`](springboot-app) | Who the pilot is and what they saved: accounts, sign-in, records, the public API, scheduled mail. Should hold no aviation logic, asking the planner (which asks the engine) for a figure; the currency rules are still Java until #482 moves them. |
 | The apps | [`web/`](web), [`ios/`](ios), [`android/`](android) | Get data, keep state, draw (a view model per screen), and ask the engine the rest: the web as WebAssembly, the phones through its C interface. |
 
 Two server languages stay, on that line (the owner, 2026-11-06): the

@@ -21,7 +21,7 @@ need an `ANTHROPIC_API_KEY` of your own:
 The project is four layers, each with one job:
 
 - **Aviation rules and figures** (altitudes, winds, fuel, weather minimums,
-  Go / No-Go, holds, procedures, currency) live once, in the Rust engine:
+  Go / No-Go, holds, procedures; currency is still to move, #482) live once, in the Rust engine:
   [`native/engine`](native/engine), a facade over the domain crates in
   [`native/crates`](native/crates). A new rule goes into the lowest crate
   that can hold it, gets a name in `native/engine/src/call.rs` and an
@@ -33,8 +33,8 @@ The project is four layers, each with one job:
   over [`src/wingtip`](src). It asks the engine every rule.
 - **Who the pilot is and what they saved** (accounts, sign-in, records,
   the public API, scheduled mail) is Spring Boot:
-  [`springboot-app`](springboot-app). It holds no aviation logic and asks
-  the planner when it needs a figure.
+  [`springboot-app`](springboot-app). It should hold no aviation logic and ask
+  the planner when it needs a figure; the currency rules are still Java (#482).
 - **Each app** ([`web`](web), [`ios`](ios), [`android`](android)) gets the
   data, keeps the state (a view model per screen) and draws, and asks the
   engine the rest by name. A rule copied into a component, a view, a Java

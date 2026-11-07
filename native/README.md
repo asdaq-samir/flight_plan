@@ -4,7 +4,7 @@ Wingtip's Rust: the engine, over its crates, and its three faces.
 
 The engine is the lowest of the project's four layers: under the planner
 (FastAPI, which works out a flight and asks the engine every rule), Spring
-Boot (accounts and saved records, no aviation logic) and the apps (web,
+Boot (accounts and saved records; it should hold no aviation logic, but the currency rules are still Java) and the apps (web,
 iOS, Android, which draw and ask the engine the rest). Every aviation
 rule and figure belongs here once; the ones still written in Python,
 Java, TypeScript, Swift or Kotlin are listed, in the order they move, in

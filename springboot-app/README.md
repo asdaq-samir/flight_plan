@@ -8,8 +8,8 @@ scheduled mail (reminders, the flight watch).
 
 Everything else in this repo sits behind it on a private network.
 
-It is one of the project's four layers, and the one with no aviation
-logic. A figure it needs comes from the planner over HTTP
+It is one of the project's four layers, and the one that should have no
+aviation logic. A figure it needs should come from the planner over HTTP
 (`PlannerClient`, which today asks for a flight's briefing and what
 changed in it), which asks the Rust engine; Spring keeps identity and persistence, the
 things it is good at. The owner kept Java here on that line on

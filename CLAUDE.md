@@ -14,7 +14,7 @@ one job (the owner kept both server languages on this split, 2026-11-06):
   nine domain crates in `native/crates`, layered as native/README.md
   says). Every aviation rule or figure lives there once: altitudes,
   winds, runways, fuel, weather limits, Go / No-Go, holds, procedures,
-  the clearance reader, currency, the debrief. No network, no screen, no
+  the clearance reader, the debrief (currency is to join them, #482). No network, no screen, no
   clock of its own. Each rule is a name in `native/engine/src/call.rs`,
   JSON in and out, typed in `native/contract/engine.schema.json`.
 - **The planner** (FastAPI, `planning-service` over `src/wingtip`) works
@@ -23,8 +23,10 @@ one job (the owner kept both server languages on this split, 2026-11-06):
   (`wingtip_native.call`).
 - **Spring Boot** (`springboot-app`) is who the pilot is and what they
   saved: accounts, sign-in, records, the public API, scheduled mail. It
-  holds no aviation logic; where it needs a figure (currency for a
-  reminder) it asks the planner over HTTP, which asks the engine.
+  should hold no aviation logic and ask the planner over HTTP for a
+  figure, which asks the engine. Today it does not: currency (14 CFR
+  61.56, 61.57) is still worked out in Java (`CurrencyService`), and
+  #482 moves it into the engine. Add no new rule there.
 - **Each app is a shell that gets data, keeps state and draws**, and asks
   the engine the rest by name: the web through `callEngine`
   (web/src/lib/engine, the engine built to WebAssembly), the iPhone
