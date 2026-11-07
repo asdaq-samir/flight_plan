@@ -11,10 +11,12 @@
  * an input not of its shape, or its answer read as another shape, is a
  * type error here rather than a surprise on the phone.
  *
- * main.tsx waits for `loadEngine()` before the first render, so no
- * component can ask a rule before it is there, and `callEngine` can
- * answer synchronously, as the TypeScript rules it replaces did. The
- * tests load it from the file (src/test/engineSetup.ts).
+ * main.tsx starts `loadEngine()` and draws at once, so the page's shell
+ * paints without waiting for the .wasm; the parts that ask a rule while
+ * they render wait behind an engine gate (lib/engine/engineGate) until
+ * it is there, and `callEngine` stays synchronous, as the TypeScript
+ * rules it replaces were. The tests load it from the file
+ * (vitestSetup.ts).
  *
  * The ABI (native/wasm/src/lib.rs): wt_alloc(len) -> ptr and
  * wt_free(ptr, len) for the name and the input; wt_call(name_ptr,
@@ -89,12 +91,14 @@ export function engineLoaded(): boolean {
 /**
  * The engine's rule `name` worked on `input` (sent as JSON), its answer
  * parsed. Synchronous: it throws where the engine is not loaded yet
- * (main.tsx waits for it before the first render), and where the engine
+ * (a part not behind lib/engine/engineGate), and where the engine
  * refuses the input, with its words.
  */
 export function callEngine<N extends EngineName>(name: N, input: EngineInput<N>): EngineAnswer<N> {
   const e = engine;
-  if (!e) throw new Error(`The engine is not loaded, so ${name} cannot be worked out.`);
+  // Asked before it is there: a part drawn outside its engine gate
+  // (lib/engine/engineGate). Said plainly, so the stack names the caller.
+  if (!e) throw new Error(`The engine is not loaded yet, so ${name} cannot be worked out: draw the part that asks it inside an EngineGate (lib/engine/engineGate).`);
   const nameBytes = encoder.encode(name);
   const inputBytes = encoder.encode(JSON.stringify(input));
   const namePtr = e.wt_alloc(nameBytes.length);

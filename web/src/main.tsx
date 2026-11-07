@@ -38,8 +38,10 @@ import { loadEngine } from "./lib/engine/engine";
 
 // The shared Rust engine (lib/engine), asked for first: the rules it
 // works out (the hold's entry, lost comms, the diversion, the debrief)
-// answer synchronously, so the first render waits for it below, while
-// everything else here runs. index.html preloads it beside the scripts.
+// answer synchronously. The first render no longer waits for it: the
+// parts that ask it while they render are behind an engine gate
+// (lib/engine/engineGate, the workspace in MapPage), so the shell paints
+// while the .wasm comes. index.html preloads it beside the scripts.
 const engineLoaded = loadEngine();
 
 // The reader's text size from the iPhone's Settings, before the first
@@ -190,8 +192,8 @@ window.addEventListener("vite:preloadError", event => {
 });
 
 // A render React could not finish takes the page down: reported too.
-// Drawn once the engine is there; drawn all the same where it failed to
-// load (reported), when only the pages that ask it a rule say so.
+// Drawn without waiting for the engine (above); an engine that failed to
+// load is reported, and the gated parts stay their placeholders.
 const render = () => ReactDOM.createRoot(document.getElementById("root")!, {
   onUncaughtError: error => { sendReport(reportOf("render", error)); console.error(error); },
 }).render(
@@ -226,5 +228,5 @@ const faceLoaded = Promise.race([
   Promise.all(["400", "500", "600", "700"].map(weight => document.fonts.load(`${weight} 1rem Barlow`))),
   new Promise(resolve => setTimeout(resolve, 400)),
 ]);
-void engineLoaded.catch(error => { sendReport(reportOf("error", error)); console.error(error); })
-  .finally(() => faceLoaded.then(render, render));
+void engineLoaded.catch(error => { sendReport(reportOf("error", error)); console.error(error); });
+void faceLoaded.then(render, render);
