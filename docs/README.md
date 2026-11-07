@@ -220,7 +220,14 @@ service discovery at `planning-service.wingtip.internal`.
   (the `pmtiles` protocol; `web/src/lib/map/overlayTiles.ts` registers it
   and makes the source; Android's and iOS's MapLibre read `pmtiles://`
   themselves). Zooms 4 to 12, lines within `tolerance_m` (4.1 m) of the
-  FAA's, nothing dropped for size. Its source layers and fields:
+  FAA's, nothing dropped for size. A sample of the 29 Oct 2026 cycle,
+  92–84 W by 38–46 N (about a tenth of the cycle's features: 522
+  airspace volumes, 55 special-use areas, 2,218 airports, 156 navaids,
+  6,933 fixes), made an 8.6 MB archive in 90 s (4 s of GeoJSON, 86 s of
+  tippecanoe) on the Mac mini. By that, the whole cycle (5,621 volumes,
+  1,545 areas, 19,146 airports, 1,511 navaids, 70,060 fixes; 540 MB of
+  GeoJSON while it builds) is some 85–95 MB and 15 minutes, once a
+  cycle; a map reads only the tiles in view. Its source layers and fields:
 
   | Layer | From | Fields | First zoom |
   |---|---|---|---|
