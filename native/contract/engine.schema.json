@@ -2909,7 +2909,7 @@
       "additionalProperties": false
     },
     "ceiling_ft": {
-      "description": "A report's ceiling, ft above the ground: the lowest broken, overcast or obscured layer (14 CFR 1.1), an obscured sky's at its vertical visibility; null where there is none.",
+      "description": "A report's ceiling, ft above the ground: the lowest broken, overcast or obscured layer (14 CFR 1.1), an obscured sky's at its vertical visibility; null where there is none or it is not known (sky_ceiling tells them apart).",
       "type": "object",
       "properties": {
         "input": {
@@ -2961,8 +2961,74 @@
       ],
       "additionalProperties": false
     },
+    "sky_ceiling": {
+      "description": "A report's ceiling as ceiling_ft finds it, and whether it is not known: the lowest broken, overcast or obscured layer sent with no height (\"OVC///\", the AWC's layer with no base) leaves it unknown, not absent (14 CFR 1.1).",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "SkyCeilingInput",
+          "type": "object",
+          "properties": {
+            "layers": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cover": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "base_ft": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "vert_vis_ft": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          }
+        },
+        "answer": {
+          "title": "SkyCeilingAnswer",
+          "type": "object",
+          "properties": {
+            "ceiling_ft": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "ceiling_unknown": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ceiling_ft",
+            "ceiling_unknown"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
     "report_flight_category": {
-      "description": "A report's flight category (AC 00-45H, AIM 7-1-7): LIFR under 500 ft or a mile, IFR under 1,000 ft or 3, MVFR to 3,000 ft or 5, else VFR, a missing figure no limit; null where neither is given.",
+      "description": "A report's flight category (AC 00-45H, AIM 7-1-7): LIFR under 500 ft or a mile, IFR under 1,000 ft or 3, MVFR to 3,000 ft or 5, else VFR, a missing figure no limit; null where neither is given; with ceiling_unknown (a ceiling reported with no height) LIFR under a mile's visibility, else null.",
       "type": "object",
       "properties": {
         "input": {
@@ -2972,6 +3038,12 @@
             "ceiling_ft": {
               "type": [
                 "number",
+                "null"
+              ]
+            },
+            "ceiling_unknown": {
+              "type": [
+                "boolean",
                 "null"
               ]
             },
@@ -11205,6 +11277,7 @@
     "winds_read",
     "tfr_detail_read",
     "ceiling_ft",
+    "sky_ceiling",
     "report_flight_category",
     "vfr_basic_minimums",
     "reserve_min",

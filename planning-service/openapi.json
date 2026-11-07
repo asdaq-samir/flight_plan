@@ -6157,6 +6157,14 @@
       },
       "Forecast": {
         "properties": {
+          "ceiling_unknown_at": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Ceiling Unknown At",
+            "type": "array"
+          },
           "min_ceiling_ft": {
             "anyOf": [
               {
@@ -6220,6 +6228,11 @@
             ],
             "title": "Ceiling Ft"
           },
+          "ceiling_unknown": {
+            "default": false,
+            "title": "Ceiling Unknown",
+            "type": "boolean"
+          },
           "eta": {
             "anyOf": [
               {
@@ -6241,6 +6254,11 @@
               }
             ],
             "title": "Eta Ceiling Ft"
+          },
+          "eta_ceiling_unknown": {
+            "default": false,
+            "title": "Eta Ceiling Unknown",
+            "type": "boolean"
           },
           "eta_visibility_sm": {
             "anyOf": [
@@ -8381,6 +8399,11 @@
               }
             ],
             "title": "Ceiling Ft"
+          },
+          "ceiling_unknown": {
+            "default": false,
+            "title": "Ceiling Unknown",
+            "type": "boolean"
           },
           "dewpoint_c": {
             "anyOf": [
@@ -19294,7 +19317,7 @@
     },
     "/api/map/ages": {
       "get": {
-        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by wingtip.weather)\nand the TFRs (tfr.faa.gov); and each source the planner keeps\nthrough an outage, for the pilot's Status page.",
+        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by wingtip.weather)\nand the TFRs (tfr.faa.gov); and each source the planner keeps\nthrough an outage, for the pilot's Status page; and each FAA data\nset's edition and whether it is still in its cycle.",
         "operationId": "map_layer_ages_api_map_ages_get",
         "responses": {
           "200": {

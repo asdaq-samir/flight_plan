@@ -310,8 +310,12 @@
 //!   `winds_read` from `{"text", "now"}`, `tfr_detail_read` from
 //!   `{"text"}`: the planner's dicts, or null;
 //! - `ceiling_ft` (14 CFR 1.1) from `{"layers": [{"cover", "base_ft"?}],
-//!   "vert_vis_ft"?}`; `report_flight_category` (AC 00-45H, a missing
-//!   figure no limit) from `{"ceiling_ft"?, "visibility_sm"?}`;
+//!   "vert_vis_ft"?}`, null where there is none or it is not known;
+//!   `sky_ceiling` from the same, `{"ceiling_ft", "ceiling_unknown"}`,
+//!   which tells those apart (a lowest layer sent with no height,
+//!   "OVC///"); `report_flight_category` (AC 00-45H, a missing figure no
+//!   limit) from `{"ceiling_ft"?, "ceiling_unknown"?, "visibility_sm"?}`,
+//!   with an unknown ceiling only what the visibility settles;
 //!   `vfr_basic_minimums` (91.155(c), (d)) `{"ceiling_ft", "visibility_sm"}`
 //!   from `{}`;
 //! - `reserve_min` (91.151(a), 91.167(a)(3)) from `{"ifr"?, "night"?}`;
@@ -655,7 +659,7 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
         "airspace_column" => crate::rules::column_json(ask.v),
         "mode_c_veil" => crate::rules::veil_json(ask.v),
         "notams_fns" | "notam_text" | "metar_read" | "taf_read" | "winds_read" | "tfr_detail_read" | "ceiling_ft"
-        | "report_flight_category" | "vfr_basic_minimums" => weather_rule(&ask),
+        | "sky_ceiling" | "report_flight_category" | "vfr_basic_minimums" => weather_rule(&ask),
         "reserve_min" | "isa_temp_c" | "density_ratio" | "density_altitude_ft" | "pressure_altitude_ft" | "is_eastbound"
         | "lowest_vfr_cruising_altitude" | "distance_nm" | "region_of" | "descent_ft_per_nm" => flight_rule(&ask),
         "words_num" | "words_one" | "words_to_fixed" | "words_grouped" | "words_alt_ft" | "words_flight_level"
@@ -753,20 +757,34 @@ fn weather_rule(ask: &Ask) -> Result<String, String> {
             }
             Ok(read(crate::tfr::parse_detail(text).map(|d| crate::tfr::to_json(&d))))
         }
-        "ceiling_ft" => {
+        "ceiling_ft" | "sky_ceiling" => {
             let mut layers = Vec::new();
             if let Some(listed) = ask.v.get("layers").filter(|l| !matches!(l, Value::Null)) {
-                for l in listed.as_array().ok_or_else(|| "ceiling_ft: \"layers\" is not a list".to_owned())? {
-                    layers.push((l.get("cover").and_then(Value::as_str).unwrap_or(""), opt_num_in("ceiling_ft", l, "base_ft")?));
+                for l in listed.as_array().ok_or_else(|| format!("{}: \"layers\" is not a list", ask.name))? {
+                    layers.push((l.get("cover").and_then(Value::as_str).unwrap_or(""), opt_num_in(ask.name, l, "base_ft")?));
                 }
             }
+            let (ceiling, unknown) = crate::metar::sky_ceiling_of(layers, ask.opt_num("vert_vis_ft")?);
             let mut out = String::new();
-            json::opt_number(&mut out, crate::metar::ceiling_of(layers, ask.opt_num("vert_vis_ft")?));
+            if ask.name == "ceiling_ft" {
+                json::opt_number(&mut out, ceiling);
+            } else {
+                out.push_str("{\"ceiling_ft\":");
+                json::opt_number(&mut out, ceiling);
+                out.push_str(",\"ceiling_unknown\":");
+                out.push_str(if unknown { "true" } else { "false" });
+                out.push('}');
+            }
             Ok(out)
         }
         "report_flight_category" => {
             let mut out = String::new();
-            json::opt_string(&mut out, crate::metar::flight_category(ask.opt_num("ceiling_ft")?, ask.opt_num("visibility_sm")?));
+            let category = crate::metar::flight_category_of(
+                ask.opt_num("ceiling_ft")?,
+                ask.opt_bool("ceiling_unknown")?,
+                ask.opt_num("visibility_sm")?,
+            );
+            json::opt_string(&mut out, category);
             Ok(out)
         }
         _ => {

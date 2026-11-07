@@ -254,7 +254,10 @@ fn the_shared_fixtures_answers_are_of_the_contracts_shapes() {
     }
     for case in planner["ceiling"].as_array().unwrap() {
         c.ask("ceiling_ft", json!({ "layers": case["layers"], "vert_vis_ft": case["vert_vis_ft"] }));
+        c.ask("sky_ceiling", json!({ "layers": case["layers"], "vert_vis_ft": case["vert_vis_ft"] }));
     }
+    c.ask("sky_ceiling", json!({ "layers": [{ "cover": "OVC", "base_ft": null }], "vert_vis_ft": null }));
+    c.ask("report_flight_category", json!({ "ceiling_ft": null, "ceiling_unknown": true, "visibility_sm": 10 }));
     for case in planner["reportCategory"].as_array().unwrap() {
         c.ask("report_flight_category", json!({ "ceiling_ft": case["ceiling_ft"], "visibility_sm": case["visibility_sm"] }));
     }

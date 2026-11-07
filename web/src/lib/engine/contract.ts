@@ -839,14 +839,21 @@ export interface EngineContract {
     answer: TfrDetailReadAnswer;
   };
   /**
-   * A report's ceiling, ft above the ground: the lowest broken, overcast or obscured layer (14 CFR 1.1), an obscured sky's at its vertical visibility; null where there is none.
+   * A report's ceiling, ft above the ground: the lowest broken, overcast or obscured layer (14 CFR 1.1), an obscured sky's at its vertical visibility; null where there is none or it is not known (sky_ceiling tells them apart).
    */
   ceiling_ft: {
     input: CeilingFtInput;
     answer: CeilingFtAnswer;
   };
   /**
-   * A report's flight category (AC 00-45H, AIM 7-1-7): LIFR under 500 ft or a mile, IFR under 1,000 ft or 3, MVFR to 3,000 ft or 5, else VFR, a missing figure no limit; null where neither is given.
+   * A report's ceiling as ceiling_ft finds it, and whether it is not known: the lowest broken, overcast or obscured layer sent with no height ("OVC///", the AWC's layer with no base) leaves it unknown, not absent (14 CFR 1.1).
+   */
+  sky_ceiling: {
+    input: SkyCeilingInput;
+    answer: SkyCeilingAnswer;
+  };
+  /**
+   * A report's flight category (AC 00-45H, AIM 7-1-7): LIFR under 500 ft or a mile, IFR under 1,000 ft or 3, MVFR to 3,000 ft or 5, else VFR, a missing figure no limit; null where neither is given; with ceiling_unknown (a ceiling reported with no height) LIFR under a mile's visibility, else null.
    */
   report_flight_category: {
     input: ReportFlightCategoryInput;
@@ -2555,8 +2562,22 @@ export interface CeilingFtInput {
     | null;
   vert_vis_ft?: number | null;
 }
+export interface SkyCeilingInput {
+  layers?:
+    | {
+        cover?: string | null;
+        base_ft?: number | null;
+      }[]
+    | null;
+  vert_vis_ft?: number | null;
+}
+export interface SkyCeilingAnswer {
+  ceiling_ft: number | null;
+  ceiling_unknown: boolean;
+}
 export interface ReportFlightCategoryInput {
   ceiling_ft?: number | null;
+  ceiling_unknown?: boolean | null;
   visibility_sm?: number | null;
 }
 export interface VfrBasicMinimumsInput {}

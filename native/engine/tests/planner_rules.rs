@@ -66,6 +66,39 @@ fn a_hazards_window() {
 fn a_reports_ceiling_and_category() {
     check("ceiling", "ceiling_ft", |c| json!({ "layers": c["layers"], "vert_vis_ft": c["vert_vis_ft"] }), "ceiling_ft");
     check("reportCategory", "report_flight_category", |c| json!({ "ceiling_ft": c["ceiling_ft"], "visibility_sm": c["visibility_sm"] }), "category");
+    // sky_ceiling finds the same ceiling, and calls none of these unknown:
+    // the cases' lowest broken or overcast layer has a height.
+    for case in fixture()["ceiling"].as_array().unwrap() {
+        let got = ask("sky_ceiling", json!({ "layers": case["layers"], "vert_vis_ft": case["vert_vis_ft"] }));
+        assert!(same(&got["ceiling_ft"], &case["ceiling_ft"]), "{case}\ngot {got}");
+    }
+}
+
+/// The AWC's data API sends a layer whose height a station could not
+/// measure ("OVC///", "VV///") with no base: the ceiling is not known, not
+/// absent (14 CFR 1.1), and so neither is the category but for what the
+/// visibility settles. One with no height above a measured ceiling leaves
+/// it known (layers come lowest first, FMH-1 ch. 9).
+#[test]
+fn a_ceiling_sent_with_no_height() {
+    let sky = |layers: Value, vv: Value| ask("sky_ceiling", json!({ "layers": layers, "vert_vis_ft": vv }));
+    let unknown = json!({ "ceiling_ft": null, "ceiling_unknown": true });
+    assert_eq!(sky(json!([{ "cover": "OVC", "base_ft": null }]), Value::Null), unknown);
+    assert_eq!(sky(json!([{ "cover": "OVX" }]), Value::Null), unknown);
+    assert_eq!(sky(json!([{ "cover": "FEW", "base_ft": 800 }, { "cover": "BKN", "base_ft": null }, { "cover": "OVC", "base_ft": 2500 }]), Value::Null), unknown);
+    assert_eq!(ask("ceiling_ft", json!({ "layers": [{ "cover": "BKN", "base_ft": null }] })), Value::Null);
+    // Under a measured layer, a layer with no height is above it.
+    assert_eq!(
+        sky(json!([{ "cover": "BKN", "base_ft": 1200 }, { "cover": "OVC", "base_ft": null }]), Value::Null),
+        json!({ "ceiling_ft": 1200.0, "ceiling_unknown": false })
+    );
+    // A vertical visibility is the obscuration from the surface, under all.
+    assert_eq!(sky(json!([{ "cover": "OVX", "base_ft": null }]), json!(200)), json!({ "ceiling_ft": 200.0, "ceiling_unknown": false }));
+    assert_eq!(sky(json!([{ "cover": "SCT", "base_ft": 3000 }]), Value::Null), json!({ "ceiling_ft": null, "ceiling_unknown": false }));
+    let category = |vis: f64| ask("report_flight_category", json!({ "ceiling_ft": null, "ceiling_unknown": true, "visibility_sm": vis }));
+    assert_eq!(category(10.0), Value::Null);
+    assert_eq!(category(0.5), json!("LIFR"));
+    assert_eq!(ask("report_flight_category", json!({ "ceiling_ft": null, "visibility_sm": 10 })), json!("VFR"));
 }
 
 #[test]

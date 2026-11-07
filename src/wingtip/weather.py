@@ -697,17 +697,41 @@ def _period(el) -> dict:
     }
 
 
-def _ceiling_ft(period: dict) -> float | None:
-    """The lowest broken, overcast or obscured layer -- FEW/SCT don't count
-    as a ceiling by the FAA's own definition (14 CFR 1.1) -- an obscured
-    sky's at its vertical visibility: the engine's (metar.rs `ceiling_of`,
-    its `ceiling_ft`). The feed marks an obscured layer `OVX`, with the
+def _sky_ceiling(period: dict) -> tuple[float | None, bool]:
+    """The ceiling and whether it is not known: the lowest broken,
+    overcast or obscured layer -- FEW/SCT don't count as a ceiling by the
+    FAA's own definition (14 CFR 1.1) -- an obscured sky's at its vertical
+    visibility: the engine's (metar.rs `sky_ceiling_of`, its
+    `sky_ceiling`). The feed marks an obscured layer `OVX`, with the
     height as the layer's base in a METAR and only as `vert_vis_ft` in a
-    TAF."""
+    TAF.
+
+    A layer the station could not measure ("OVC///", "VV///") comes in
+    the AWC's data API with no base (its `sky_condition` has no
+    `cloud_base_ft_agl`; the JSON gives `"base": null`). Where that is
+    the lowest broken, overcast or obscured layer the ceiling is not
+    known -- it could be on the ground -- so it is (None, True), never
+    (None, False), which would read as no ceiling at all and let an
+    "OVC/// 10SM" station pass as VFR."""
     layers = [{"cover": c.get("cover"), "base_ft": c.get("base")} for c in period.get("clouds", [])]
-    found = json.loads(wingtip_native.call("ceiling_ft", json.dumps({"layers": layers, "vert_vis_ft": period.get("vert_vis")})))
+    found = json.loads(wingtip_native.call("sky_ceiling", json.dumps({"layers": layers, "vert_vis_ft": period.get("vert_vis")})))
+    ceiling = found["ceiling_ft"]
     # A base as the feed gives it, whole feet.
-    return int(found) if isinstance(found, float) and found.is_integer() else found
+    return (int(ceiling) if isinstance(ceiling, float) and ceiling.is_integer() else ceiling), found["ceiling_unknown"]
+
+
+def _ceiling_ft(period: dict) -> float | None:
+    """The ceiling (_sky_ceiling), None where there is none or it is not
+    known."""
+    return _sky_ceiling(period)[0]
+
+
+def _report_category(ceiling_ft: float | None, ceiling_unknown: bool, visibility_sm: float | None) -> str | None:
+    """A report's flight category, the engine's (AC 00-45H; metar.rs
+    `flight_category_of`): with the ceiling not known only what the
+    visibility settles -- LIFR under a mile -- else None."""
+    return json.loads(wingtip_native.call("report_flight_category", json.dumps(
+        {"ceiling_ft": ceiling_ft, "ceiling_unknown": ceiling_unknown, "visibility_sm": visibility_sm})))
 
 
 def _visibility_sm(period: dict) -> float | None:
@@ -734,19 +758,31 @@ def _parse_metars(xml_bytes: bytes) -> dict:
         if ident in latest and latest[ident][0] >= observed:
             continue
         period = _period(el)
+        ceiling, ceiling_unknown = _sky_ceiling(period)
+        visibility = _visibility_sm(period)
+        category = el.findtext("flight_category")
+        if ceiling_unknown:
+            # The AWC's own category takes a layer it has no height for as
+            # no ceiling, and calls "OVC/// 10SM" VFR; the ceiling is not
+            # known (14 CFR 1.1), so the category is only what the
+            # visibility settles.
+            category = _report_category(None, True, visibility)
         latest[ident] = (observed, {
             "raw": el.findtext("raw_text"),
             # When the report was made, so a page can say how old it is:
             # the server keeps serving a copy for hours when a refresh
             # fails, and a colour alone says nothing about its age.
             "observed_at": observed or None,
-            "flight_category": el.findtext("flight_category"),
+            "flight_category": category,
             # The weather itself, "-TSRA BR", as reported: a thunderstorm
             # at or near the field (TS, VCTS) is one to keep away from
             # (wingtip.route_options).
             "wx": el.findtext("wx_string") or "",
-            "ceiling_ft": _ceiling_ft(period),
-            "visibility_sm": _visibility_sm(period),
+            "ceiling_ft": ceiling,
+            # A broken or overcast layer reported with no height is the
+            # lowest: the ceiling is not known, not absent (_sky_ceiling).
+            "ceiling_unknown": ceiling_unknown,
+            "visibility_sm": visibility,
             # "VRB" is a direction the arithmetic can't use.
             "wind_dir_true_deg": _float(el.findtext("wind_dir_degrees")),
             "wind_speed_kt": _float(el.findtext("wind_speed_kt")),
@@ -943,6 +979,7 @@ def taf_for_idents(idents: list) -> dict:
         answer[ident] = None if station is None else {
             "raw": station.get("raw"),
             "ceiling_ft": worst["ceiling_ft"] if worst else None,
+            "ceiling_unknown": bool(worst and worst["ceiling_unknown"]),
             "visibility_sm": worst["visibility_sm"] if worst else None,
             "change": (period or {}).get("change") or "",
             "valid_from": (period or {}).get("timeFrom"),
@@ -1022,14 +1059,18 @@ def _worst_in_window(fcsts: list, start: float, end: float) -> dict | None:
     [start, end], TEMPO and PROB groups included: a go/no-go read is the
     worst the forecast allows, and taking only the base forecast let
     `TEMPO 1/2SM FG` read as VFR. None when the TAF says nothing about
-    the window at all."""
+    the window at all. `ceiling_unknown` where any period forecasts a
+    ceiling with no height (_sky_ceiling): the lowest known ceiling is
+    then not the worst the forecast allows."""
     periods = _periods_in_window(fcsts, start, end)
     if not periods:
         return None
-    ceilings = [c for c in (_ceiling_ft(p) for p in periods) if c is not None]
+    skies = [_sky_ceiling(p) for p in periods]
+    ceilings = [c for c, _ in skies if c is not None]
     visibilities = [v for v in (_visibility_sm(p) for p in periods) if v is not None]
     return {
         "ceiling_ft": min(ceilings) if ceilings else None,
+        "ceiling_unknown": any(unknown for _, unknown in skies),
         "visibility_sm": min(visibilities) if visibilities else None,
     }
 
@@ -1049,9 +1090,11 @@ def ceiling_visibility_along_route(
     elsewhere in this project -- a small departure/destination field
     often has no TAF of its own at all.
 
-    Returns {"min_ceiling_ft", "min_visibility_sm", "stations"} -- the
-    first two are the worst (most restrictive) values found nearby, for
-    a conservative go/no-go read; "stations" is the per-station detail,
+    Returns {"min_ceiling_ft", "min_visibility_sm", "ceiling_unknown_at",
+    "stations"} -- the first two are the worst (most restrictive) values
+    found nearby, for a conservative go/no-go read; "ceiling_unknown_at"
+    the stations forecasting a ceiling with no height, where the worst is
+    not known (_sky_ceiling); "stations" is the per-station detail,
     where each is and its field's elevation with its own worst ceiling
     and visibility, which wingtip.altitude keeps each leg's altitudes under
     the clouds with (14 CFR 91.155).
@@ -1068,7 +1111,7 @@ def ceiling_visibility_along_route(
     ]
 
     start, end = window if window else (time.time(), time.time())
-    per_station, ceilings, visibilities = [], [], []
+    per_station, ceilings, visibilities, unknown_at = [], [], [], []
     for station in stations:
         worst = _worst_in_window(station["fcsts"], start, end)
         if worst is None:
@@ -1077,8 +1120,11 @@ def ceiling_visibility_along_route(
         visibility = worst["visibility_sm"]
         per_station.append({
             "icaoId": station["icaoId"], "lat": station["lat"], "lon": station["lon"],
-            "elevation_ft": station.get("elevation_ft"), "ceiling_ft": ceiling, "visibility_sm": visibility,
+            "elevation_ft": station.get("elevation_ft"), "ceiling_ft": ceiling,
+            "ceiling_unknown": worst["ceiling_unknown"], "visibility_sm": visibility,
         })
+        if worst["ceiling_unknown"]:
+            unknown_at.append(station["icaoId"])
         if ceiling is not None:
             ceilings.append(ceiling)
         if visibility is not None:
@@ -1087,6 +1133,7 @@ def ceiling_visibility_along_route(
     return {
         "min_ceiling_ft": min(ceilings) if ceilings else None,
         "min_visibility_sm": min(visibilities) if visibilities else None,
+        "ceiling_unknown_at": unknown_at,
         "stations": per_station,
     }
 
@@ -1094,7 +1141,7 @@ def ceiling_visibility_along_route(
 def tafs_over(windows: dict) -> dict:
     """Each station's TAF read over a window of its own -- {icaoId:
     (start, end)} in unix seconds, around when the flight gets there --
-    as {icaoId: {"ceiling_ft", "visibility_sm", "raw"}}: the worst it
+    as {icaoId: {"ceiling_ft", "ceiling_unknown", "visibility_sm", "raw"}}: the worst it
     forecasts then (TEMPO and PROB groups included, as _worst_in_window
     reads them) and the forecast as issued. The route's forecast reads
     every station over the whole flight, the right read for go/no-go; a
@@ -1108,7 +1155,8 @@ def tafs_over(windows: dict) -> dict:
         window = windows.get(station["icaoId"])
         if window is None:
             continue
-        worst = _worst_in_window(station["fcsts"], *window) or {"ceiling_ft": None, "visibility_sm": None}
+        worst = _worst_in_window(station["fcsts"], *window) or {
+            "ceiling_ft": None, "ceiling_unknown": False, "visibility_sm": None}
         found[station["icaoId"]] = {**worst, "raw": station.get("raw")}
     return found
 
@@ -1142,15 +1190,26 @@ def vfr_not_recommended_reasons(idents: list, metars: dict, forecast: dict) -> l
     route currently reporting IFR or LIFR, then the along-route forecast
     ceiling or visibility under the basic VFR minimums. `metars` is
     metar_for_idents()'s answer, `forecast`
-    ceiling_visibility_along_route()'s. Empty when nothing warrants it."""
+    ceiling_visibility_along_route()'s. Empty when nothing warrants it.
+
+    A ceiling reported or forecast with no height ("OVC///") is said too:
+    it could be at any height, the ground included, which is a condition
+    that makes VFR flight doubtful (AIM 7-1-5), and saying nothing would
+    pass it as no ceiling."""
     reasons = []
     for ident in idents:
-        category = (metars.get(ident) or {}).get("flight_category")
+        metar = metars.get(ident) or {}
+        category = metar.get("flight_category")
         if category in ("IFR", "LIFR"):
             reasons.append(f"{ident} currently reporting {category}")
+        elif metar.get("ceiling_unknown"):
+            reasons.append(f"{ident} currently reporting a ceiling of unknown height")
     ceiling, visibility = forecast.get("min_ceiling_ft"), forecast.get("min_visibility_sm")
     if ceiling is not None and ceiling < VFR_MIN_CEILING_FT:
         reasons.append(f"forecast ceiling as low as {ceiling:,.0f} ft along the route")
+    unknown_at = forecast.get("ceiling_unknown_at") or []
+    if unknown_at:
+        reasons.append(f"forecast ceiling of unknown height at {', '.join(unknown_at)}")
     if visibility is not None and visibility < VFR_MIN_VISIBILITY_SM:
         reasons.append(f"forecast visibility as low as {visibility:g} sm along the route")
     return reasons

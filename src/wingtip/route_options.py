@@ -290,7 +290,7 @@ def _weather(grid: _Grid, window: tuple, ceiling_ft: float, visibility_sm: float
             grid.close(grid.near(lat, lon, STORM_NM), "storm", f"Thunderstorms forecast at {ident}")
         worst = weather._worst_in_window(station["fcsts"], start, end) or {}
         _field_weather(grid, ident, lat, lon, worst.get("ceiling_ft"), worst.get("visibility_sm"),
-                       ceiling_ft, visibility_sm, "forecast")
+                       ceiling_ft, visibility_sm, "forecast", worst.get("ceiling_unknown", False))
     if start - time.time() > METAR_AHEAD_S:
         return
     for ident, report in weather._dataset("metars").items():
@@ -302,20 +302,25 @@ def _weather(grid: _Grid, window: tuple, ceiling_ft: float, visibility_sm: float
         if ident in seen:
             continue
         _field_weather(grid, ident, lat, lon, report.get("ceiling_ft"), report.get("visibility_sm"),
-                       ceiling_ft, visibility_sm, "reported")
+                       ceiling_ft, visibility_sm, "reported", report.get("ceiling_unknown", False))
 
 
-def _category(ceiling: float | None, visibility: float | None) -> str | None:
+def _category(ceiling: float | None, visibility: float | None, ceiling_unknown: bool = False) -> str | None:
     """A report's flight category, a missing figure no limit; None where
-    it gives neither."""
-    return json.loads(wingtip_native.call("report_flight_category", json.dumps({"ceiling_ft": ceiling, "visibility_sm": visibility})))
+    it gives neither, or the ceiling is not known and the visibility
+    does not settle it (metar.rs flight_category_of)."""
+    return json.loads(wingtip_native.call("report_flight_category", json.dumps(
+        {"ceiling_ft": ceiling, "ceiling_unknown": ceiling_unknown, "visibility_sm": visibility})))
 
 
 def _field_weather(grid: _Grid, ident: str, lat: float, lon: float, ceiling, visibility,
-                   min_ceiling_ft: float, min_visibility_sm: float, how: str) -> None:
+                   min_ceiling_ft: float, min_visibility_sm: float, how: str, ceiling_unknown: bool = False) -> None:
     low = (ceiling is not None and ceiling < min_ceiling_ft) or (visibility is not None and visibility < min_visibility_sm)
     words = ", ".join(w for w in (
         f"ceiling {int(ceiling):,} ft" if ceiling is not None else "",
+        # A layer reported with no height ("OVC///") is a ceiling not
+        # known, not none (14 CFR 1.1; wingtip.weather._sky_ceiling).
+        "ceiling of unknown height" if ceiling_unknown else "",
         f"visibility {visibility:g} sm" if visibility is not None else "",
     ) if w)
     if low:
@@ -323,7 +328,9 @@ def _field_weather(grid: _Grid, ident: str, lat: float, lon: float, ceiling, vis
     # Marginal: a report's flight category worse than VFR (AC 00-45H, AIM
     # 7-1-7: MVFR is a ceiling of 1,000 to 3,000 ft and/or visibility 3 to
     # 5 miles, inclusive), the engine's (metar.rs flight_category).
-    elif _category(ceiling, visibility) not in (None, "VFR"):
+    # A ceiling of unknown height could be any: marked, as a pilot is
+    # warned and never stopped by the planner, not passed as VFR.
+    elif ceiling_unknown or _category(ceiling, visibility) not in (None, "VFR"):
         grid.mark(grid.near(lat, lon, MARGINAL_NM), "marginal", f"{ident} {how} marginal ({words})")
 
 
