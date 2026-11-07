@@ -43,8 +43,11 @@ is docs/NATIVE-ANDROID.md.
   pilot's account and records, and the engine answers every rule. The shared fixtures
   in `web/src/lib/fixtures` are read by the web's vitest tests and by
   `ios/WingtipTests/SharedFixturesTests.swift` (project.yml bundles the
-  folder into the test target by its path, not a copy), which now hold
-  the engine to them through the phone's own bridge. The few rules still
+  folder into the test target by its path, not a copy), and
+  `BridgeFixturesTests.swift` holds the engine's raw JSON answers to
+  them through the phone's own bridge (`Engine.callText` over
+  `wt_call`), so a bridge that changes a key, a number, a null or a
+  character fails CI though the Rust and web tests pass. The few rules still
   in Swift are in the table below with their fixtures; issue #482 moves
   them into the engine. Every other figure
   comes from the planner; the app shows the server's answer, with its
