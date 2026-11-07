@@ -402,6 +402,33 @@ class PlannerProxyControllerTest {
     }
 
     @Test
+    void theOverlayTilesArchiveIsReadInRangesAndKeptForItsCycle() throws Exception {
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/overlay-tiles")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/overlay-tiles/2026-10-29-v1-0badf00d.pmtiles")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/overlay-tiles/a/b.pmtiles")).isFalse();
+        responseStatus = 206;
+        responseHeaders.put("Cache-Control", "public, max-age=2419200, immutable");
+        responseHeaders.put("Content-Range", "bytes 0-1/2");
+        responseHeaders.put("Accept-Ranges", "bytes");
+        responseHeaders.put("ETag", "\"abc\"");
+        MvcResult started = mockMvc.perform(get("/api/planner/overlay-tiles/2026-10-29-v1-0badf00d.pmtiles")
+                        .header("Range", "bytes=0-1"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        // The map's PMTiles reader asks a range at a time: the range went
+        // to the planner, and the part, its range and its ETag came back,
+        // kept by the browser and CloudFront as an airport diagram is.
+        mockMvc.perform(asyncDispatch(started))
+                .andExpect(status().is(206))
+                .andExpect(header().string("Content-Length", "2"))
+                .andExpect(header().string("Content-Range", "bytes 0-1/2"))
+                .andExpect(header().string("Accept-Ranges", "bytes"))
+                .andExpect(header().string("ETag", "\"abc\""))
+                .andExpect(header().string("Cache-Control", "public, max-age=2419200, immutable"));
+        assertThat(received).contains("range=bytes=0-1");
+    }
+
+    @Test
     void theRetiredPerKindTilePathsAreNotForwarded() throws Exception {
         // /api/sectional-tile and /api/tac-tile were the same tiles under
         // older names, with no caller left; the planner no longer has them.

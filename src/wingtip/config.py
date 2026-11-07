@@ -139,6 +139,8 @@ class Settings(BaseSettings):
     registry_refresh: bool = True
     #: Whether the cycle pack is built once a cycle (0 on a test stack).
     cycle_pack: bool = True
+    #: Whether the map's overlay tiles are built from the cycle pack once a cycle.
+    overlay_tiles: bool = True
     #: Whether the chart's landmark cells are read at start (0 in CI).
     landmarks_build: bool = True
     #: Where the landmark cells are kept; None means beside the cycle's tiles.
@@ -192,7 +194,7 @@ class Settings(BaseSettings):
     swim_queue_tfms: str | None = None
 
     read_switches = field_validator(
-        "charts_fetch_for_tiles", "adsbfi_open_data", "registry_refresh", "cycle_pack", "landmarks_build",
+        "charts_fetch_for_tiles", "adsbfi_open_data", "registry_refresh", "cycle_pack", "overlay_tiles", "landmarks_build",
         "charts_auto_refresh", "chart_reads_in_process", mode="before")(_switch)
 
     @field_validator("assistant_fallbacks", mode="before")

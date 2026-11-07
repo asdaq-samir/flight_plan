@@ -213,6 +213,29 @@ service discovery at `planning-service.wingtip.internal`.
   map depends on no hosted chart service. Its own OpenAPI page is at
   [`localhost:8084/docs`](http://localhost:8084/docs); the full endpoint
   list is in [`planning-service/README.md`](../planning-service/README.md)
+- `/api/overlay-tiles`, `/api/overlay-tiles/{name}.pmtiles` — the map's
+  FAA overlays as vector tiles for MapLibre (`wingtip.vector_tiles`): one
+  PMTiles archive a cycle, built after the cycle pack by tippecanoe (in
+  the planner's image, a pinned tag) and read by the map in byte ranges
+  (the `pmtiles` protocol; `web/src/lib/map/overlayTiles.ts` registers it
+  and makes the source; Android's and iOS's MapLibre read `pmtiles://`
+  themselves). Zooms 4 to 12, lines within `tolerance_m` (4.1 m) of the
+  FAA's, nothing dropped for size. A sample of the 29 Oct 2026 cycle,
+  92–84 W by 38–46 N (about a tenth of the cycle's features: 522
+  airspace volumes, 55 special-use areas, 2,218 airports, 156 navaids,
+  6,933 fixes), made an 8.6 MB archive in 90 s (4 s of GeoJSON, 86 s of
+  tippecanoe) on the Mac mini. By that, the whole cycle (5,621 volumes,
+  1,545 areas, 19,146 airports, 1,511 navaids, 70,060 fixes; 540 MB of
+  GeoJSON while it builds) is some 85–95 MB and 15 minutes, once a
+  cycle; a map reads only the tiles in view. Its source layers and fields:
+
+  | Layer | From | Fields | First zoom |
+  |---|---|---|---|
+  | `airspace` | NASR Class_Airspace.shp, Class B–E | `class`, `local_type`, `name`, `ident`, `floor_ft`, `floor_ref` (SFC/AGL/MSL), `ceiling_ft` (MSL), `ceiling_excluded`, `number`, `hours_code`, `hours_remark` | B 4, C 5, D 6, E2–E4 7, E5–E7 8 |
+  | `special_use` | FAA special use airspace (ADDS) | `type` (P/R/MOA/W/A/D), `kind`, `name`, `floor_ft`, `floor_ref`, `ceiling_ft`, `ceiling_ref`, `times_of_use`, `time_zone`, `controlling_agency` | 5 |
+  | `airports` | NASR APT_BASE, APT_RWY, APT_RWY_END (operational only) | `ident`, `faa_id`, `name`, `type`, `use`, `military`, `towered`, `elevation_ft`, `longest_ft`, `hard_ft`, `runway_true`, `fuel`, `rank` (0 towered … 4 heliport) | by rank: 5, 6, 7, 9, 10 |
+  | `navaids` | NASR NAV_BASE (in service) | `ident`, `name`, `kind`, `freq`, `channel`, `service_volume`, `mag_var`, `elevation_ft`, `hours`, `restricted` | VORs 5, others 7 |
+  | `fixes` | NASR FIX_BASE, every row | `ident`, `kind`, `vfr`, `enroute_low` | charted 8, others 10 |
 - `/api/briefing` — the FAA-sequence weather briefing behind the
   briefing on `/app/plan`, the flight planning drawer (the
   narrative itself comes through `webapp`'s own `/api/comparison`,

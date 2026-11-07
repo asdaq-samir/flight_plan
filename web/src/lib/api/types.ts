@@ -132,6 +132,7 @@ export type AirspaceInView = Schemas["AirspaceInView"];
 export type VorPin = Schemas["VorPin"];
 export type FixPin = Schemas["FixPin"];
 export type NavaidsInView = Schemas["NavaidsInView"];
+export type OverlayTiles = Schemas["OverlayTiles"];
 export type ModelComparisonEntry = Schemas["ModelComparisonEntry"];
 export type ModelComparison = Schemas["ModelComparison"];
 export type Status = Schemas["Status"];

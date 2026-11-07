@@ -58,7 +58,13 @@ _LOCK = threading.Lock()
 
 
 def _read(path: Path) -> dict[str, dict]:
-    table = {}
+    return {fix["ident"]: fix for fix in read_rows(path)}
+
+
+def read_rows(path: Path):
+    """Every row of FIX_BASE.csv as a fix, in the file's order: an ident
+    filed in two places is two fixes here, where the table above keeps
+    the last; the map's vector tiles (wingtip.vector_tiles) draw both."""
     with open(path, newline="", encoding="utf-8", errors="replace") as f:
         for row in csv.DictReader(f):
             ident = (row.get("FIX_ID") or "").strip().upper()
@@ -79,7 +85,7 @@ def _read(path: Path) -> dict[str, dict]:
             kind = KINDS.get(use, "Fix")
             if use == "VFR" and not vfr:
                 kind = "Helicopter route waypoint" if "HELICOPTER ROUTE" in charts else "Uncharted VFR waypoint"
-            table[ident] = {
+            yield {
                 "ident": ident, "lat": lat, "lon": lon, "kind": kind,
                 "vfr": vfr, "state": (row.get("STATE_CODE") or "").strip() or None,
                 # On the IFR low-altitude enroute chart: the intersections
@@ -88,7 +94,6 @@ def _read(path: Path) -> dict[str, dict]:
                 # procedures' thousands no pilot sees on a route chart.
                 "enroute_low": ENROUTE_LOW_CHART in charts,
             }
-    return table
 
 
 def _station_variation(row: dict) -> float | None:

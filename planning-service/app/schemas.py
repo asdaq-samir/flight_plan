@@ -3120,6 +3120,31 @@ class CyclePacks(BaseModel):
     regions: list[CyclePackRegion]
 
 
+class OverlayTilesLayer(BaseModel):
+    """One layer of the overlay tiles (wingtip.vector_tiles.LAYERS) and how
+    many features it holds."""
+
+    name: str
+    features: int
+
+
+class OverlayTiles(BaseModel):
+    """The map's FAA overlays as vector tiles (wingtip.vector_tiles): one
+    PMTiles archive of the cycle, fetched in byte ranges at
+    /api/overlay-tiles/{name}.pmtiles; its zooms, and how far its lines
+    may stray from the FAA's (metres on the ground)."""
+
+    cycle: str
+    name: str
+    version: int
+    bytes: int
+    built_at: float
+    min_zoom: int
+    max_zoom: int
+    tolerance_m: float
+    layers: list[OverlayTilesLayer]
+
+
 class WeatherArea(BaseModel):
     """An area of weather on the map (wingtip.weather_map.advisories_in): a
     SIGMET, a convective SIGMET or a G-AIRMET snapshot; its hazard, its
