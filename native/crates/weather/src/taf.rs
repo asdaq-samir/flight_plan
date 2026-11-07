@@ -33,12 +33,16 @@ pub struct Taf {
 }
 
 impl Period {
+    /// The period's ceiling (metar::sky_ceiling, 14 CFR 1.1), None where
+    /// there is none or it is not known (ceiling_unknown tells them apart).
     pub fn ceiling_ft(&self) -> Option<f64> {
-        self.layers
-            .iter()
-            .filter(|l| matches!(l.cover.as_str(), "BKN" | "OVC" | "VV"))
-            .filter_map(|l| l.base_ft_agl)
-            .fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.min(b))))
+        metar::sky_ceiling(&self.layers).0
+    }
+
+    /// The lowest broken, overcast or obscured layer forecast with no
+    /// height ("OVC///", "VV///"): the ceiling is not known, not absent.
+    pub fn ceiling_unknown(&self) -> bool {
+        metar::sky_ceiling(&self.layers).1
     }
 }
 
@@ -239,6 +243,8 @@ pub fn to_json(t: &Taf) -> String {
         json::opt_number(&mut out, p.visibility_sm);
         out.push_str(",\"ceiling_ft\":");
         json::opt_number(&mut out, p.ceiling_ft());
+        out.push_str(",\"ceiling_unknown\":");
+        out.push_str(if p.ceiling_unknown() { "true" } else { "false" });
         out.push_str(",\"wx\":");
         json::string(&mut out, &p.weather.join(" "));
         out.push('}');
@@ -262,5 +268,16 @@ mod tests {
         assert_eq!((t.periods[1].change.as_str(), t.periods[1].to), ("FM", day + 36 * 3600));
         assert_eq!((t.periods[2].change.as_str(), t.periods[2].visibility_sm, t.periods[2].ceiling_ft()), ("TEMPO", Some(2.0), Some(1200.0)));
         assert_eq!((t.periods[3].change.as_str(), t.periods[3].probability, t.periods[3].ceiling_ft()), ("PROB", Some(30), Some(200.0)));
+        assert!(t.periods.iter().all(|p| !p.ceiling_unknown()));
+    }
+
+    #[test]
+    fn an_overcast_of_no_height_is_a_ceiling_not_known() {
+        let near = time::days_from_civil(2026, 11, 2) * time::DAY_S + 12 * 3600;
+        let t = parse("TAF KXYZ 021120Z 0212/0312 27012KT P6SM OVC/// FM021800 30015KT P6SM SCT040 BKN///", near).unwrap();
+        assert_eq!((t.periods[0].ceiling_ft(), t.periods[0].ceiling_unknown()), (None, true));
+        assert!(to_json(&t).contains("\"ceiling_unknown\":true"));
+        // Above a scattered layer of known height it is still the ceiling, and not known.
+        assert_eq!((t.periods[1].ceiling_ft(), t.periods[1].ceiling_unknown()), (None, true));
     }
 }
