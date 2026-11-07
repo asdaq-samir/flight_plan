@@ -8,6 +8,23 @@ import Foundation
 /// taken off what the planner required. Arithmetic on the planner's
 /// figures, no rule of its own.
 enum Flight {
+    /// Whether a groundspeed is flying speed, by the engine's rule
+    /// (motion/glide.rs underway, AIRBORNE_KT 40 kt, the debrief's
+    /// airborne line), the web's and OwnTrail's same: the app keeps no
+    /// figure of its own for it.
+    static func underway(_ groundspeedKt: Double?) -> Bool {
+        (try? Engine.call("underway", json: ["speed_kt": groundspeedKt])) ?? false
+    }
+
+    /// Which side of true north the compass points, from the planner's
+    /// signed variation, positive east (wingtip.magnetic; the nav log's
+    /// MH = TH - var). West variation is added to a true course and east
+    /// taken off, "east is least, west is best" (FAA Pilot's Handbook of
+    /// Aeronautical Knowledge, ch. 16, Navigation: Variation).
+    static func variationSide(_ deg: Double) -> (letter: String, word: String) {
+        deg < 0 ? ("W", "west") : ("E", "east")
+    }
+
     struct Left: Equatable, Sendable {
         /// Miles along the course line to the position's nearest point.
         let alongNm: Double
