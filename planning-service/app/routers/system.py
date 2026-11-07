@@ -2,7 +2,9 @@
 snapshot for Settings' Dev tab: which services answer, how fresh the
 reference data is, which model is promoted and how it was trained, which
 corridors are built and how far their labels have come -- and the one
-pipeline action offered from here, a retrain run through Airflow."""
+pipeline action offered from here, a retrain: the training run
+(`python -m wingtip.pipeline run`) as a container the dev-services
+sidecar starts."""
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -10,7 +12,7 @@ from pathlib import Path
 
 import requests
 from fastapi import APIRouter, HTTPException
-from wingtip import chartlabels, charts, checkpoint_notes, model_registry, weather
+from wingtip import chartlabels, charts, checkpoint_notes, model_registry, retry, weather
 from wingtip.terrain import DEFAULT_FAA_CACHE_DIR
 
 from .. import chart_model, chart_refresh, errors
@@ -24,6 +26,7 @@ from ..schemas import (
     ModelSnapshot,
     ModelVersion,
     PipelineRun,
+    PipelineStage,
     PipelineStatus,
     RetrainStarted,
     ServiceStatus,
@@ -31,6 +34,8 @@ from ..schemas import (
     TrainingReadiness,
     WeatherDataset,
 )
+
+from . import devservices
 
 router = APIRouter()
 
@@ -41,13 +46,6 @@ NAV_LOG_AGENT_URL = get_settings().nav_log_agent_url
 # readiness (the readiness group includes the database).
 WEBAPP_URL = get_settings().webapp_url
 CREWAI_AGENT_URL = get_settings().crewai_agent_url
-# Airflow, for the retrain button: its API base, the DAG to run, and
-# credentials -- AIRFLOW_USERNAME/AIRFLOW_PASSWORD, or the passwords file
-# Airflow's own standalone mode generates (docker-compose.yml mounts that
-# volume here read-only, so a local stack needs no configuration).
-AIRFLOW_URL = get_settings().airflow_url
-AIRFLOW_DAG_ID = get_settings().airflow_dag_id
-AIRFLOW_PASSWORDS_FILE = get_settings().airflow_passwords_file
 PROBE_TIMEOUT_S = 3.0
 
 # The FAA downloads a nav log depends on, wherever wingtip keeps them.
@@ -96,12 +94,15 @@ def _agent_status(url: str | None) -> ServiceStatus | None:
     return ServiceStatus(up=up, detail=detail)
 
 
-def _read_metrics(directory: Path) -> dict | None:
-    path = directory / "metrics.json"
+def _read_json(path: Path) -> dict | None:
     try:
         return json.loads(path.read_text())
     except (OSError, ValueError):
         return None
+
+
+def _read_metrics(directory: Path) -> dict | None:
+    return _read_json(directory / "metrics.json")
 
 
 def _current_model() -> ModelSnapshot | None:
@@ -173,61 +174,24 @@ def _weather_datasets() -> list[WeatherDataset]:
     return [WeatherDataset(name=name, fetched_at=_iso(fetched)) for name, fetched in weather.dataset_status().items()]
 
 
-def _airflow_credentials() -> tuple[str, str] | None:
-    user, password = get_settings().airflow_username, get_settings().airflow_password
-    if user and password:
-        return user, password
-    if AIRFLOW_PASSWORDS_FILE:
-        try:
-            passwords = json.loads(Path(AIRFLOW_PASSWORDS_FILE).read_text())
-        except (OSError, ValueError):
-            return None
-        user = user or "admin"
-        if passwords.get(user):
-            return user, passwords[user]
-    return None
+# How to run the training by hand, where the console cannot start it. The
+# compose container, not a one-off `compose run`: the sidecar sees only the
+# former, and the console reads "is a run going" from it.
+BY_HAND = "docker compose up retrain"
+RUN_GOING = "A training run is going already; follow it in Performance."
 
 
-def _airflow_token(user: str, password: str) -> str:
-    resp = requests.post(f"{AIRFLOW_URL}/auth/token", json={"username": user, "password": password}, timeout=10)
-    resp.raise_for_status()
-    return resp.json()["access_token"]
-
-
-def _pipeline_unreachable(detail: str, configured: bool) -> PipelineStatus:
-    return PipelineStatus(airflow_configured=configured, airflow_reachable=False, last_run=None, detail=detail)
-
-
-# A failed run's error, by run id: it never changes, and the status is
-# polled every thirty seconds.
-_RUN_ERRORS: dict[str, str | None] = {}
-
-
-def _run_error(run_id: str, headers: dict) -> str | None:
-    """The exception a failed run's failed task ended on -- "Insufficient-
-    LabelsError: ...", say -- from that task's log through Airflow's API,
-    so the console can say why rather than only that it failed. None
-    where the log says nothing that reads as one, or cannot be had."""
-    if run_id in _RUN_ERRORS:
-        return _RUN_ERRORS[run_id]
-    base = f"{AIRFLOW_URL}/api/v2/dags/{AIRFLOW_DAG_ID}/dagRuns/{run_id}/taskInstances"
-    error = None
-    try:
-        tasks = requests.get(base, headers=headers, timeout=PROBE_TIMEOUT_S).json().get("task_instances", [])
-        failed = next((t for t in tasks if t.get("state") == "failed"), None)
-        if failed:
-            log = requests.get(
-                f"{base}/{failed['task_id']}/logs/{failed.get('try_number') or 1}",
-                headers={**headers, "Accept": "application/json"}, timeout=PROBE_TIMEOUT_S,
-            ).json()
-            events = [e.get("event") if isinstance(e, dict) else str(e) for e in log.get("content", [])]
-            # The traceback's last line: "SomethingError: what happened".
-            lines = [e.strip() for e in events if isinstance(e, str) and "Error: " in e and not e.strip().startswith("raise")]
-            error = lines[-1][:400] if lines else f"{failed['task_id']} failed"
-    except (requests.RequestException, ValueError, KeyError):
+def _last_run() -> PipelineRun | None:
+    """The last training run, from the status file it writes as it goes,
+    or None before the first."""
+    run = _read_json(model_registry.RUN_STATUS_PATH)
+    if run is None:
         return None
-    _RUN_ERRORS[run_id] = error
-    return error
+    return PipelineRun(
+        run_id=run.get("run_id"), state=run.get("state"), stage=run.get("stage"),
+        started_at=run.get("started_at"), finished_at=run.get("finished_at"), error=run.get("error"),
+        stages=[PipelineStage(**s) for s in run.get("stages", []) if isinstance(s, dict) and "name" in s and "state" in s],
+    )
 
 
 def _training() -> TrainingReadiness | None:
@@ -240,7 +204,7 @@ def _training() -> TrainingReadiness | None:
     the chart reader's points, and the landmark model could use only
     those within 0.2 nm of an OpenStreetMap landmark and above 0 -- 7 of
     32. A run still retrains the landmark model when it has enough
-    (the DAG's landmarks_ready), and skips it when not."""
+    (its landmarks_ready stage), and skips it when not."""
     try:
         return TrainingReadiness(**chart_model.readiness())
     except (OSError, ValueError, KeyError, RuntimeError):
@@ -248,34 +212,25 @@ def _training() -> TrainingReadiness | None:
 
 
 def _pipeline_status() -> PipelineStatus:
-    if not AIRFLOW_URL:
-        return _pipeline_unreachable("AIRFLOW_URL is not set", configured=False)
-    creds = _airflow_credentials()
-    if creds is None:
-        return _pipeline_unreachable("no Airflow credentials (AIRFLOW_USERNAME/AIRFLOW_PASSWORD or the passwords file)",
-                                     configured=False)
-    try:
-        token = _airflow_token(*creds)
-        resp = requests.get(
-            f"{AIRFLOW_URL}/api/v2/dags/{AIRFLOW_DAG_ID}/dagRuns",
-            # By when it was asked for: a run started from here has no
-            # logical date, and ordered by that one the latest sorted last
-            # -- the console showed a run from three days before.
-            params={"order_by": "-run_after", "limit": 1},
-            headers={"Authorization": f"Bearer {token}"}, timeout=PROBE_TIMEOUT_S,
-        )
-        resp.raise_for_status()
-        runs = resp.json().get("dag_runs", [])
-    except requests.ConnectionError:
-        return _pipeline_unreachable(f"Airflow at {AIRFLOW_URL} is not running", configured=True)
-    except (requests.RequestException, ValueError, KeyError) as err:
-        return _pipeline_unreachable(f"Airflow did not answer: {str(err).split(chr(10))[0][:160]}", configured=True)
-    last = runs[0] if runs else None
-    error = _run_error(last["dag_run_id"], {"Authorization": f"Bearer {token}"}) if last and last.get("state") == "failed" else None
-    return PipelineStatus(
-        airflow_configured=True, airflow_reachable=True, detail=None,
-        last_run=PipelineRun(dag_run_id=last.get("dag_run_id"), state=last.get("state"), error=error) if last else None,
-    )
+    """The training run's container, as the sidecar sees it, beside the
+    run's own status file. The container is the truth on whether a run
+    is going: the file still shows the last run until the new one has
+    written its first line, and says "running" for ever after a run
+    whose container was stopped part-way."""
+    container = devservices.service_state(devservices.RETRAIN_SERVICE)
+    last = _last_run()
+    if container == "running":
+        if last is None or last.state != "running":
+            last = PipelineRun(run_id=None, state="running", stage=None)
+    elif last is not None and last.state == "running" and container is not None:
+        last = last.model_copy(update={"state": "failed", "error": last.error or "The run stopped before it finished."})
+    if container is None:
+        detail = f"No dev-services sidecar to start a run from here. By hand: {BY_HAND}"
+    elif container == "absent":
+        detail = "The training run has no container yet: docker compose create retrain, once"
+    else:
+        detail = None
+    return PipelineStatus(startable=detail is None, last_run=last, detail=detail)
 
 
 @router.get("/api/status")
@@ -317,53 +272,37 @@ def refresh_charts() -> ChartRefreshStarted:
 
 @router.post("/api/retrain")
 def retrain() -> RetrainStarted:
-    """Starts one run of the training DAG through Airflow's own API -- the
-    same thing the AWS retrain-trigger Lambda does: the chart model
-    (retrain, evaluate, promote) and the landmark model where it has the
-    ratings (collect, engineer features, retrain, evaluate, promote).
-    This service has no scikit-learn of its own on purpose (see
-    requirements.txt), so it cannot train in-process; without Airflow
-    reachable the answer says how to run the pipeline by hand.
+    """Starts one training run (`python -m wingtip.pipeline run`): the
+    chart model (retrain, evaluate, promote) and the landmark model where
+    it has the ratings (collect, engineer features, retrain, evaluate,
+    promote), each promoted only if it beats the one serving. The run is
+    compose's `retrain` container, started through the dev-services
+    sidecar, the one door onto Docker (routers/devservices.py). This
+    service has no scikit-learn of its own on purpose (see
+    requirements.txt), so it cannot train in-process; without the
+    sidecar the answer says how to run it by hand.
 
     Checked first (app.chart_model.readiness): with too few ratings to
     learn from, it says so and what to do, a 409, rather than starting a
-    run that ends in Airflow minutes later with the same news in its
-    log. Then the chart model's table is written from the ratings as
-    they are now, which the run trains on."""
+    run that ends minutes later with the same news in its log. Then the
+    chart model's table is written from the ratings as they are now,
+    which the run trains on."""
     training = _training()
     if training is not None and not training.ready:
         raise HTTPException(409, training.message)
+    # Before the table is written: a run going now is training on it.
+    if devservices.service_state(devservices.RETRAIN_SERVICE) == "running":
+        raise HTTPException(409, RUN_GOING)
     try:
         chart_model.write_training_table()
     except (OSError, ValueError, RuntimeError) as err:
         raise HTTPException(500, f"The chart model's training table could not be written: {err}") from err
-    if not AIRFLOW_URL:
-        raise HTTPException(501, "Retraining runs through Airflow and this planner has no AIRFLOW_URL. "
-                                 "By hand: docker compose run --rm pipeline-training chart-retrain")
-    creds = _airflow_credentials()
-    if creds is None:
-        raise HTTPException(501, "No Airflow credentials: set AIRFLOW_USERNAME and AIRFLOW_PASSWORD, or mount "
-                                 "Airflow's generated passwords file (AIRFLOW_PASSWORDS_FILE)")
-    try:
-        token = _airflow_token(*creds)
-        headers = {"Authorization": f"Bearer {token}"}
-        # Airflow parks every newly discovered DAG paused, and a run
-        # triggered on a paused DAG sits "queued" forever -- which is
-        # exactly what the first retrain from a fresh stack did, for
-        # half an hour, before anyone looked. Unpausing first is
-        # idempotent and is what a person would do in Airflow's UI.
-        unpause = requests.patch(
-            f"{AIRFLOW_URL}/api/v2/dags/{AIRFLOW_DAG_ID}", json={"is_paused": False}, headers=headers, timeout=10,
-        )
-        if unpause.status_code >= 400:
-            raise HTTPException(502, f"Airflow would not unpause {AIRFLOW_DAG_ID}: {unpause.status_code} {unpause.text[:200]}")
-        resp = requests.post(
-            f"{AIRFLOW_URL}/api/v2/dags/{AIRFLOW_DAG_ID}/dagRuns",
-            json={"logical_date": None}, headers=headers, timeout=10,
-        )
-    except requests.RequestException as err:
-        raise HTTPException(502, f"Airflow at {AIRFLOW_URL} did not accept the run: {str(err).split(chr(10))[0][:160]}") from err
-    if resp.status_code >= 400:
-        raise HTTPException(502, f"Airflow answered {resp.status_code}: {resp.text[:200]}")
-    body = resp.json()
-    return RetrainStarted(dag_run_id=body.get("dag_run_id"), state=body.get("state"))
+    response = devservices._sidecar("POST", f"/services/{devservices.RETRAIN_SERVICE}/start")
+    if response is None:
+        raise HTTPException(501, f"Retraining starts through the dev-services sidecar, which this planner has none of. By hand: {BY_HAND}")
+    if response.status_code != 200:
+        raise HTTPException(response.status_code, retry.upstream_detail(response, "the dev-services sidecar"))
+    body = response.json()
+    if not body.get("started") and body.get("state") == "running":
+        raise HTTPException(409, RUN_GOING)
+    return RetrainStarted(started=bool(body.get("started")), state=body.get("state"))

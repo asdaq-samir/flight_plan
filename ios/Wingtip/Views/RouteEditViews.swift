@@ -72,7 +72,7 @@ struct PointAlerts: ViewModifier {
         let ui = FlightUI.shared
         content
             .alert(ui.altitudeAt.map { "Altitude at \($0)" } ?? "Altitude", isPresented: shown(\.altitudeAt), presenting: ui.altitudeAt) { ident in
-                TextField(PointAltitude.isWaypoint(ident, course: plan.course) ? "FL045 as 045" : "Feet", text: $typed).keyboardType(.numberPad)
+                TextField(PointAltitude.isWaypoint(ident, course: plan.course) ? "FL-045 as 045" : "Feet", text: $typed).keyboardType(.numberPad)
                 Button("Set") {
                     if let feet = PointAltitude.feet(typed, waypoint: PointAltitude.isWaypoint(ident, course: plan.course)) { plan.setAltitude(at: ident, feet: feet) }
                     typed = ""

@@ -79,6 +79,11 @@ one job (the owner kept both server languages on this split, 2026-11-06):
 
 ## Checks — run what covers your change
 
+Run the checks that cover a change before committing it, on the Mac mini
+(the owner, 2026-11-06: it is fast enough; the old "code changes only"
+rule was for the 2016 MacBook). Whole suites, the full browser suite and
+long measurements still wait for the owner's ask; CI runs everything.
+
 | Changed | Run, from that directory |
 |---|---|
 | `web/` | `npm run types && npx tsc --noEmit && npx eslint . && npx vitest run` |
@@ -87,14 +92,15 @@ one job (the owner kept both server languages on this split, 2026-11-06):
 | `native/` (Rust, `wingtip_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same wingtip-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
-| `ios/` (the native app) | CI only: `native-ios.yml` makes the project with XcodeGen and runs `xcodebuild test` on the macOS runner (docs/NATIVE.md) |
+| `ios/` (the native app) | On the Mac mini (Xcode and XcodeGen are there): `xcodegen` in `ios/`, then `xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -destination "platform=iOS Simulator,name=<newest iPhone>" test` through `scripts/one-at-a-time.sh`; `native-ios.yml` runs the same, iPad included (docs/NATIVE.md) |
 | `android/` (the native app) | CI only: `native-android.yml` builds the engine for each ABI, runs the unit tests, lint and a debug APK, then the instrumented tests on an emulator (docs/NATIVE-ANDROID.md) |
 
 Python wants `pip install -r requirements-dev.txt` in that directory first.
 
 An API that changes changes its document, which the web app's types come
 from: `python -m app.openapi` in planning-service, or `WRITE_OPENAPI=1 mvn
--B test` in springboot-app; then `npm run types` in web; commit all three.
+-B test` in springboot-app; then `npm run types` in web and
+`scripts/api-models-apps.sh` for the phones' models; commit them all.
 
 The browser tests (Playwright, `web/e2e`) need the whole stack and run in
 CI; write or update the spec for a change a pilot sees, and let CI run it.

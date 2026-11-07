@@ -210,11 +210,7 @@ struct RiskAssessment: Codable, Equatable, Sendable {
 }
 
 /// One of the loading's stations (LoadingStation).
-struct LoadingStation: Codable, Equatable, Sendable {
-    let name: String
-    let armIn: Double
-    var maxLb: Double?
-}
+typealias LoadingStation = APILoadingStation
 
 /// The airplane's POH loading (Loading), the parts the Loading page asks
 /// for.

@@ -7,36 +7,16 @@ import Foundation
 /// leaves, the hazard's own valid times and when it was issued, and
 /// whether the airplane is there while it is valid ("during", "before",
 /// "after"; none for a report or a field's forecast). The planner works
-/// all of it out; the app says it.
-struct OnRoute: Codable, Equatable, Sendable {
-    var legs: [Int]
-    var fromNm: Double
-    var toNm: Double
-    var enter: String?
-    var leave: String?
-    var validFrom: String?
-    var validTo: String?
-    var when: String?
-    var source: String
-    var issued: String?
-}
+/// all of it out; the app says it. Generated from the planner's document
+/// (Generated/PlannerModels.swift), as the next two are.
+typealias OnRoute = APIOnRoute
 
 /// A field below VFR where the flight meets it (FieldBelowVfr): its
 /// METAR's IFR or LIFR now, or a TAF's for when the airplane is there.
-struct FieldBelowVfr: Codable, Equatable, Sendable {
-    var ident: String
-    var source: String
-    var flightCategory: String?
-    var ceilingFt: Double?
-    var visibilitySm: Double?
-    var onRoute: OnRoute
-}
+typealias FieldBelowVfr = APIFieldBelowVfr
 
 /// One of the fixes the briefing's legs run between (Briefing.leg_fixes).
-struct RoutePoint: Codable, Equatable, Sendable {
-    var lat: Double
-    var lon: Double
-}
+typealias RoutePoint = APIRoutePoint
 
 /// When the planner fetched what the map's weather layers are drawn
 /// from (MapLayerAges, /api/map/ages).

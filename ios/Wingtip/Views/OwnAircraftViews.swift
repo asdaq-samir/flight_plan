@@ -584,8 +584,8 @@ struct SquawksView: View {
     private func add() async {
         busy = true
         defer { busy = false }
-        let request = SquawkRequest(reportedOn: Day.string(foundOn), text: text.trimmingCharacters(in: .whitespacesAndNewlines),
-                                    inoperative: inoperative, deferredFor: inoperative ? deferredFor : nil)
+        let request = SquawkRequest(deferredFor: inoperative ? deferredFor : nil, inoperative: inoperative, reportedOn: Day.string(foundOn),
+                                    text: text.trimmingCharacters(in: .whitespacesAndNewlines))
         do {
             _ = try await Gateway.addSquawk(aircraft.id, request)
             text = ""; inoperative = false; deferredFor = nil

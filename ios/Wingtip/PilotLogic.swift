@@ -249,10 +249,17 @@ struct AircraftForm: Equatable {
         func opt(_ s: String) -> Double? { Self.number(s) }
         func words(_ s: String) -> String? { let t = s.trimmingCharacters(in: .whitespaces); return t.isEmpty ? nil : t }
         return AircraftRequest(
-            tailNumber: tailNumber.trimmingCharacters(in: .whitespaces).uppercased(), typeDesignator: typeDesignator.trimmingCharacters(in: .whitespaces).uppercased(),
-            cruiseTasKt: tas, fuelBurnGph: burn, cruisePowerPct: opt(cruisePowerPct), climbTasKt: opt(climbTasKt),
-            climbFuelBurnGph: opt(climbFuelBurnGph), usableFuelGal: opt(usableFuelGal),
-            equipment: words(equipment)?.uppercased(), surveillance: words(surveillance)?.uppercased(), colour: words(colour))
+            climbFuelBurnGph: opt(climbFuelBurnGph),
+            climbTasKt: opt(climbTasKt),
+            colour: words(colour),
+            cruisePowerPct: opt(cruisePowerPct),
+            cruiseTasKt: tas,
+            equipment: words(equipment)?.uppercased(),
+            fuelBurnGph: burn,
+            surveillance: words(surveillance)?.uppercased(),
+            tailNumber: tailNumber.trimmingCharacters(in: .whitespaces).uppercased(),
+            typeDesignator: typeDesignator.trimmingCharacters(in: .whitespaces).uppercased(),
+            usableFuelGal: opt(usableFuelGal))
     }
 }
 

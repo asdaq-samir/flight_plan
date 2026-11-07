@@ -15,6 +15,7 @@ import app.wingtipmaps.android.api.AheadAlert
 import app.wingtipmaps.android.api.Planner
 import app.wingtipmaps.android.api.ahead
 import app.wingtipmaps.android.engine.CyclePacks
+import app.wingtipmaps.android.engine.Engine
 import app.wingtipmaps.android.notify.Notifications
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -168,15 +169,18 @@ class OwnShip private constructor(private val context: Context) {
         }
     }
 
-    /** What is ahead, asked of the latest fix every ten seconds while
-     *  moving (the clock's, Ticker): the planner looks five minutes along
-     *  the track (wingtip.alerts). The asking is a job of its own, so the
-     *  next question cancels one still unanswered. */
+    /** What is ahead, asked of the latest fix every ten seconds while the
+     *  airplane is at flying speed (the clock's, Ticker): the planner looks
+     *  five minutes along the track (wingtip.alerts). Flying speed is the
+     *  engine's `underway`, the speed the engine's own look ahead starts
+     *  at, so a taxiing airplane asks nothing it would not answer. The
+     *  asking is a job of its own, so the next question cancels one still
+     *  unanswered. */
     private fun askAhead() {
         val fix = _fix.value ?: return
         val track = fix.trackDeg ?: return
         val gs = fix.groundspeedKt ?: return
-        if (gs <= MOVING_KT) return
+        if (!underway(gs)) return
         asking?.cancel()
         asking = scope.launch {
             val alerts = try {
@@ -199,9 +203,12 @@ class OwnShip private constructor(private val context: Context) {
          *  five minutes along the track, so twice this with the app put
          *  away still leaves minutes. */
         const val AHEAD_EVERY_MS = 10_000L
-        /** Below this ground speed nothing is asked: taxiing, or a fix
-         *  wandering while parked. A design choice, no rule. */
-        const val MOVING_KT = 20.0
+        /** Whether a ground speed is flying speed: the engine's
+         *  `underway` (motion/glide.rs, AIRBORNE_KT), which the trail and
+         *  the strip go by too. Below it nothing ahead is asked: taxiing,
+         *  or a fix wandering while parked. */
+        fun underway(speedKt: Double?): Boolean =
+            Engine.call<OwnTrail.Speed, Boolean>("underway", OwnTrail.Speed(speedKt))
         const val FT_PER_M = 3.28084
         const val KT_PER_MPS = 1.943844
 

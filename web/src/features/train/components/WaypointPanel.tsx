@@ -244,7 +244,7 @@ export function WaypointActions({ rated, filters, counts, onFilterChange, canUnd
         <DropdownMenuContent align="end" className="min-w-56">
           <DropdownMenuItem onSelect={retrain.start} disabled={!retrain.canStart} data-testid="retrain-button">
             <BrainCircuit />
-            {retrain.running ? "Retraining…" : !retrain.reachable ? "Retrain (Airflow not reachable)"
+            {retrain.running ? "Retraining…" : !retrain.startable ? "Retrain (not from here)"
               : retrain.training && !retrain.training.ready ? `Retrain (${retrain.training.usable} of ${retrain.training.needed} ratings)` : "Retrain the model"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />

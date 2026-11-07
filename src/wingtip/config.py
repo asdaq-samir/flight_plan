@@ -7,7 +7,7 @@ that whole chain in for three constants. Keeping them here means a consumer
 pays for pathlib and nothing else.
 
 wingtip.pipeline re-exports these, so `from wingtip.pipeline import
-CANDIDATES_PATH` keeps working for the notebooks and the DAG.
+CANDIDATES_PATH` keeps working for the notebooks and the training run.
 
 It is also where every environment variable the Python reads is
 declared, once, typed, with its default: `Settings` below, read through
@@ -96,8 +96,8 @@ def _none_if_blank(value):
 class Settings(BaseSettings):
     """Every environment variable wingtip and the planner read, by its
     own name (case aside; the field `log_level` is LOG_LEVEL), with its
-    default. Unset optional keys (SWIM_*, the ADS-B keys, the agents' and
-    Airflow's addresses) are None, which is how each feature knows it is
+    default. Unset optional keys (SWIM_*, the ADS-B keys, the agents'
+    addresses) are None, which is how each feature knows it is
     off. ANTHROPIC_API_KEY is not here: the anthropic SDK reads it itself."""
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
@@ -176,12 +176,6 @@ class Settings(BaseSettings):
     #: The agents' addresses for the status page; None where they do not run.
     nav_log_agent_url: str | None = None
     crewai_agent_url: str | None = None
-    #: Airflow's address, DAG, and the credentials (or its generated passwords file) to start a retrain.
-    airflow_url: str | None = None
-    airflow_dag_id: str = "wingtip_pipeline"
-    airflow_passwords_file: str | None = None
-    airflow_username: str | None = None
-    airflow_password: str | None = None
     #: The FAA SWIM subscription (app.swim_reader): the broker, the account, and the CA store.
     #: A feed is read only where all of host, username, password and its own VPN and queue are set.
     swim_host: str | None = None

@@ -265,29 +265,56 @@ function ChartModelGroup({ chart }: { chart: NonNullable<Status["model"]>["chart
   );
 }
 
+/** What a stage of the run is called on the page. */
+const STAGE_NAMES: Record<string, string> = {
+  landmarks_ready: "Landmark ratings",
+  collect: "Collect landmarks",
+  feature_engineer: "Landmark features",
+  retrain: "Train the landmark model",
+  evaluate: "Weigh it against the one serving",
+  promote: "Promote it",
+  chart_retrain: "Train the chart model",
+  chart_evaluate: "Weigh it against the one serving",
+  chart_promote: "Promote it",
+};
+
+const STAGE_STATES: Record<string, string> = {
+  pending: "Waiting", running: "Running", success: "Done", skipped: "Skipped", failed: "Failed",
+};
+
 /**
- * The pipeline that would replace the models: whether Airflow, which
- * Retrain starts, is running, how its last run went as a badge beside the
- * heading, and how to retrain by hand without it. Retrain itself is the
- * head's (PerfHead). (Airflow is a link in Status's Elsewhere in the
- * stack.)
+ * The training run that would replace the models: how its last run went
+ * as a badge beside the heading, then a row a stage -- the one under way,
+ * and what each came to or why it was skipped -- from the file the run
+ * writes as it goes. Where the planner cannot start one, why and the
+ * command to run it by hand. Retrain itself is the head's (PerfHead).
  */
 function TrainingGroup() {
   const { pipeline, lastRun, running } = useRetrain();
+  const stages = lastRun?.stages ?? [];
   return (
     <ListGroup
       title="Training"
-      badge={pipeline?.airflow_reachable && (lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
-      footer={!pipeline?.airflow_reachable
-        ? <>Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose run --rm pipeline-training chart-retrain</code>.</>
+      badge={(lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
+      footer={!pipeline?.startable
+        ? <>{pipeline?.detail ?? "The planner cannot start a run from here."} Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose up retrain</code>.</>
         : undefined}
     >
-      <ListRow
-        title="Airflow"
-        description={pipeline?.airflow_reachable ? "The training DAG, which Retrain starts" : pipeline?.detail ?? "Not reachable from here"}
-        value={pipeline?.airflow_reachable ? "Running" : "Not running"}
-        data-testid="airflow-row"
-      />
+      {!lastRun && (
+        <ListRow muted title={running ? "Starting the run…" : "No run yet"} data-testid="run-row" />
+      )}
+      {lastRun?.error && (
+        <ListRow title={<span className="text-destructive-ink">{lastRun.error}</span>} data-testid="run-error" />
+      )}
+      {stages.map(s => (
+        <ListRow
+          key={s.name}
+          title={STAGE_NAMES[s.name] ?? s.name}
+          description={s.detail ?? undefined}
+          value={STAGE_STATES[s.state] ?? s.state}
+          data-testid={`stage-${s.name}`}
+        />
+      ))}
     </ListGroup>
   );
 }
@@ -489,9 +516,9 @@ function useOnMap(corridors: Status["corridors"]) {
  *  what loads a route. It offered to collect one first, from
  *  OpenStreetMap, before the chart was read instead. This planner cannot
  *  train in-process (no scikit-learn of its own, on purpose), so the
- *  retrain goes through Airflow, the same DAG the AWS trigger Lambda
- *  starts; without Airflow reachable the Performance tab says how to run
- *  the pipeline by hand instead. */
+ *  retrain is a container of its own (`python -m wingtip.pipeline run`)
+ *  the planner starts; where it cannot, the Performance tab says how to
+ *  run it by hand instead. */
 function TrainingTab() {
   return (
     <div className="space-y-6">
@@ -642,7 +669,6 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
     { label: "webapp API docs", href: "/swagger-ui/index.html" },
     { label: "planning-service API docs", href: `http://${host}:8084/docs`, localOnly: true },
     { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true, service: "ml" },
-    { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true, service: "airflow" },
     // The sidecar can start it; its one page is the MCP stream, which
     // answers 401 without the bearer token -- enough to see it is up.
     {
