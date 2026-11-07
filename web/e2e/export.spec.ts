@@ -10,7 +10,7 @@ import { settle, slow, controlsInSight } from "./helpers";
 async function routeWithCheckpoints(page: Page) {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await expect(page.locator(".leaflet-marker-icon", { hasText: /^1$/ }).first()).toBeVisible({ timeout: slow(30000) });
+  await expect(page.locator(".maplibregl-marker", { hasText: /^1$/ }).first()).toBeVisible({ timeout: slow(30000) });
   // Share is a round button in the chips' row, all the way up.
   await controlsInSight(page);
 }

@@ -39,10 +39,10 @@ test("shown in the map's settings, the airplanes about are drawn on their tracks
   const marks = page.locator("svg[data-traffic]");
   await expect(marks).toHaveCount(2, { timeout: slow(15_000) });
   // With no own ship, each one's own height, a descent's arrow with it.
-  const labels = page.locator(".leaflet-marker-pane").getByText(/^(4,500↓|9,800)/);
+  const labels = page.locator(".maplibregl-map").getByText(/^(4,500↓|9,800)/);
   await expect(labels).toHaveCount(2);
   await expect(marks.first()).toHaveAttribute("style", /rotate\(320deg\)/);
-  await expect(page.locator(".leaflet-control-attribution")).toContainText("adsb.lol, ODbL");
+  await expect(page.locator(".maplibregl-ctrl-attrib")).toContainText("adsb.lol, ODbL");
   expect(asks.length).toBeGreaterThan(0);
   // Asked again while it shows.
   const first = asks.length;
@@ -56,7 +56,7 @@ test("on a phone the credit rides on the sheet's top, under a finger and at rest
   await showTraffic(page, true);
   await page.goto("/app/plan?place=C81");
   await settle(page);
-  const credit = page.locator(".leaflet-control-attribution", { hasText: "adsb.lol" });
+  const credit = page.locator(".maplibregl-ctrl-attrib", { hasText: "adsb.lol" });
   await expect(credit).toBeVisible({ timeout: slow(15_000) });
   const panel = page.locator('[data-slot="map-panel"]');
   // The credit's foot against the sheet's top.
@@ -115,7 +115,7 @@ test("off, as it is unless shown, nothing is asked and nothing drawn", async ({ 
   await page.waitForTimeout(2000);
   expect(asks).toHaveLength(0);
   await expect(page.locator("svg[data-traffic]")).toHaveCount(0);
-  await expect(page.locator(".leaflet-control-attribution")).toHaveCount(0);
+  await expect(page.locator(".maplibregl-ctrl-attrib")).toHaveCount(0);
 });
 
 test("the traffic is asked about wherever the map is panned, own ship or not, and further out for a map zoomed out", async ({ page, context }) => {
@@ -138,7 +138,7 @@ test("the traffic is asked about wherever the map is panned, own ship or not, an
   // Zoomed out to a state: asked further than the near regions' 60 nm --
   // the card's link opens all the way up, so down to its pill first.
   await grabberTo(page, "peek");
-  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const map = (await page.locator(".maplibregl-map").boundingBox())!;
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 4);
   for (let i = 0; i < 4; i++) {
     await page.mouse.wheel(0, 400);

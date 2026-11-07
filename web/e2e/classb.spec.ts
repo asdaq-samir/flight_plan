@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { beforeTheRoute, openMapSettings, sideDrawer, slow, tapNear } from "./helpers";
+import { beforeTheRoute, chartZoom, openMapSettings, sideDrawer, slow, tapNear } from "./helpers";
 
 /**
  * The Class B airports on the map.
@@ -20,13 +20,13 @@ const PLAN = "/app/plan?dep=C81&dest=KDLH";
 // The Class B fields' marks (airportMarkIcon), in the marker pane with
 // the route's own C81 and KDLH, which are not Class B: counting them
 // counts the Class B airports.
-const chips = (page: Page) => page.locator(".leaflet-marker-pane .leaflet-marker-icon").filter({ has: page.locator('[data-airspace="B"]') });
+const chips = (page: Page) => page.locator(".maplibregl-marker").filter({ has: page.locator('[data-airspace="B"]') });
 
 /** The route on the map: its destination chip drawn, which is after
  *  the course has arrived and the markers laid out. It used to be a
  *  flat four seconds a test. */
 async function routeDrawn(page: Page) {
-  await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: 20000 });
+  await expect(page.locator(".maplibregl-marker", { hasText: "KDLH" }).first()).toBeVisible({ timeout: 20000 });
 }
 
 const FIXTURE = {
@@ -121,7 +121,7 @@ test("tapping one opens its card in the panel, with Fly Here, as any airport on 
   // The live card, unmocked: the class-b fixture is only the chips.
   await expect(page.getByTestId("place-where")).toContainText("O'Hare", { timeout: 15000 });
   await expect(page.getByTestId("fly-here")).toBeVisible();
-  await expect(page.locator(".leaflet-popup")).toHaveCount(0);
+  await expect(page.locator(".maplibregl-popup")).toHaveCount(0);
 });
 
 test("a tap a little off one's mark opens its card, as off any airport on the chart", async ({ page }) => {
@@ -147,19 +147,13 @@ test("on the training map, which has no card, a tap goes to the field at its ter
   const ord = chips(page).filter({ hasText: "KORD" }).first();
   await expect(ord).toBeVisible({ timeout: 20000 });
 
-  const tileZoom = () => page.evaluate(() => {
-    // The sectional's tiles, from the planner or the CDN (tiles.spec.ts):
-    // the finest drawn, the region's coarse ones kept under the map
-    // (ChartTiles) aside.
-    const levels = [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/sec/"]')]
-      .map(tile => Number(tile.src.match(/\/sec\/(\d+)\//)?.[1] ?? NaN)).filter(Number.isFinite);
-    return levels.length ? Math.max(...levels) : null;
-  });
+  // The chart's tile level drawn (ChartGl's data-chart-zoom).
+  const tileZoom = () => chartZoom(page);
   const before = await tileZoom();
   await ord.click();
   await expect.poll(tileZoom, { timeout: 20000 }).toBeGreaterThanOrEqual(10);
   expect(before).toBeLessThan(10);
-  await expect(page.locator(".leaflet-popup")).toHaveCount(0);
+  await expect(page.locator(".maplibregl-popup")).toHaveCount(0);
 });
 
 test("on an IFR base, the settings' TAC draws the IFR area chart at a Class B field", async ({ page }) => {

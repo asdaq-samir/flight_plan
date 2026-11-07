@@ -17,15 +17,8 @@ const back = (page: Page) => page.evaluate(() => {
   target.dispatchEvent(new KeyboardEvent("keydown", { key: "GoBack", keyCode: 461, bubbles: true, cancelable: true }));
 });
 
-/** The map's zoom, from its chart's tiles: Leaflet raises the level it
- *  is drawing over the others (its z-index), each tile's address its zoom. */
-const mapZoom = (page: Page) => page.evaluate(() => {
-  const levels = [...document.querySelectorAll<HTMLElement>(".leaflet-tile-container")]
-    .filter(level => level.querySelector("img"))
-    .sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex));
-  const src = levels[0]?.querySelector("img")?.getAttribute("src") ?? "";
-  return Number(src.match(/\/(\d+)\/\d+\/\d+\.png/)?.[1] ?? NaN);
-});
+/** The map's zoom, the whole level it rests at (GlMapShell's data-zoom). */
+const mapZoom = (page: Page) => page.getByTestId("gl-map").getAttribute("data-zoom").then(z => Math.round(Number(z ?? NaN)));
 
 test("on a TV the remote's arrows move from control to control, Back closes what is open, and OK zooms the map", async ({ page }) => {
   await page.goto("/app/plan?tv=webos");
@@ -57,35 +50,33 @@ test("on a TV the remote's arrows move from control to control, Back closes what
   }).toPass({ timeout: slow(10000) });
 
   // On the map: its + and - to reach, and OK zooms in.
-  await expect(page.locator(".leaflet-control-zoom-in")).toBeVisible();
-  await page.locator(".leaflet-container").first().focus();
+  await expect(page.locator(".maplibregl-ctrl-zoom-in")).toBeVisible();
+  await page.locator(".maplibregl-canvas").first().focus();
   await expect.poll(() => mapZoom(page), { timeout: slow(15000) }).toBeGreaterThan(0);
   const before = await mapZoom(page);
   await page.keyboard.press("Enter");
   await expect.poll(() => mapZoom(page), { timeout: slow(15000) }).toBe(before + 1);
   // And Back takes the remote off the map, the app still open.
   await back(page);
-  await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains("leaflet-container"))).toBe(false);
+  await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains("maplibregl-canvas"))).toBe(false);
 
   // OK on the map's own "-" button is the button's, not a zoom in; and
   // Back from it takes the remote off the map rather than leaving the app.
-  // The zoom in come to rest first: Leaflet lets a zoom asked for during
-  // another's animation go (its _tryAnimatedZoom), and on a loaded machine
-  // the press landed in it, one run in three.
+  // The zoom in come to rest first.
   await mapStill(page);
   const zoomed = await mapZoom(page);
-  await page.locator(".leaflet-control-zoom-out").focus();
+  await page.locator(".maplibregl-ctrl-zoom-out").focus();
   await page.keyboard.press("Enter");
   await expect.poll(() => mapZoom(page), { timeout: slow(15000) }).toBe(zoomed - 1);
-  await page.locator(".leaflet-control-zoom-out").focus();
+  await page.locator(".maplibregl-ctrl-zoom-out").focus();
   await back(page);
-  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest(".leaflet-container"))).toBe(false);
-  await expect(page.locator(".leaflet-container").first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest(".maplibregl-map"))).toBe(false);
+  await expect(page.locator(".maplibregl-map").first()).toBeVisible();
 });
 
 test("off a TV the page is as it was: no ring of its own, no zoom buttons", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await expect(page.locator("html")).not.toHaveAttribute("data-tv", /.+/);
-  await expect(page.locator(".leaflet-control-zoom-in")).toHaveCount(0);
+  await expect(page.locator(".maplibregl-ctrl-zoom-in")).toHaveCount(0);
 });
