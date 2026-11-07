@@ -168,6 +168,45 @@ def test_a_certificate_failure_is_not_retried(mock_get, mock_sleep):
 
 @patch("wingtip.weather.time.sleep")
 @patch("wingtip.weather.requests.get")
+def test_a_request_refused_as_asked_is_not_retried_and_one_too_many_is(mock_get, mock_sleep):
+    """The windtemp API's 400 since its tables were discontinued (NWS SCN
+    26-47) is the same answer on every try: three tries and their back-off
+    put 6.5 s on a plan. A 429 asks to be tried later, and is."""
+    refused = Mock(status_code=400, text='{"status":"error","error":"Wind/temp tables have been discontinued"}')
+    mock_get.return_value = refused
+    with pytest.raises(WeatherServiceError, match="refused: 400"):
+        weather._get("https://aviationweather.gov/api/data/windtemp", {"fcst": "06"})
+    assert mock_get.call_count == 1
+    mock_sleep.assert_not_called()
+
+    mock_get.reset_mock()
+    busy = Mock(status_code=429, text="slow down")
+    busy.raise_for_status.side_effect = requests.HTTPError("429 Client Error")
+    mock_get.return_value = busy
+    with pytest.raises(WeatherServiceError, match="after 3 attempts"):
+        weather._get("https://aviationweather.gov/api/data/windtemp", {"fcst": "06"})
+    assert mock_get.call_count == 3
+
+
+def test_a_routes_weather_is_read_ahead_off_the_request_and_a_failure_is_left_to_the_plan():
+    fetched = []
+
+    def fetch(names, force=False):
+        fetched.append((names, force))
+        raise WeatherServiceError("METARs unavailable from aviationweather.gov just now")
+
+    winds = []
+    with patch("wingtip.weather._fetch_each", side_effect=fetch), \
+            patch("wingtip.weather._fd_stations", side_effect=winds.append):
+        weather.read_ahead("12").join(timeout=5)
+    # Not forced: a held copy still good is not downloaded again. The
+    # winds are the GFS's (_fd_stations), read even when a report fails.
+    assert fetched == [(("metars", "tafs", "airsigmets", "pireps", "gairmets"), False)]
+    assert winds == ["12"]
+
+
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_metar_for_idents_wraps_a_network_failure(mock_get, mock_sleep):
     mock_get.side_effect = requests.ConnectionError("no route to host")
 

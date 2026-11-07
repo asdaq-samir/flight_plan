@@ -141,6 +141,8 @@ FACILITY_SPAN_NM = 200.0
 #: minute of a fast airplane's flying, so one about to come in is there.
 VIEW_MARGIN_NM = 10.0
 _FIRST_PLACE = re.compile(r"<lat>(-?[\d.]+)</lat><lon>(-?[\d.]+)</lon>")
+#: A track's Mode S address as the message writes it, either case.
+_ADDRESS = re.compile(r"<acAddress>\s*([0-9A-Fa-f]{6})\s*</acAddress>")
 
 
 def _nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -165,6 +167,17 @@ def raw(message) -> bytes | str:
 
 
 
+def _names_one(text: str, followed) -> bool:
+    """Whether a radar message has a track of a followed airplane: its
+    addresses read in one pass. A search of the whole message for each
+    followed address, in both cases, was a third of the radar thread's
+    work and a sixth of the reading process's, with 21 followed (py-spy,
+    2026-11-06), and grew with each one; this is a thirteenth of it for
+    a message of 20 tracks (12 against 158 us in the planner's image)
+    and a fiftieth for one of 100."""
+    return bool(followed) and any(a.lower() in followed for a in _ADDRESS.findall(text))
+
+
 def select(text: str, views, followed) -> list[tuple[dict, float]]:
     """A radar message's tracks worth keeping: the airplanes round the
     places the map shows traffic (`views`, each (lat, lon, radius nm)), and
@@ -177,7 +190,7 @@ def select(text: str, views, followed) -> list[tuple[dict, float]]:
         return []
     first = _FIRST_PLACE.search(text)
     near = first is not None and _in_view(float(first[1]), float(first[2]), views, FACILITY_SPAN_NM)
-    if not near and not any(a in text or a.upper() in text for a in followed):
+    if not near and not _names_one(text, followed):
         return []
     return [
         (plane, at) for plane, at in tracks(text)
@@ -188,6 +201,23 @@ def select(text: str, views, followed) -> list[tuple[dict, float]]:
 #: The feeds whose messages go to the planner as their bytes
 #: (wingtip.filed_routes.heard looks in them before it decodes them).
 RAW = {"TFMS"}
+#: What a feed's message must hold to be worth sending to the planner:
+#: TFMS's flight plans and amendments with a route of flight
+#: ("routeOfFlight", "newRouteOfFlight"), the only ones
+#: wingtip.filed_routes keeps. The rest of TFMS, the country's tracks,
+#: went to the planner a message at a time to be thrown away there, its
+#: pickling and the planner's waking for each included.
+WORTH_SENDING = {"TFMS": b"outeOfFlight"}
+
+
+def worth_sending(feed: str, payload: bytes | str) -> bool:
+    """Whether a message of `feed` goes on to the planner at all."""
+    worth = WORTH_SENDING.get(feed)
+    if worth is None:
+        return True
+    return worth in (payload if isinstance(payload, (bytes, bytearray)) else payload.encode("utf-8", "replace"))
+
+
 #: How often a feed's count of messages goes to the planner at most, s:
 #: the Dev console's figures, not worth a message of their own each.
 STATE_EVERY_S = 1.0
@@ -197,8 +227,8 @@ def _run(feed: str, out, wanted: list) -> None:
     """Connect, read and send on until the process ends, connecting again
     after a pause where the connection drops or cannot be made. What goes
     to the planner, on `out`: ("radar", feed, tracks) with a radar
-    message's kept tracks, ("text", feed, payload) with each NOTAM or
-    flight plan message, and ("state", feed, fields) with the feed's
+    message's kept tracks, ("text", feed, payload) with each NOTAM and
+    each flight plan message worth sending (worth_sending), and ("state", feed, fields) with the feed's
     connection and counts. `wanted` holds the planner's latest (views,
     followed), the radar's tracks picked against it."""
     from solace.messaging.config.retry_strategy import RetryStrategy
@@ -236,7 +266,9 @@ def _run(feed: str, out, wanted: list) -> None:
                     if found:
                         out.put(("radar", feed, found))
                 else:
-                    out.put(("text", feed, raw(message) if feed in RAW else body(message)))
+                    payload = raw(message) if feed in RAW else body(message)
+                    if worth_sending(feed, payload):
+                        out.put(("text", feed, payload))
                 messages += 1
                 receiver.ack(message)
                 now = time.time()
