@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileDown, FileUp, GraduationCap, Mail, MailX, Plus, Users } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../../lib/toast";
 import FieldHit from "../../components/FieldHit";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
