@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChartLayer, Course } from "../api/types";
-import { PREFETCH_SLICE_MS, TilePrefetch, chartPair, levelAhead, sheetAt, tileTemplate, tileUrl, tilesAround, type IdleRun } from "./tiles";
+import { PREFETCH_SLICE_MS, TilePrefetch, chartPair, levelAhead, sheetAt, tileDensity, tileTemplate, tileUrl, tilesAround, type IdleRun } from "./tiles";
 
 const course = { chart_cycle: "09-03-2026", chart_revision: 2, chart_tiles_base: null } as unknown as Course;
 
@@ -28,6 +28,35 @@ describe("tile URLs", () => {
   it("reads a course from before the revision existed as revision 0", () => {
     const older = { chart_cycle: "09-03-2026", chart_tiles_base: null } as unknown as Course;
     expect(tileUrl(older, "sec", 1, 2, 3)).toBe("/api/planner/chart-tile/sec/1/2/3.png?c=09-03-2026&r=0");
+  });
+});
+
+describe("the tiles' density", () => {
+  const sharp = {
+    ...course, chart_layers: [{ kind: "sec", cycle: "09-03-2026", revision: 2, scales: [1, 2] }, { kind: "tac", scales: [1] }],
+  } as unknown as Course;
+
+  it("is the 512-pixel tile on a 2x or 3x screen, where the kind was drawn at it", () => {
+    expect(tileDensity(sharp, "sec", 3)).toBe("@2x");
+    expect(tileDensity(sharp, "sec", 2)).toBe("@2x");
+  });
+
+  it("is the 256-pixel tile on a 1x screen, for a kind drawn without, and for a course from before scales", () => {
+    expect(tileDensity(sharp, "sec", 1)).toBe("");
+    expect(tileDensity(sharp, "tac", 3)).toBe("");
+    expect(tileDensity(course, "sec", 3)).toBe("");
+  });
+
+  it("names the 512-pixel tile beside the plain one, from the planner and from the CDN", () => {
+    const ratio = globalThis.devicePixelRatio;
+    globalThis.devicePixelRatio = 3;
+    try {
+      expect(tileUrl(sharp, "sec", 9, 124, 184)).toBe("/api/planner/chart-tile/sec/9/124/184@2x.png?c=09-03-2026&r=2");
+      const published = { ...sharp, chart_tiles_base: "https://tiles.example" } as Course;
+      expect(tileTemplate(published, "sec")).toBe("https://tiles.example/09-03-2026/sec/{z}/{x}/{y}@2x.png?r=2");
+    } finally {
+      globalThis.devicePixelRatio = ratio;
+    }
   });
 });
 

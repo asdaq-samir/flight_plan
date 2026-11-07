@@ -848,7 +848,8 @@ Resources:
       NetworkMode: awsvpc
       # Two workers drawing tiles, and the country's sheets plus their
       # pyramid on the task's own disk: 6 GB of sheets and 7.4 GB of
-      # tiles (1.5 million of them) for the 09-03-2026 cycle.
+      # tiles (1.5 million of them) for the 09-03-2026 cycle, and about
+      # 25 GB more of the 512-pixel "@2x" tiles from the 12-24-2026 cycle.
       Cpu: "2048"
       Memory: "8192"
       EphemeralStorage: { SizeInGiB: 60 }

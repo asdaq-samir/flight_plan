@@ -75,6 +75,11 @@ class ChartLayer(BaseModel):
     # own pyramid is finished, so the map's tile URLs carry its own.
     cycle: str | None = None
     revision: int = 0
+    # The pixel densities its tiles were drawn at there
+    # (wingtip.charts.tile_scales): 1, the 256-pixel tiles, and 2 when
+    # the same z/x/y also comes as a 512-pixel tile named {y}@2x.png,
+    # which a 2x or 3x screen draws in its place.
+    scales: list[int] = [1]
 
 
 class ChartInfo(BaseModel):
@@ -381,16 +386,19 @@ class Totals(BaseModel):
 
 
 class WindsPeriod(BaseModel):
-    """A winds and temperatures aloft forecast's period (AC 00-45H, the
-    Winds and Temperatures Aloft Forecast (FB)):
-    valid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC;
-    `modelled` where the FB could not be had and the GFS's winds stand in
-    for it (wingtip.modelwinds)."""
+    """The period of the winds and temperatures aloft a plan flies: the
+    GFS model's (wingtip.modelwinds), since the FB ended with the NAM (NWS
+    Service Change Notice 26-47). Valid at `valid_at`, for use from
+    `use_from` to `use_to` (FAA Order JO 7110.10 TBL 9-3-1's windows round
+    the forecast hour), ISO UTC; `run` the GFS run and `forecast_hour` the
+    hour of it read; `modelled` always true now."""
 
     valid_at: str
     use_from: str
     use_to: str
     modelled: bool = False
+    run: str | None = None
+    forecast_hour: int | None = None
 
 
 class FuelStop(BaseModel):

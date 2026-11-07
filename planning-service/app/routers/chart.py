@@ -31,10 +31,10 @@ router = APIRouter()
 _CHART_TILE_MAX_AGE_S = 28 * 24 * 3600
 
 
-def _chart_tile(kind: charts.ChartKind, z: int, x: int, y: int) -> Response:
+def _chart_tile(kind: charts.ChartKind, z: int, x: int, y: int, scale: int = 1) -> Response:
     if not (kind.min_zoom <= z <= kind.max_zoom):
         raise HTTPException(404, f"{kind.key} tiles exist for zoom {kind.min_zoom}-{kind.max_zoom}")
-    png = charts.tile_png(x, y, z, kind.key)
+    png = charts.tile_png(x, y, z, kind.key, scale)
     if png is None:
         # No sheet covers it -- the sea, Canada, Mexico round the country
         # as it opens: nothing to draw, which is no failure, so 204, kept
@@ -47,6 +47,20 @@ def _chart_tile(kind: charts.ChartKind, z: int, x: int, y: int) -> Response:
         media_type="image/png",
         headers={"Cache-Control": f"public, max-age={_CHART_TILE_MAX_AGE_S}"},
     )
+
+
+# Before the plain tile's route, which would take "93@2x" for its y and
+# turn it away as no number.
+@router.get("/api/chart-tile/{kind}/{z}/{x}/{y}@2x.png",
+            responses={200: {"content": {"image/png": {}}}, 204: {"description": "No sheet covers the tile"}})
+def chart_tile_2x(kind: str, z: int, x: int, y: int) -> Response:
+    """The same tile at twice the pixels, 512 on a side, for a 2x or 3x
+    screen: drawn from the FAA's sheet at that size, where the browser
+    stretching the 256-pixel tile blurred every line and letter.
+    `chart_layers` says which kinds have them (`scales`)."""
+    if kind not in charts.KINDS:
+        raise HTTPException(404, f"no such chart kind: {kind}")
+    return _chart_tile(charts.KINDS[kind], z, x, y, scale=2)
 
 
 @router.get("/api/chart-tile/{kind}/{z}/{x}/{y}.png",
