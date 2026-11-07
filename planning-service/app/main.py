@@ -39,7 +39,7 @@ from pydantic import TypeAdapter
 from wingtip import (
     airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, sua, water, weather,
 )
-from wingtip import airspace_at, congested
+from wingtip import airspace_at, congested, data_cycles
 from wingtip import pack as cycle_pack
 from wingtip import traffic as traffic_data
 from wingtip import airports as airport_table
@@ -269,7 +269,19 @@ def _warm_reference_data() -> None:
     # 0.0 as above: a startup read that failed is tried again on the first
     # pass, and after a good one refresh() sees a fresh file and does nothing.
     last_registry_check = 0.0
+    # Whether the FAA's data on disk is still in its cycle
+    # (wingtip.data_cycles): with the refreshes off (production), nothing
+    # fetches a new edition, and an old one reads as if nothing were wrong.
+    # Checked on every switch's setting, as often as the editions are; the
+    # log is told once a day while one is out of date.
+    last_cycles_check = 0.0
     while True:
+        if time.time() - last_cycles_check >= EDITIONS_CHECK_EVERY_S:
+            last_cycles_check = time.time()
+            try:
+                data_cycles.warn_if_out_of_date()
+            except Exception:  # noqa: BLE001 -- the next check tries again
+                log.warning("FAA data cycles not checked", exc_info=True)
         if chart_refresh.AUTO_REFRESH and time.time() - last_editions_check >= EDITIONS_CHECK_EVERY_S:
             last_editions_check = time.time()
             try:
