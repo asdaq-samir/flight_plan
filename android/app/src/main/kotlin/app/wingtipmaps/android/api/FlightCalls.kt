@@ -15,14 +15,15 @@ import kotlinx.serialization.encodeToString
 private class AheadAnswer(val alerts: List<AheadAlert>)
 
 /** What the airplane's track runs into in the next minutes
- *  (/api/airspace/ahead): the planner's alerts, in its words. */
+ *  (/api/airspace/ahead): the planner's alerts, in its words. Waits no
+ *  longer than IN_FLIGHT_MS, so OwnShip falls back to the packs. */
 suspend fun Planner.ahead(lat: Double, lon: Double, trackDeg: Double, groundspeedKt: Double, altitudeFt: Double?): List<AheadAlert> {
     val query = mapOf(
         "lat" to lat.toString(), "lon" to lon.toString(),
         "track" to Math.round(trackDeg).toString(), "gs" to Math.round(groundspeedKt).toString(),
         "alt" to altitudeFt?.let { Math.round(it).toString() },
     )
-    return Gateway.json.decodeFromString<AheadAnswer>(fetch("/api/airspace/ahead", query)).alerts
+    return Gateway.json.decodeFromString<AheadAnswer>(fetch("/api/airspace/ahead", query, timeoutMs = IN_FLIGHT_MS)).alerts
 }
 
 /** The airplanes heard about a point (/api/traffic), out to a radius in nm. */

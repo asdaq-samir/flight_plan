@@ -259,6 +259,9 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
             "worked": not nav or (bool(nav["aircraft"].get("takeoff")) and bool(nav["aircraft"].get("landing"))),
             "short": list(dict.fromkeys(c["field"]["ident"] for c in checks if any(d["over"] for d in c["distances"]))),
             "crosswind": list(dict.fromkeys(c["field"]["ident"] for c in checks if c["crosswind_over"])),
+            "beyond": list(dict.fromkeys(c["field"]["ident"] for c in checks if any(d["beyond"] for d in c["distances"]))),
+            "unchecked": list(dict.fromkeys(c["field"]["ident"] for c in checks
+                                            if c["unchecked"] or any(d["unknown"] for d in c["distances"]))),
         },
         "balance": {
             "pending": not nav, "worked": bool(nav_loaded),

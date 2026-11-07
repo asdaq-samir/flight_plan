@@ -2251,6 +2251,119 @@
       ],
       "additionalProperties": false
     },
+    "data_cycle": {
+      "description": "Whether an FAA data set's edition is in force on a day, by its cycle: AIRAC's 28 days (NASR, CIFP, d-TPP), the 56-day charting cycle (sectional, terminal area and IFR enroute charts, the Chart Supplement) or the Digital Obstacle File's 56-day releases, from the FAA's 28 and 56 Day Product Schedule and its DOF page.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "DataCycleInput",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "airac",
+                "chart",
+                "dof"
+              ],
+              "description": "The schedule the data set is published on."
+            },
+            "effective": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "YYYY-MM-DD: the date the edition held is named by (its effective date; a DOF file's last day of changes). Missing or null where nothing says."
+            },
+            "on": {
+              "type": "string",
+              "description": "YYYY-MM-DD: the UTC day it is used on."
+            }
+          },
+          "required": [
+            "kind",
+            "on"
+          ]
+        },
+        "answer": {
+          "title": "DataCycleAnswer",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "airac",
+                "chart",
+                "dof"
+              ]
+            },
+            "cycle_days": {
+              "type": "integer",
+              "description": "The cycle's length, 28 or 56 days."
+            },
+            "current": {
+              "type": "string",
+              "description": "YYYY-MM-DD: the day the edition in force on `on` took effect (a DOF's release)."
+            },
+            "current_ident": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The AIRAC cycle's number, YYNN (\"2611\"); null off AIRAC."
+            },
+            "next": {
+              "type": "string",
+              "description": "YYYY-MM-DD: the day the next edition takes its place."
+            },
+            "effective": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "YYYY-MM-DD: the day the edition held counts from; null where unknown."
+            },
+            "expires": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "YYYY-MM-DD: the first day the edition held no longer counts; null where unknown."
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "in_force",
+                "expired",
+                "not_yet",
+                "unknown"
+              ]
+            },
+            "behind": {
+              "type": "integer",
+              "description": "How many editions have come out since the one held; 0 unless expired."
+            }
+          },
+          "required": [
+            "kind",
+            "cycle_days",
+            "current",
+            "current_ident",
+            "next",
+            "effective",
+            "expires",
+            "state",
+            "behind"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
     "weather_expires_at": {
       "description": "When a weather report stops counting, Unix seconds UTC, or null where nothing says: a routine METAR an hour after it was observed (AIM 7-1-28, \"METAR-hourly\"; FMH-1 ch. 2), a SPECI when the next routine report is due, a TAF, the FB winds or an advisory at the end of the valid time its header gives (AC 00-45H).",
       "type": "object",
@@ -3592,7 +3705,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "What could not be had from the table: beyond its edges, or a tailwind past ten."
+              "description": "What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten."
             },
             "over": {
               "type": "boolean"
@@ -4029,13 +4142,23 @@
                 "type": "boolean"
               },
               "pressure_alt_ft": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Null where the field's elevation is not known (see unchecked)."
               },
               "density_alt_ft": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ]
               },
               "temp_c": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ]
               },
               "reported": {
                 "type": "boolean",
@@ -4054,6 +4177,13 @@
               "grass": {
                 "type": "boolean"
               },
+              "unchecked": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Why the field's distances were not worked out (distances then empty): its elevation not known."
+              },
               "distances": {
                 "type": "array",
                 "items": {
@@ -4071,7 +4201,7 @@
                       "items": {
                         "type": "string"
                       },
-                      "description": "What could not be had from the table: beyond its edges, or a tailwind past ten."
+                      "description": "What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten."
                     },
                     "kind": {
                       "type": "string",
@@ -4082,6 +4212,14 @@
                     },
                     "over": {
                       "type": "boolean"
+                    },
+                    "unknown": {
+                      "type": "boolean",
+                      "description": "No runway, or its length not known: whether it fits is not known (14 CFR 91.103(b))."
+                    },
+                    "beyond": {
+                      "type": "boolean",
+                      "description": "Read past the POH's table: the figures are its edge's, not the airplane's."
                     },
                     "runway": {
                       "type": [
@@ -4102,6 +4240,8 @@
                     "caveats",
                     "kind",
                     "over",
+                    "unknown",
+                    "beyond",
                     "runway",
                     "end"
                   ]
@@ -4122,6 +4262,7 @@
               "crosswind_kt",
               "crosswind_over",
               "grass",
+              "unchecked",
               "distances"
             ]
           }
@@ -5441,7 +5582,11 @@
               }
             },
             "elevation_ft": {
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Null where the field's elevation is not known: no distance is worked out (needed_ft null, unknown true)."
             },
             "altimeter_in_hg": {
               "type": [
@@ -5501,6 +5646,14 @@
             "close": {
               "type": "boolean",
               "description": "Not short, but within SAFO 19001's 15 per cent."
+            },
+            "unknown": {
+              "type": "boolean",
+              "description": "The distance or the runway's length is not known, so whether it fits is not (14 CFR 91.103(b)); never read as fitting."
+            },
+            "beyond": {
+              "type": "boolean",
+              "description": "The distance was read past the POH's table (higher, hotter, heavier or more tailwind than it goes): its edge's figures."
             }
           },
           "required": [
@@ -5509,7 +5662,9 @@
             "needed_ft",
             "length_ft",
             "short",
-            "close"
+            "close",
+            "unknown",
+            "beyond"
           ]
         }
       },
@@ -5782,6 +5937,13 @@
                 "number",
                 "null"
               ]
+            },
+            "ceiling_unknown": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "The lowest broken, overcast or obscured layer was sent with no height (OVC///): the ceiling is not known, and only a visibility under a mile says the category (14 CFR 1.1)."
             }
           }
         },
@@ -9803,6 +9965,7 @@
     "place_words",
     "readback_check",
     "magnetic_variation",
+    "data_cycle",
     "weather_expires_at",
     "weather_in_force",
     "gonogo_verdict",
@@ -10953,7 +11116,7 @@
           "items": {
             "type": "string"
           },
-          "description": "What could not be had from the table: beyond its edges, or a tailwind past ten."
+          "description": "What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten."
         }
       },
       "required": [
@@ -12662,6 +12825,26 @@
               "items": {
                 "type": "string"
               }
+            },
+            "beyond": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Fields whose distances were read past the POH's table: a caution."
+            },
+            "unchecked": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Fields whose distances could not be held to the runway (its length or the field's elevation not known): unknown, never ok."
             }
           }
         },

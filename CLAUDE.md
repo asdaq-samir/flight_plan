@@ -51,14 +51,17 @@ one job (the owner kept both server languages on this split, 2026-11-06):
 
 - One flow, for the owner and every session alike: a `claude/<topic>`
   branch from `main`, a pull request to `main`, and it merges by itself
-  once the "CI passed" check is green and Claude's review has run
-  (auto-merge-agents.yml); nothing merges red. The branch is deleted on
-  merge (the repository's setting).
+  once the "CI passed" check is green (auto-merge-agents.yml); nothing
+  merges red. The branch is deleted on merge (the repository's setting).
+- Claude's review is on demand, not a gate (the owner, 2026-11-06): the
+  "review" label on a pull request asks for one. So run the checks that
+  cover a change, and the aviation-check skill for any figure or rule,
+  before pushing.
 - Never push to `main`. Never force-push. Merge `main` into a branch to
   bring it up to date; never rebase a pushed one.
-- On a pull request, Claude's review is put right on the branch ("Address
-  review:" commits) and a CI failure is fixed ("Fix CI:"), each at most
-  twice.
+- On a pull request, an asked-for review is put right on the branch
+  ("Address review:" commits) and a CI failure is fixed ("Fix CI:"), each
+  at most twice.
 - Write to GitHub gently, as the `ship` skill says: one write at a time,
   ten seconds apart, a long list as one issue's checklist. A burst of API
   writes got the owner's account suspended in October 2026.
@@ -105,6 +108,13 @@ them). The table is what it runs:
 | `android/` (the native app) | On the Mac mini: `./gradlew testDebugUnitTest lintDebug assembleDebug` in `android/` with JetBrains' JDK 21, after `native/ffi/build-android.sh`; `native-android.yml` builds the engine for each ABI, runs the unit tests, lint and a debug APK, then the instrumented tests on an emulator (docs/NATIVE-ANDROID.md) |
 
 Python wants `pip install -r requirements-dev.txt` in that directory first.
+
+A pre-push hook runs the quick ones for what a push changes against
+origin/main: `tsc` and ESLint for `web/`, ruff for Python, `cargo check`
+for `native/` (each skipped with a note where its tool is missing). Install
+it once per clone with `scripts/install-hooks.sh`; skip it with `git push
+--no-verify` or `SKIP_HOOKS=1`. It runs outside the lock and is no
+substitute for the table above.
 
 An API that changes changes its document, which the web app's types come
 from: `python -m app.openapi` in planning-service, or `WRITE_OPENAPI=1 mvn

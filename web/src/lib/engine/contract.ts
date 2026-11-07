@@ -170,9 +170,12 @@ export type GonogoRunwayChecksAnswer = {
   runway: number | null;
   end: string | null;
   picked: boolean;
-  pressure_alt_ft: number;
-  density_alt_ft: number;
-  temp_c: number;
+  /**
+   * Null where the field's elevation is not known (see unchecked).
+   */
+  pressure_alt_ft: number | null;
+  density_alt_ft: number | null;
+  temp_c: number | null;
   /**
    * A METAR gave the temperature and altimeter.
    */
@@ -184,6 +187,10 @@ export type GonogoRunwayChecksAnswer = {
    */
   crosswind_over: boolean;
   grass: boolean;
+  /**
+   * Why the field's distances were not worked out (distances then empty): its elevation not known.
+   */
+  unchecked: string | null;
   distances: {
     ground_roll_ft: number;
     /**
@@ -191,11 +198,19 @@ export type GonogoRunwayChecksAnswer = {
      */
     total_ft: number;
     /**
-     * What could not be had from the table: beyond its edges, or a tailwind past ten.
+     * What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten.
      */
     caveats: string[];
     kind: "takeoff" | "landing";
     over: boolean;
+    /**
+     * No runway, or its length not known: whether it fits is not known (14 CFR 91.103(b)).
+     */
+    unknown: boolean;
+    /**
+     * Read past the POH's table: the figures are its edge's, not the airplane's.
+     */
+    beyond: boolean;
     runway: number | null;
     end: string | null;
   }[];
@@ -695,6 +710,13 @@ export interface EngineContract {
   magnetic_variation: {
     input: MagneticVariationInput;
     answer: MagneticVariationAnswer;
+  };
+  /**
+   * Whether an FAA data set's edition is in force on a day, by its cycle: AIRAC's 28 days (NASR, CIFP, d-TPP), the 56-day charting cycle (sectional, terminal area and IFR enroute charts, the Chart Supplement) or the Digital Obstacle File's 56-day releases, from the FAA's 28 and 56 Day Product Schedule and its DOF page.
+   */
+  data_cycle: {
+    input: DataCycleInput;
+    answer: DataCycleAnswer;
   };
   /**
    * When a weather report stops counting, Unix seconds UTC, or null where nothing says: a routine METAR an hour after it was observed (AIM 7-1-28, "METAR-hourly"; FMH-1 ch. 2), a SPECI when the next routine report is due, a TAF, the FB winds or an advisory at the end of the valid time its header gives (AC 00-45H).
@@ -2133,6 +2155,52 @@ export interface MagneticVariationInput {
    */
   date: string;
 }
+export interface DataCycleInput {
+  /**
+   * The schedule the data set is published on.
+   */
+  kind: "airac" | "chart" | "dof";
+  /**
+   * YYYY-MM-DD: the date the edition held is named by (its effective date; a DOF file's last day of changes). Missing or null where nothing says.
+   */
+  effective?: string | null;
+  /**
+   * YYYY-MM-DD: the UTC day it is used on.
+   */
+  on: string;
+}
+export interface DataCycleAnswer {
+  kind: "airac" | "chart" | "dof";
+  /**
+   * The cycle's length, 28 or 56 days.
+   */
+  cycle_days: number;
+  /**
+   * YYYY-MM-DD: the day the edition in force on `on` took effect (a DOF's release).
+   */
+  current: string;
+  /**
+   * The AIRAC cycle's number, YYNN ("2611"); null off AIRAC.
+   */
+  current_ident: string | null;
+  /**
+   * YYYY-MM-DD: the day the next edition takes its place.
+   */
+  next: string;
+  /**
+   * YYYY-MM-DD: the day the edition held counts from; null where unknown.
+   */
+  effective: string | null;
+  /**
+   * YYYY-MM-DD: the first day the edition held no longer counts; null where unknown.
+   */
+  expires: string | null;
+  state: "in_force" | "expired" | "not_yet" | "unknown";
+  /**
+   * How many editions have come out since the one held; 0 unless expired.
+   */
+  behind: number;
+}
 export interface WeatherExpiresAtInput {
   product: "metar" | "speci" | "taf" | "winds" | "advisory";
   /**
@@ -2288,6 +2356,14 @@ export interface VerdictInput {
     worked?: boolean | null;
     short?: string[] | null;
     crosswind?: string[] | null;
+    /**
+     * Fields whose distances were read past the POH's table: a caution.
+     */
+    beyond?: string[] | null;
+    /**
+     * Fields whose distances could not be held to the runway (its length or the field's elevation not known): unknown, never ok.
+     */
+    unchecked?: string[] | null;
   };
   balance: {
     /**
@@ -2733,7 +2809,7 @@ export interface GonogoDistances {
    */
   total_ft: number;
   /**
-   * What could not be had from the table: beyond its edges, or a tailwind past ten.
+   * What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten.
    */
   caveats: string[];
 }
@@ -2752,7 +2828,7 @@ export interface GonogoEndDistanceAnswer {
    */
   total_ft: number;
   /**
-   * What could not be had from the table: beyond its edges, or a tailwind past ten.
+   * What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten.
    */
   caveats: string[];
   over: boolean;
@@ -3111,7 +3187,10 @@ export interface RunwayEndFitInput {
     speed_kt?: number | null;
     gust_kt?: number | null;
   } | null;
-  elevation_ft: number;
+  /**
+   * Null where the field's elevation is not known: no distance is worked out (needed_ft null, unknown true).
+   */
+  elevation_ft: number | null;
   altimeter_in_hg?: number | null;
   temp_c?: number | null;
   /**
@@ -3133,6 +3212,14 @@ export interface RunwayEndFitAnswer {
    * Not short, but within SAFO 19001's 15 per cent.
    */
   close: boolean;
+  /**
+   * The distance or the runway's length is not known, so whether it fits is not (14 CFR 91.103(b)); never read as fitting.
+   */
+  unknown: boolean;
+  /**
+   * The distance was read past the POH's table (higher, hotter, heavier or more tailwind than it goes): its edge's figures.
+   */
+  beyond: boolean;
 }
 export interface TrafficPatternInput {
   ident?: string | null;
@@ -3199,6 +3286,10 @@ export interface DepartureCircuitInput {
 export interface FlightCategoryInput {
   ceiling_ft?: number | null;
   visibility_sm?: number | null;
+  /**
+   * The lowest broken, overcast or obscured layer was sent with no height (OVC///): the ceiling is not known, and only a visibility under a mile says the category (14 CFR 1.1).
+   */
+  ceiling_unknown?: boolean | null;
 }
 export interface TafHourInput {
   prevailing: TafFiguresIn;

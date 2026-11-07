@@ -75,8 +75,10 @@
 //!   "special_use": [{"name", "when"}]}, "altitude": {"pending",
 //!   "problem"?, "cautions", "flown"?}, "fuel": {"pending", "margin_gal"?,
 //!   "required_gal"?, "reserve_min"?, "ifr"?}, "runways": {"pending",
-//!   "worked", "short", "crosswind"}, "balance": {"pending", "worked",
-//!   "problems", "takeoff"?}, "risk"?: {"level", "line"}};
+//!   "worked", "short", "crosswind", "beyond"?, "unchecked"?}, "balance":
+//!   {"pending", "worked", "problems", "takeoff"?}, "risk"?: {"level",
+//!   "line"}}; a section that leaves out the lists it is decided by is
+//!   "unknown", never "ok";
 //! - `gonogo_under_minimums`: the sentences where the weather is under the
 //!   pilot's minimums, from `{"minimums": {"ceiling_ft"?, "visibility_sm"?,
 //!   "crosswind_kt"?, "wind_kt"?}, "landings": [ident], "dest", and the
@@ -237,11 +239,12 @@
 //!   end's `{"ident", "heading_true_deg", "traffic"}`, from
 //!   `{"end_headings", "variation_deg", "right": [end key]}`;
 //! - `runway_end_fit`: `{"crosswind_kt", "crosswind_over", "needed_ft",
-//!   "length_ft", "short", "close"}` (SAFO 19001's 15 per cent), from
+//!   "length_ft", "short", "close", "unknown", "beyond"}` (SAFO 19001's
+//!   15 per cent; unknown where the distance or length is not), from
 //!   `{"aircraft"?: {"takeoff"?, "landing"?, "crosswind"?:
 //!   {"demonstrated_kt"?}}, "runway", "end": {"heading_true_deg"?},
-//!   "wind"?: {"dir_true_deg"?, "speed_kt"?, "gust_kt"?}, "elevation_ft",
-//!   "altimeter_in_hg"?, "temp_c"?, "weight_lb"?, "kind"}`;
+//!   "wind"?: {"dir_true_deg"?, "speed_kt"?, "gust_kt"?}, "elevation_ft"
+//!   (null: not known, no distance), "altimeter_in_hg"?, "temp_c"?, "weight_lb"?, "kind"}`;
 //! - `traffic_pattern` and `departure_pattern`: lib/trafficPattern's
 //!   TrafficPattern (snake_case) or null, from `{"ident", "runway",
 //!   "end_ident", "altitude_ft"?, "toward"?: {"lat", "lon"}}`;
@@ -291,6 +294,15 @@
 //!   with `"now"` and, for a forecast, `"valid_from"?`;
 //! - `magnetic_variation`: degrees east, the World Magnetic Model's (wmm,
 //!   as wingtip.magnetic), from `{"lat", "lon", "date": "YYYY-MM-DD"}`.
+//!
+//! The FAA's data sets on their cycles (crate::cycles):
+//!
+//! - `data_cycle`: whether an edition is in force on a day, `{"kind",
+//!   "cycle_days", "current", "current_ident", "next", "effective",
+//!   "expires", "state": "in_force"|"expired"|"not_yet"|"unknown",
+//!   "behind"}`, from `{"kind": "airac"|"chart"|"dof", "effective"?:
+//!   "YYYY-MM-DD" (the date the edition is named by), "on": "YYYY-MM-DD"}`
+//!   (the FAA's 28 and 56 Day Product Schedule; the DOF page).
 //!
 //! Instrument approaches taught and debriefed (crate::approach, the web's
 //! lib/approachDebrief and lib/approachLesson), a drawing the planner's
@@ -621,6 +633,17 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             let mut out = String::new();
             json::number(&mut out, crate::wmm::declination(ask.num("lat")?, ask.num("lon")?, decimal));
             Ok(out)
+        }
+        "data_cycle" => {
+            let kind = ask.str("kind")?;
+            let kind = crate::cycles::Kind::from_name(kind).ok_or_else(|| format!("data_cycle: \"kind\" is not airac, chart or dof: {kind:?}"))?;
+            let on = ask.str("on")?;
+            let on = crate::cycles::day_of(on).ok_or_else(|| format!("data_cycle: \"on\" is not YYYY-MM-DD: {on:?}"))?;
+            let effective = match ask.opt_str("effective")? {
+                "" => None,
+                e => Some(crate::cycles::day_of(e).ok_or_else(|| format!("data_cycle: \"effective\" is not YYYY-MM-DD: {e:?}"))?),
+            };
+            Ok(crate::cycles::to_json(&crate::cycles::cycle(kind, effective, on)))
         }
         _ if crate::wording::NAMES.contains(&name) => crate::wording::answer(name, ask.v),
         // A field's weather (forecast::calls), the traffic list's filters and
