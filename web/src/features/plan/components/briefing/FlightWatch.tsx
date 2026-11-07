@@ -11,7 +11,7 @@ import { pilotQuery } from "../../../../lib/queryClient";
 import { TEXT } from "../../../../lib/text";
 import SourceChips from "../ask/SourceChips";
 import DepartPicker from "../navlog/DepartPicker";
-import { planOf, SAVE_FLIGHT, useSaveRequest, type FlightToSave } from "./FlightBriefingView";
+import { planOf, SAVE_FLIGHT, useSaveRequest, type FlightToSave } from "./SaveFlight";
 
 /** How often the watch is read while the Brief is open: the gateway
  *  checks on its own clock, and the Brief shows what it found. */
