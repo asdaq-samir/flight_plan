@@ -639,17 +639,10 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
   // pool, timed out at ten seconds, and read "no answer" for a gateway
   // that had just served the page.
   const services = status?.services;
-  const modelService = services?.model_service;
   const rows: { name: string; health: Health; detail: string }[] = [
     { name: "webapp (Spring Boot)", health: reported(services?.webapp, failed), detail: "the gateway, sessions, aircraft and flights" },
     { name: "db (Postgres + pgvector)", health: reported(services?.db, failed), detail: "application data and the agent's memory" },
-    { name: "planning-service", health: reported(status ? { up: true } : null, failed), detail: "course, checkpoints, nav log, briefing, chart reading" },
-    {
-      name: "model-service", health: reported(modelService, failed),
-      detail: modelService?.up
-        ? modelService.trained_at ? `serving the chart model trained ${agoOrDate(modelService.trained_at)}` : "no chart model promoted yet"
-        : modelService?.detail ?? "scores the chart's detections",
-    },
+    { name: "planning-service", health: reported(status ? { up: true } : null, failed), detail: "course, checkpoints and the chart model's scores, nav log, briefing, chart reading" },
     { name: "nav-log-agent (LangGraph, MCP)", health: reported(services?.nav_log_agent, failed), detail: "the briefing narrative, with memory" },
     { name: "crewai-agent", health: reported(services?.crewai_agent, failed), detail: "the same narrative, in CrewAI" },
   ];
@@ -657,7 +650,6 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
   const links: { label: string; href: string; localOnly?: boolean; service?: string; note?: string }[] = [
     { label: "webapp API docs", href: "/swagger-ui/index.html" },
     { label: "planning-service API docs", href: `http://${host}:8084/docs`, localOnly: true },
-    { label: "model-service API docs", href: `http://${host}:8000/docs`, localOnly: true, service: "model-service" },
     { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true, service: "ml" },
     { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true, service: "airflow" },
     // The sidecar can start it; its one page is the MCP stream, which

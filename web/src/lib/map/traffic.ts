@@ -7,7 +7,7 @@ import type { Fix } from "./ownShip";
  * The rules here -- the height under an airplane as TCAS writes it, whether
  * it is near own ship's (1,000 ft, 14 CFR 91.159's spacing), which airplane
  * is own ship's own transponder, when and how near one comes -- are the
- * shared engine's (native/engine/src/motion/traffic.rs, through
+ * shared engine's (native/crates/route/src/motion/traffic.rs, through
  * lib/engine), the very code the phones ask (wt_call). What runs
  * every frame stays here -- an airplane carried on along its track between
  * reports, its trend line's length at the map's scale, the colours of a

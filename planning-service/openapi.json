@@ -8642,41 +8642,6 @@
         "title": "ModelRegistry",
         "type": "object"
       },
-      "ModelServiceStatus": {
-        "properties": {
-          "detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detail"
-          },
-          "trained_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trained At"
-          },
-          "up": {
-            "title": "Up",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "up"
-        ],
-        "title": "ModelServiceStatus",
-        "type": "object"
-      },
       "ModelSnapshot": {
         "properties": {
           "cv_mae": {
@@ -13544,9 +13509,6 @@
               }
             ]
           },
-          "model_service": {
-            "$ref": "#/components/schemas/ModelServiceStatus"
-          },
           "nav_log_agent": {
             "anyOf": [
               {
@@ -13569,7 +13531,6 @@
           }
         },
         "required": [
-          "model_service",
           "nav_log_agent",
           "crewai_agent"
         ],
@@ -18221,7 +18182,7 @@
     },
     "/api/dev/services/{service}/start": {
       "post": {
-        "description": "Start one of the four, if it is not already up.\n\nAlready running is a success, not an error: the console calls this\non every click so a link always works, and the common case is that\nthere was nothing to do.",
+        "description": "Start one of the three, if it is not already up.\n\nAlready running is a success, not an error: the console calls this\non every click so a link always works, and the common case is that\nthere was nothing to do.",
         "operationId": "start_dev_service_api_dev_services__service__start_post",
         "parameters": [
           {

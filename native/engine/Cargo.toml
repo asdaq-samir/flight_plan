@@ -8,8 +8,18 @@ description = "The planner's figures in Rust, with no network and no Python: rou
 [lib]
 name = "wingtip_engine"
 
-# None: the engine is plain Rust, so the phone can carry it as it is.
+# Only the engine's own crates (native/crates, native/README.md): the
+# engine is plain Rust, so the phone can carry it as it is.
 [dependencies]
+wingtip-airspace = { path = "../crates/airspace" }
+wingtip-brief = { path = "../crates/brief" }
+wingtip-figures = { path = "../crates/figures" }
+wingtip-geo = { path = "../crates/geo" }
+wingtip-pilot = { path = "../crates/pilot" }
+wingtip-radio = { path = "../crates/radio" }
+wingtip-route = { path = "../crates/route" }
+wingtip-weather = { path = "../crates/weather" }
+wingtip-wording = { path = "../crates/wording" }
 
 # The shared fixtures (tests/fixtures/native) are gzip and JSON, which the
 # Python reads as well.

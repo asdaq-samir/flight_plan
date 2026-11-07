@@ -69,14 +69,14 @@ fn arms(src: &str, start: &str) -> BTreeSet<String> {
 fn code_names() -> BTreeSet<String> {
     let mut names = BTreeSet::new();
     names.extend(arms(include_str!("../src/call.rs"), "pub fn call("));
-    names.extend(arms(include_str!("../src/motion/mod.rs"), "pub fn call("));
-    names.extend(arms(include_str!("../src/gonogo/calls.rs"), "pub fn call("));
+    names.extend(arms(include_str!("../../crates/route/src/motion/mod.rs"), "pub fn call("));
+    names.extend(arms(include_str!("../../crates/brief/src/gonogo/calls.rs"), "pub fn call("));
     for src in [
-        include_str!("../src/wording/mod.rs"),
-        include_str!("../src/forecast/calls.rs"),
-        include_str!("../src/aircraft/calls.rs"),
-        include_str!("../src/approach/calls.rs"),
-        include_str!("../src/route/answers.rs"),
+        include_str!("../../crates/wording/src/wording/mod.rs"),
+        include_str!("../../crates/weather/src/forecast/calls.rs"),
+        include_str!("../../crates/pilot/src/aircraft/calls.rs"),
+        include_str!("../../crates/route/src/approach/calls.rs"),
+        include_str!("../../crates/route/src/route/answers.rs"),
     ] {
         names.extend(names_const(src));
     }

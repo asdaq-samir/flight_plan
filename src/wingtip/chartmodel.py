@@ -19,7 +19,8 @@ Who does what: the planner writes the table (`labeled_rows` over its
 corridor reads), as it holds the chart reader and the pipeline images
 do not (no GDAL there); `retrain` runs in the training image; and
 wingtip.model_registry evaluates and promotes into data/models/chart/
-current, which model-service serves and the planner asks for scores.
+current, which the planner loads and scores with (planning-service's
+app.chart_scorer).
 """
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ TRAINING_TABLE_PATH = DATA_DIR / "processed" / "chart_training.parquet"
 FEATURE_COLS = chartfeatures.FEATURE_COLS
 
 # The scale a score is held to, scored and served alike (metrics.json
-# says it, and model-service clips to it): a linear model extrapolates,
+# says it, and the planner's scorer clips to it): a linear model extrapolates,
 # and gave the largest lake in a corridor 15.
 RATING_RANGE = (0.0, 5.0)
 

@@ -10,7 +10,7 @@ type RouteTfr = Briefing["tfrs"][number];
  * How the FAA's own words are written -- its capitals in sentence case
  * with its codes kept, names, the advisories' intensities and hazards, a
  * special-use area's limits -- is the shared engine's
- * (native/engine/src/wording, through lib/engine): the very rules the
+ * (native/crates/wording/src/wording, through lib/engine): the very rules the
  * planner's Go / No-Go and the iPhone write them by. Only how a figure
  * is printed and a date laid out are made here.
  */

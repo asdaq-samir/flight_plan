@@ -1,0 +1,15 @@
+[package]
+name = "wingtip-brief"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The Brief's Go / No-Go and the runways it checks: the wind on a runway, the runway flown, the traffic pattern, a POH's distances, the findings and the verdict"
+
+[lib]
+name = "wingtip_brief"
+
+# Only the engine's own crates, below this one (native/README.md):
+# plain Rust, so the phones carry it as it is.
+[dependencies]
+wingtip-geo = { path = "../geo" }
+wingtip-figures = { path = "../figures" }

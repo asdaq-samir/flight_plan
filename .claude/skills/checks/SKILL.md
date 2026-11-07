@@ -18,7 +18,7 @@ CLAUDE.md says what to run for each part of the repo; this says how to run it he
 | `web/` | Web checks, then the specs the change touches | CI runs the whole suite on the push |
 | `src/wingtip`, `tests/` | Python at the root | restart the planner (it mounts `src`) |
 | `planning-service/` | Python in `planning-service` | restart the planner |
-| `model-service/`, `nav-log-agent/`, `crewai-agent/` | Python in that service | rebuild that service |
+| `nav-log-agent/`, `crewai-agent/` | Python in that service | rebuild that service |
 | `springboot-app/` | Java | rebuild the webapp |
 | an API's request or response | regenerate its OpenAPI document, then `npm run types` | commit all three |
 | any `requirements*.txt`, `pom.xml`, `package.json` or Dockerfile | rebuild every image that installs it | before verifying anything |
@@ -46,7 +46,7 @@ To rewrite `springboot-app/openapi.json`, run the same command with `-e WRITE_OP
 
 The stack runs with three compose files and the `ai` profile. Name the services, so that airflow, which has no profile, stays down:
 ```sh
-docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compose.web-dev.yml --profile ai up -d webapp model-service planning-service web-build nav-log-agent crewai-agent db mailpit dev-services
+docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compose.web-dev.yml --profile ai up -d webapp planning-service web-build nav-log-agent crewai-agent db mailpit dev-services
 ```
 - Pass all three `-f` files on every `up` that touches the webapp. Without `web-dev` it serves the bundle baked into its image, so a fix seems "not to work". Without `phone`, the iPhone loses the app. To check what the running webapp was started with: `docker inspect wingtip-webapp-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'`.
 - **Web change:** `web-build` (vite `--watch`) rewrites `web/dist` about 2 s after a save, and the webapp serves it on the next request. Nothing needs restarting.

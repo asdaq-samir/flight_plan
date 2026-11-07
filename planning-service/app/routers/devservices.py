@@ -1,13 +1,12 @@
 """Starting a development service the console links to.
 
-The console offers doors into Jupyter, Airflow and the two other
-services. A door into something that is not running is a dead link, and
+The console offers doors into Jupyter, Airflow and nav-log-agent. A door into something that is not running is a dead link, and
 telling a developer to go and type `docker compose up -d ml` is a
 worse answer than doing it.
 
 This service never touches Docker itself. It asks the dev-services
 sidecar (docker/dev-services), the one process holding the socket for
-this, which answers two requests -- which of four services are up, and
+this, which answers two requests -- which of three services are up, and
 start one -- and refuses everything else, including any name not on its
 own list. STARTABLE below only names them for the console; the sidecar
 is what enforces the list. It sits on a network only this service
@@ -33,7 +32,6 @@ router = APIRouter()
 STARTABLE = {
     "ml": "Jupyter (the notebooks)",
     "airflow": "Airflow (the training DAG)",
-    "model-service": "model-service API docs",
     "nav-log-agent": "nav-log-agent",
 }
 
@@ -75,7 +73,7 @@ def dev_services() -> DevServices:
 
 @router.post("/api/dev/services/{service}/start", response_model=DevServiceStarted)
 def start_dev_service(service: str) -> DevServiceStarted:
-    """Start one of the four, if it is not already up.
+    """Start one of the three, if it is not already up.
 
     Already running is a success, not an error: the console calls this
     on every click so a link always works, and the common case is that

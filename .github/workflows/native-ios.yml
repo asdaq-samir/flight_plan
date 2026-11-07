@@ -18,6 +18,7 @@ on:
       - web/src/lib/acs.json
       # And the engine the app links, with the fixtures its tests read.
       - native/engine/**
+      - native/crates/**
       - native/ffi/**
       - native/Cargo.*
       - tests/fixtures/native/**
@@ -31,6 +32,7 @@ on:
       - web/src/lib/fixtures/**
       - web/src/lib/acs.json
       - native/engine/**
+      - native/crates/**
       - native/ffi/**
       - native/Cargo.*
       - tests/fixtures/native/**
@@ -64,7 +66,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ios/Frameworks/WingtipEngine.xcframework
-          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The engine, for the app
         # wingtip-engine through its C functions (native/ffi), which the app
         # answers the airspace from with no network. The runner's own
@@ -78,7 +80,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ios/Frameworks/WingtipEngine.xcframework
-          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The Xcode project, from project.yml
         run: |
           # The Mac mini's runner has xcodegen already, and no Homebrew.
@@ -205,7 +207,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ios/Frameworks/WingtipEngine.xcframework
-          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The engine, for the app
         # wingtip-engine through its C functions (native/ffi), which the app
         # answers the airspace from with no network. The runner's own

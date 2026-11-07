@@ -4,7 +4,7 @@ from -- minimums, icing, frat, airworthiness, takeoffLanding, runwayCheck,
 weightBalance, passTimes), with the same words and the same sources, so
 the phone shows the planner's answer and computes no rule of its own
 (docs/NATIVE.md). The rules themselves are the shared engine's
-(wingtip_engine::gonogo, native/engine/src/gonogo), asked by name with
+(wingtip_engine::gonogo, native/crates/brief/src/gonogo), asked by name with
 JSON in and out (`ask`, through wingtip_native.call), as the web app asks
 them in the browser and the phones through wt_call; these modules keep
 their names and dicts and only carry them across. Each module names the

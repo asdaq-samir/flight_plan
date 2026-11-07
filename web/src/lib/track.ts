@@ -25,7 +25,7 @@ export class TrackError extends Error {}
 
 /** A track file's points in time order, the unreadable ones dropped;
  *  a TrackError where it has none to use. Read by the shared engine
- *  (native/engine/src/motion/track.rs), the phone's reader too: GPX's
+ *  (native/crates/route/src/motion/track.rs), the phone's reader too: GPX's
  *  trkpt and KML's gx:Track, times in UTC as GPX 1.1 sets them. */
 export function readTrack(text: string): TrackPoint[] {
   const read = callEngine("read_track", { text });

@@ -9,11 +9,12 @@ It is headed for an iOS app. README.md has the services and the layout.
 Functional core, imperative shell: one core every app shares, and a thin
 shell per app round it (the owner, 2026-11-03).
 
-- **The core is the Rust engine** (`native/engine`, wingtip-engine). Every
-  aviation rule or figure lives there once: altitudes, winds, runways,
-  fuel, weather limits, Go / No-Go, holds, procedures, the clearance
-  reader, currency, the debrief. No network, no screen, no clock of its
-  own. Each rule is a name in `native/engine/src/call.rs`, JSON in and out.
+- **The core is the Rust engine** (`native/engine`, wingtip-engine, a
+  facade over its domain crates in `native/crates`, layered as
+  native/README.md says). Every aviation rule or figure lives there once:
+  altitudes, winds, runways, fuel, weather limits, Go / No-Go, holds,
+  procedures, the clearance reader, currency, the debrief. No network, no
+  screen, no clock of its own. Each rule is a name in `native/engine/src/call.rs`, JSON in and out.
 - **Each app is a shell that gets data, keeps state and draws**, and asks
   the engine the rest by name: the web through `callEngine`
   (web/src/lib/engine, the engine built to WebAssembly), the planner

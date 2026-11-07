@@ -1,7 +1,7 @@
 """Turning the model's scored candidates into an actual nav-log checkpoint
 list.
 
-model-service scores every candidate in the corridor -- 206 of them on
+The chart model scores every candidate in the corridor -- 206 of them on
 C81->KDLH -- and that is a ranking, not a flight plan. A pilot flies a
 handful of checkpoints, far enough apart to be worth timing between and
 close enough together to catch a heading error before it compounds. This

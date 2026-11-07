@@ -15,7 +15,7 @@ struct FiguresStrip: View {
     /// groundspeed now, and the fuel still required.
     private var flying: (leftNm: Double, minutes: Double?, fuelGal: Double?)? {
         // A dry run's airplane counts as flying; else own ship, moving.
-        guard let fix = dryRun.fix ?? ownShip.fix, let gs = fix.groundspeedKt, gs > 30, let course = plan.course,
+        guard let fix = dryRun.fix ?? ownShip.fix, let gs = fix.groundspeedKt, Flight.underway(gs), let course = plan.course,
               let along = Flight.along(fix.coordinate, line: course.coordinates),
               Flight.off(fix.coordinate, line: course.coordinates) <= 3 else { return nil }
         let required = plan.totals?.fuelRequiredGal.map { max(0, $0 - Flight.burnt(legs: plan.legs, alongNm: along.alongNm)) }

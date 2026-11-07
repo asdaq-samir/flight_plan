@@ -17,7 +17,7 @@ import { callEngine, type EngineAnswer } from "./engine/engine";
  * landings as day landings (all of them, which 61.57(a) counts by day or
  * night) beside the night full-stop ones (61.57(b)).
  *
- * Read and written by the shared engine (native/engine/src/pilot/
+ * Read and written by the shared engine (native/crates/pilot/src/pilot/
  * logbook.rs and csv.rs, papaparse's reading of CSV ported step for
  * step, through lib/engine), the code the iPhone app reads a logbook
  * file with too: the rules live there.

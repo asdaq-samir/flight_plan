@@ -3,7 +3,7 @@
 # embeds route briefings for pgvector similarity search; it's already an
 # established dependency in this project (notebook 05), not a new choice.
 #
-# PINNED, matching planning-service/model-service's own convention -- this
+# PINNED, matching planning-service's own convention -- this
 # and crewai-agent/requirements.txt were the two unpinned service
 # requirements files in the repo, with no lockfile behind either, so a
 # plain rebuild could silently pull a newer langgraph/anthropic/mcp

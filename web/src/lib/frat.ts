@@ -16,7 +16,7 @@
  * do not hold the fuel, an annual past due -- is high whatever else is.
  *
  * The rules, their points and their sources are the shared engine's
- * (native/engine/src/gonogo/frat.rs, through lib/engine), the planner's
+ * (native/crates/brief/src/gonogo/frat.rs, through lib/engine), the planner's
  * and the phones' own; SELF_CHECKS, the levels and their words stay here
  * as the page's labels, held to the engine's by gonogoEngine.test.ts.
  */

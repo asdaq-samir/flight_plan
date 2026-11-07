@@ -15,7 +15,7 @@ export type { LessonFocus };
  * coded data does not hold -- the minimums above all -- is "See the
  * plate", never a figure made up. A training aid; the plate flies.
  *
- * Worked out by the shared engine (native/engine/src/approach/lesson.rs,
+ * Worked out by the shared engine (native/crates/route/src/approach/lesson.rs,
  * through lib/engine), so the phones teach the same lesson with no
  * signal: the descent rate on the path (the TPP's rate of descent table),
  * the approach category (14 CFR 97.3), the minimums' kind (AIM 5-4-5),

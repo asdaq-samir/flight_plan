@@ -3,7 +3,7 @@ import { callEngine } from "./engine/engine";
 import { assess, CAUTION_FROM, HIGH_FROM, LEVEL_WORDS, SELF_CHECKS, type FratInput } from "./frat";
 
 // The risk page's own labels (lib/frat), held to the engine's rules
-// (native/engine/src/gonogo/frat.rs), which the planner and the phones
+// (native/crates/brief/src/gonogo/frat.rs), which the planner and the phones
 // show: the same checks, points, groups and sources, the same levels.
 describe("the risk page's labels", () => {
   it("lists the engine's self checks", () => {

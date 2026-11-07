@@ -4,7 +4,7 @@ them.
 
 This is the human-facing surface of everything else in the project. The
 chart reader finds what the sectional draws along the course, the chart
-model scores it (wingtip.chartmodel, served by model-service),
+model scores it (wingtip.chartmodel, loaded by app.chart_scorer),
 wingtip.checkpoints narrows them to the handful worth flying, and wingtip.navlog turns those into legs
 with real wind and magnetic variation -- but none of that is inspectable
 from a JSON response. Seeing the checkpoints on the sectional is the only
@@ -13,11 +13,13 @@ the whole model exists to answer.
 
 Split of responsibility, and why it falls this way:
 
-- model-service owns the chart model's artifact and its pinned
-  scikit-learn, and scores the detections this service sends it
-  (/score-detections). This service never loads a model.
+- The pipeline images train and promote the chart model
+  (wingtip.chartmodel, wingtip.model_registry); this service only loads
+  the promoted one and scores with it (app.chart_scorer), with the same
+  pinned scikit-learn. It was a model-service container of its own
+  until 2026-11-06.
 - This service owns everything route-shaped: reading the chart along
-  it, computing the nav log, and drawing it.
+  it, scoring what it finds, computing the nav log, and drawing it.
 
 The endpoints live in app.routers, one module per concern; the work they
 share -- resolving a route, scoring it, the nav-log arithmetic, the

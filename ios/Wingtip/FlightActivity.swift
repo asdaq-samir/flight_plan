@@ -15,9 +15,6 @@ import Foundation
 final class FlightActivity {
     static let shared = FlightActivity()
 
-    /// Below this ground speed the airplane is on the ground or taxiing,
-    /// not flying: the same line the web app's underway test draws.
-    static let flyingKt = 30.0
     /// How long own ship stays under that before the flight is over.
     static let landedAfter: TimeInterval = 5 * 60
     /// The least time between two updates: the Lock Screen is read at a
@@ -114,7 +111,7 @@ final class FlightActivity {
             if activity != nil, let last = lastFlying, now.timeIntervalSince(last) >= Self.landedAfter { end() }
             return
         }
-        let flying = (fix.groundspeedKt ?? 0) >= Self.flyingKt
+        let flying = Flight.underway(fix.groundspeedKt)
         if flying {
             lastFlying = now
             if activity == nil { start(plan: plan) }
@@ -162,7 +159,7 @@ final class FlightActivity {
         // Minutes to the destination at the speed being made good; on the
         // ground, or with no fix yet, the plan's time for what is left.
         let etaMinutes: Double = {
-            if let gs, gs >= flyingKt { return toGoNm / gs * 60 }
+            if let gs, Flight.underway(gs) { return toGoNm / gs * 60 }
             guard totalNm > 0, plannedMin > 0 else { return 0 }
             return plannedMin * (toGoNm / totalNm)
         }()

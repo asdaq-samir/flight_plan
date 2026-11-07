@@ -1,7 +1,7 @@
 """Scored checkpoints for a route, read off the chart: whatever the chart
 reader finds along it (app.chart_model.corridor, the training page's own
 read, shared and kept on disk), scored by the chart model the training
-page's ratings trained (wingtip.chartmodel, served by model-service) -- or,
+page's ratings trained (wingtip.chartmodel, loaded by app.chart_scorer) -- or,
 while none is promoted, by the palette's constant for each kind of
 thing. Remembered per route until the chart or the model changes.
 
@@ -58,8 +58,7 @@ def _checkpoint(landmark, predicted: float | None) -> dict:
 
 def score(dep: str, dest: str) -> list:
     """Every detection within HALF_WIDTH_NM of the course, scored, in
-    along-track order. A failed read of the chart is a 502, as
-    model-service not answering was."""
+    along-track order. A failed read of the chart is a 502."""
     cycle = charts.serving_cycle()
     key = (cycle, charts.tiles_revision(cycle), _mtime_or_none(model_registry.CHART_CURRENT_DIR / "metrics.json"))
     with _SCORE_CACHE_LOCK:

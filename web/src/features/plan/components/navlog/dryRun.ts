@@ -60,7 +60,7 @@ export interface DryRun {
  * instead of landing: its missed approach and once round its hold,
  * climbing at the standard gradient (missedHeights).
  *
- * Worked out by the shared engine (native/engine/src/motion/dry_run.rs,
+ * Worked out by the shared engine (native/crates/route/src/motion/dry_run.rs,
  * through lib/engine), once a route: the rules and their sources live
  * there. The run's figures between its points below are asked every
  * frame as it plays, and stay here.

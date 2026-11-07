@@ -9,7 +9,7 @@ import { callEngine } from "./engine/engine";
  * icing near the route. Under VFR the flight stays clear of cloud (14 CFR
  * 91.155), and the freezing level is the altitude reasoning's line alone.
  * The rule and its line are the shared engine's
- * (native/engine/src/gonogo/icing.rs, through lib/engine).
+ * (native/crates/brief/src/gonogo/icing.rs, through lib/engine).
  */
 export interface IcingAtAltitude {
   /** The highest altitude flown at or above the freezing level. */

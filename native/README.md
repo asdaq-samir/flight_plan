@@ -1,12 +1,16 @@
 # native
 
-Wingtip's Rust, in four crates:
+Wingtip's Rust: the engine, over its crates, and its three faces:
 
 - `engine/` (`wingtip-engine`): the figures that must come out the same
   wherever they are worked out -- route options' straight lines over the
   grid, whether an airspace volume holds a point, and the cycle pack's
-  reader (its format is in `engine/src/pack.rs`). Plain Rust with no
-  dependencies, so it builds as it is for the phones: aarch64-apple-ios
+  reader (its format is in `crates/airspace/src/pack.rs`). A facade over
+  the domain crates in `crates/` (below): it holds `call.rs`, the one
+  dispatcher, and uses each crate's modules at the paths they had when
+  the engine was one crate (`wingtip_engine::gonogo`, `::pack` ...), so
+  `py/`, `ffi/`, `wasm/` and the tests name them as before. Plain Rust
+  with no dependencies but its own crates, so it builds as it is for the phones: aarch64-apple-ios
   (the native iOS app, from Swift) and aarch64-linux-android (the native
   Android app, from Kotlin), both through `ffi/`.
   Keep it that way: no PyO3, no host-only crates, no network, and files
@@ -20,19 +24,66 @@ Wingtip's Rust, in four crates:
   the same, so the engine compiles once per bake and comes from cache
   after). A new image that reads src/ needs the stage too.
 
+## The engine's crates
+
+`crates/<name>` (`wingtip-<name>`), each a layer that may use only the
+ones under it, so the compiler keeps the direction (geo cannot reach for
+the Go / No-Go) and a build or a test can take one area alone
+(`cargo test -p wingtip-weather`). The layers come from the modules'
+own uses of each other when the engine was one crate; two that use each
+other share a crate. Like the engine, none has a dependency outside the
+workspace.
+
+| Crate | Modules | Uses |
+|---|---|---|
+| `geo` | geo, wmm, grid, sums, flight, time, json, xml | nothing |
+| `weather` | metar, taf, winds, forecast, validity, notam, tfr | geo |
+| `figures` | figures (debrief, diversion, holding, lost comms, words) | geo |
+| `radio` | clearance, readback, atis | geo |
+| `pilot` | pilot, aircraft | geo |
+| `brief` | gonogo, runway | geo, figures |
+| `route` | route, motion, approach | geo, figures |
+| `airspace` | airspace, pack, rules, phone, view, spoken, ahead | geo, figures, radio |
+| `wording` | wording | geo, figures, airspace |
+| `engine/` (facade) | call | all of them |
+
+Why these lines:
+
+- `geo` is the ground: distances, magnetic variation, the wind triangle,
+  dates and the JSON every rule reads and writes, used by all.
+- `figures` sits just above it because its `figures::words` (a number
+  written as the web writes it) is shared by the Go / No-Go, runways,
+  routes, the airspace rules and the wording.
+- `gonogo` and `runway` are one crate, `brief`: the Go / No-Go's runway
+  check goes by the runway pick, and the runway rules read their input
+  with the Go / No-Go's helpers, so each uses the other.
+- `airspace` takes `radio` because `spoken` finds the places a clearance
+  names, and `figures` because `rules` writes its figures with
+  `figures::words`; `wording` sits on top of it for `rules`' entry rules
+  and call types by class.
+- `call.rs` names every rule, so it alone stays in the facade, over all.
+
+Inside a crate, the modules under it are used at the root by the names
+they had in the one crate (`use wingtip_geo::json;` in its lib.rs), so
+the code still reads `crate::json` and the move changed no rule. A new
+module goes in the lowest crate whose modules it needs; one that would
+need a crate above its own belongs higher, never in a cycle.
+
+## The engine's rules
+
 - The engine also reads an ATC clearance heard into its items and a call
-  to us by its call sign (`clearance.rs`, the web's lib/clearance and
+  to us by its call sign (`crates/radio`, the web's lib/clearance and
   lib/heardCall, held to their fixtures in `web/src/lib/fixtures`), and
   finds the places it names in the phone's kept packs with no signal
-  (`spoken.rs`, wingtip.spoken's matching): `wt_clearance_hear`.
-- The four pilot pages' figures are the engine's too (`figures/`): a
+  (`crates/airspace`, wingtip.spoken's matching): `wt_clearance_hear`.
+- The four pilot pages' figures are the engine's too (`crates/figures`): a
   flight debriefed against its flown track (ACS PA.VI.A), the diversion
   drill (PA.VI.C), a hold's entry and its legs in the wind (AIM 5-3-8)
   and lost communications' altitudes (14 CFR 91.185), with their words.
   app.figures only carries the dicts across; the phones get the
   planner's very answers from `wt_debrief`, `wt_diversion`, `wt_holding`
   and `wt_lost_comms`.
-- The Brief's Go / No-Go is the engine's too (`gonogo/`): the seven
+- The Brief's Go / No-Go is the engine's too (`crates/brief`): the seven
   findings and the line over them, the pilot's minimums, icing under IFR,
   the risk assessment and the airplane's airworthiness, the runway check,
   the weight and balance and the pass times (the web's lib/verdict and
@@ -41,7 +92,7 @@ Wingtip's Rust, in four crates:
   the web app (callEngine), the planner's app.gonogo (wingtip_native.call)
   and the phones (wt_call).
 - Runways, the wind on them and the traffic pattern are the engine's too
-  (`runway/`): a wind along and across a runway and the end it favours,
+  (`crates/brief`): a wind along and across a runway and the end it favours,
   the runway flown (the pilot's pick, else into the wind, AC 90-66C
   11.5), the pattern's side, entry, exit and altitude, a POH's
   short-field distances and how an end suits the airplane, and the
@@ -50,7 +101,7 @@ Wingtip's Rust, in four crates:
   lib/trafficPattern; wingtip.runway_wind and wingtip.pattern), each a name in
   `call.rs` (`wind_pick`, `runway_end_fit`, `traffic_pattern` ...). The
   Go / No-Go's runway check goes by the same.
-- Instrument approaches are the engine's too (`approach/`): a flown
+- Instrument approaches are the engine's too (`crates/route`): a flown
   approach debriefed against its procedure -- the final it flew, full
   scale off the course (AIM 1-1-9, 1-1-17), each fix's altitude (AIM
   5-4-5), the glidepath, the lowest against the pilot's minimums (14 CFR
@@ -61,14 +112,14 @@ Wingtip's Rust, in four crates:
   `approachKbur.json`, so the iPhone can teach and debrief one offline
   (`approach_find`, `approach_coaching`, `approach_quiz` ... in
   `call.rs`).
-- The pilot's own records and text are the engine's too (`pilot/`): a
+- The pilot's own records and text are the engine's too (`crates/pilot`): a
   checklist typed as text, the logbook to and from a CSV file
   (ForeFlight's export among them, papaparse's reading ported step for
   step), a handbook page's figures read off its photo, and endorsements
   (in force, an instructor's lapsed date under 14 CFR 61.197, the words
   signed, a knowledge test's ACS codes), held to the web's fixtures
   `checklist.json` and `logbookCsv.json`.
-- The map's overlays with no network are the engine's too (`view.rs`):
+- The map's overlays with no network are the engine's too (`crates/airspace`):
   the Class B, C and D, the landing fields and the VORs inside the map's
   box from the phone's kept packs, each as the planner's in-view endpoint
   answers it (`wt_airspace_in_view`, `wt_airports_in_view`,
@@ -95,11 +146,12 @@ Wingtip's Rust, in four crates:
   into `web/src/lib/engine/wingtip-engine.wasm`, which is committed, as
   the web build has no Rust; CI's `test` job builds it again and fails
   where it differs. Rebuild and commit it with any change under
-  `engine/` or `wasm/`.
+  `engine/`, `crates/` or `wasm/`.
 
 The tests share their fixtures with the Python's (`tests/fixtures/native`):
 
-    cargo test --manifest-path native/Cargo.toml -p wingtip-engine
+    cargo test --manifest-path native/Cargo.toml -p wingtip-engine   # the facade's tests
+    cargo test --manifest-path native/Cargo.toml -p wingtip-brief    # one crate's
     pytest tests/test_native.py   # with the wheel installed
 
 The cycle pack itself is written by `wingtip.pack`, by the planner after its

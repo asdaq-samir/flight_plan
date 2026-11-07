@@ -63,7 +63,7 @@ ENV PYTHONPATH=/workspace/src
 # new import in wingtip left both agents and both pipeline stages unable to
 # start, and every build passed. The lazy imports are named too, as
 # importing the entry module does not reach them.
-RUN python -B -c "import app.main, wingtip_native, rasterio.vrt, rasterio.warp, rasterio.features, affine, scipy.ndimage, boto3, pyarrow.parquet, shapely.ops"
+RUN python -B -c "import app.main, wingtip_native, rasterio.vrt, rasterio.warp, rasterio.features, affine, scipy.ndimage, boto3, pyarrow.parquet, shapely.ops, sklearn, joblib"
 # GDAL's block cache defaults to 5% of the machine's RAM and holds
 # decoded chart raster blocks across tile renders; bounded, so that
 # rendering a screenful of zoomed-out tiles (each reading a wide window

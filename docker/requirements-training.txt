@@ -2,8 +2,9 @@
 # half of what was one "pipeline" image.
 -r ../src/requirements.txt   # wingtip's own list, numpy and pandas among it
 # The model this image writes is a pickle of scikit-learn's objects, and
-# model-service loads it: these, numpy and pandas are pinned exactly as
-# model-service/requirements.txt pins them (tests/test_requirements.py
-# fails if they differ, and Dependabot's grouped pip update moves both).
+# the planner loads it (planning-service/app/chart_scorer.py): these,
+# numpy and pandas are pinned exactly as planning-service/requirements.txt
+# pins them (tests/test_requirements.py fails if they differ, and
+# Dependabot's grouped pip update moves both).
 scikit-learn==1.9.1   # retrain(), imported inside it so the processing image never needs it
 joblib==1.6.0         # the model artifact

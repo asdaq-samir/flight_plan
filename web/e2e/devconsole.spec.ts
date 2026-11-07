@@ -55,10 +55,9 @@ test("a snapshot that failed reads no answer, and nothing waits for it for ever"
     route.fulfill({ status: 502, contentType: "application/json", body: JSON.stringify({ detail: "planner down" }) }));
   await openSystemTab(page);
   // Said at the Services row's end, then service by service on its page.
-  await expect(consoleSheet(page).getByRole("button", { name: /^Services/ })).toContainText("6 down");
+  await expect(consoleSheet(page).getByRole("button", { name: /^Services/ })).toContainText("5 down");
   await openServices(page);
 
-  await expect(row(page, /model-service/)).toContainText("no answer");
   await expect(row(page, /crewai-agent/)).toContainText("no answer");
   await expect(row(page, /webapp/)).toContainText("no answer");
   await expect(row(page, /planning-service/)).toContainText("no answer");

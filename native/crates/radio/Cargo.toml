@@ -1,0 +1,14 @@
+[package]
+name = "wingtip-radio"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "What is heard on the radio: an ATC clearance read into its items, a call to us by its call sign, the readback and the ATIS"
+
+[lib]
+name = "wingtip_radio"
+
+# Only the engine's own crates, below this one (native/README.md):
+# plain Rust, so the phones carry it as it is.
+[dependencies]
+wingtip-geo = { path = "../geo" }

@@ -31,11 +31,6 @@ services:
     volumes: !override
       - postgres:/var/lib/postgresql
 
-  model-service:
-    logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
-    volumes: !override
-      - ${REHEARSAL_DIR:?}/data/models/chart/current:/opt/ml/chart-model:ro
-
   planning-service:
     logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
     volumes: !override

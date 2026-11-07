@@ -145,7 +145,6 @@ Grouped by what they are for, not alphabetically.
 | `elevation.py` | USGS 3DEP point elevations. |
 | `terrain.py` | Terrain and obstacle floor for a route. |
 | `airports.py` | Identifier → coordinates, and the route form's search. |
-| `model_client.py` | model-service's `/score-detections`, the chart model's scores. The one client planning-service scores through -- a persistent `requests.Session`, not one connection per call. |
 | `planner_client.py` | planning-service's `/api/plan` and `/api/checkpoints`, for the two agents: the nav log they brief is the planner's own, not one they assemble. `requests` only, so importing it pulls in none of this package's other dependencies. |
 | `narrative.py` | What both narrative agents write from: the request they accept (`NarrativeRequest`) and the one briefing prompt, so the framework comparison is on one task. Its pydantic is on wingtip's list like any other dependency; the agents get theirs with their frameworks. |
 | `retry.py` | The one retry loop the four modules above share for their requests, and `upstream_detail`, the one reader of a service's reason in an error response (planner_client, and the planner's dev-services proxy). |
@@ -169,7 +168,7 @@ Grouped by what they are for, not alphabetically.
 | `model_candidates.py`, `torch_model.py` | The same regression in PyTorch, TensorFlow and Spark MLlib, each a re-runnable entry point that persists an artifact. |
 | `chartlabels.py` | Checkpoints marked by hand on the chart. |
 | `chartfeatures.py` | Features for the chart reader's detections. |
-| `chartmodel.py` | The chart model: the training page's 0-5 ratings on detections, trained in the training image, scored by model-service, ranking the planner's checkpoints. |
+| `chartmodel.py` | The chart model: the training page's 0-5 ratings on detections, trained in the training image, scored in the planner (`planning-service/app/chart_scorer.py`), ranking the planner's checkpoints. |
 | `chartlabels_join.py` | Ratings carried onto detections by position. |
 | `features.py` | Feature engineering for the tabular model. |
 | `config.py` | Paths and thresholds, free of heavy imports. |

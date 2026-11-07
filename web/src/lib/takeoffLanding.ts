@@ -1,6 +1,6 @@
 /**
  * A POH's short-field distances and the air they are read in. Worked out
- * by the shared engine (native/engine/src/runway/performance.rs, through
+ * by the shared engine (native/crates/brief/src/runway/performance.rs, through
  * lib/engine), the very code behind the planner's runway check and the
  * phones': the rules and their sources live there.
  */

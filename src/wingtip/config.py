@@ -21,8 +21,7 @@ PROCESSED_DIR = DATA_DIR / "processed"
 def corridor_paths(dep: str, dest: str) -> tuple[Path, Path]:
     """A corridor's candidates CSV and feature table, named for its two
     idents. The one place the names are made: the planner's build and its
-    corridor list, and the pipeline's own defaults, all ask here.
-    (model-service, which has no wingtip, reads the same names.)"""
+    corridor list, and the pipeline's own defaults, all ask here."""
     slug = f"{dep.lower()}_{dest.lower()}"
     return PROCESSED_DIR / f"candidates_{slug}.csv", PROCESSED_DIR / f"features_{slug}.parquet"
 

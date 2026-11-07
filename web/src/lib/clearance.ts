@@ -7,7 +7,7 @@
  * and the route is put in only from the card, the pilot having read it
  * (ClearanceCard): nothing heard goes into the plan on its own.
  *
- * The reading itself is the shared engine's (native/engine/src/clearance.rs,
+ * The reading itself is the shared engine's (native/crates/radio/src/clearance.rs,
  * asked through lib/engine as read_clearance and cleared_route): one
  * reader for the web app, the planner and the phones, held to
  * fixtures/clearances.json as this module's tests are. What stays here
@@ -49,7 +49,7 @@ export function placeWords(toks: Token[]): string {
 /** The clearance in what was heard: everything after "cleared" (the
  *  call sign before it left out), its altitudes, frequency and code
  *  wherever they were said -- a squawk alone, as flight following's, is
- *  one too. Read by the shared engine (native/engine/src/clearance.rs,
+ *  one too. Read by the shared engine (native/crates/radio/src/clearance.rs,
  *  the rule read_clearance), the one reader the planner and the phones
  *  have, held to fixtures/clearances.json as this module's tests are. */
 export function readClearance(text: string): Clearance {

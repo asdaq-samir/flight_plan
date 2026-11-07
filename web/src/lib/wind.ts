@@ -5,7 +5,7 @@
  * the pattern's pick, the pilot's minimums and the holding page each did
  * their own way.
  *
- * Worked out by the shared engine (native/engine/src/runway/wind.rs,
+ * Worked out by the shared engine (native/crates/brief/src/runway/wind.rs,
  * through lib/engine), the very code behind the planner's
  * wingtip.runway_wind and the phones' wt_call: the rules and their sources
  * live there.

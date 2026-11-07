@@ -5,7 +5,7 @@
  * 4-4-7 b.3 the altimeter, frequencies and codes): the limit, the places
  * of the route, the altitude to maintain and the one to expect, the
  * frequency and the squawk. The check is the shared engine's
- * (native/engine/src/readback.rs, the rule readback_check), held to
+ * (native/crates/radio/src/readback.rs, the rule readback_check), held to
  * fixtures/readbacks.json as this module's test is; what was missed or
  * said differently is shown as a warning line in the microphone's pill
  * (RadioLayer) and never stops anything. How an altitude is written on

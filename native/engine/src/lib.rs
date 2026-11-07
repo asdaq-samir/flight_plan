@@ -6,6 +6,11 @@
 //! is: no Python, no host-only crates, and the cycle pack read from bytes
 //! the caller maps.
 //!
+//! The engine is a facade over its crates (native/crates, the layering in
+//! native/README.md): each module is a crate's, used here at the path it
+//! had when the engine was one crate, so the hosts and the tests name
+//! them as before. Only `call` is the facade's own.
+//!
 //! - call: one way in for every host, a rule asked by name with JSON in
 //!   and JSON out (the web app's wasm, wingtip_native.call, wt_call);
 //! - grid: route options' straight lines over the grid;
@@ -55,38 +60,18 @@
 //!   sent, read strictly (xml: the small XML reader they share; time:
 //!   UTC dates).
 
-pub mod ahead;
-pub mod aircraft;
-pub mod airspace;
-pub mod atis;
-pub mod approach;
 pub mod call;
-pub mod clearance;
-pub mod figures;
-pub mod flight;
-pub mod forecast;
-pub mod geo;
-pub mod gonogo;
-pub mod grid;
-pub mod metar;
-pub mod motion;
-pub mod notam;
-mod json;
-pub mod pack;
-pub mod phone;
-pub mod pilot;
-pub mod readback;
-pub mod route;
-pub mod rules;
-pub mod runway;
-pub mod spoken;
-pub mod taf;
-pub mod tfr;
-pub mod time;
-pub mod sums;
-pub mod validity;
-pub mod view;
-pub mod winds;
-pub mod wmm;
-pub mod wording;
-pub mod xml;
+
+pub use wingtip_airspace::{ahead, airspace, pack, phone, rules, spoken, view};
+pub use wingtip_brief::{gonogo, runway};
+pub use wingtip_figures::figures;
+pub use wingtip_geo::{flight, geo, grid, sums, time, wmm, xml};
+pub use wingtip_pilot::{aircraft, pilot};
+pub use wingtip_radio::{atis, clearance, readback};
+pub use wingtip_route::{approach, motion, route};
+pub use wingtip_weather::{forecast, metar, notam, taf, tfr, validity, winds};
+pub use wingtip_wording::wording;
+
+// The JSON every rule reads and writes, as call.rs names it; not part of
+// the engine's face, as it was not when the engine was one crate.
+use wingtip_geo::json;

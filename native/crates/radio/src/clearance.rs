@@ -1,8 +1,8 @@
 //! An ATC clearance as the phone heard it, read into its items -- the web
 //! app's lib/clearance and lib/heardCall, here so the native app reads one
 //! in the air with no signal. Both are held to the same fixtures
-//! (web/src/lib/fixtures/clearances.json and heardCalls.json; this
-//! crate's tests/clearance.rs).
+//! (web/src/lib/fixtures/clearances.json and heardCalls.json; the
+//! engine's tests/clearance.rs).
 //!
 //! AIM 4-4-3 lists what a clearance holds: its limit, its departure
 //! procedure, the route, the altitudes, the frequency and the beacon code.

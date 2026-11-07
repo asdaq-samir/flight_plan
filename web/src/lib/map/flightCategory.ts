@@ -27,7 +27,7 @@ function figure(x: number | null | undefined): number | null {
 
 /** The category a ceiling and a visibility fall in, by the FAA's own
  *  bounds (AIM 7-1-7, "Categorical Outlooks"; the worse of the two
- *  decides), worked out by the shared engine (native/engine/src/forecast,
+ *  decides), worked out by the shared engine (native/crates/weather/src/forecast,
  *  through lib/engine), the very rule the planner's modelled weather and
  *  the phones use: the bounds and their sources live there. No ceiling is
  *  no limit; with no visibility only a ceiling under 500 ft decides it,

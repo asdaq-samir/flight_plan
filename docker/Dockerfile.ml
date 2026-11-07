@@ -74,7 +74,7 @@ RUN python -B -c "import wingtip_native, numpy, pandas, requests, pyarrow.parque
 
 # Non-root, matching every other image built from this same
 # python:3.14-slim base, bar this one and crewai-agent's (Dockerfile.processing, Dockerfile.training,
-# planning-service, model-service, nav-log-agent, crewai-agent) -- this
+# planning-service, nav-log-agent, crewai-agent) -- this
 # one used to run (and need --allow-root for) root specifically,
 # despite mounting the same `.:/workspace` bind mount the other two
 # pipeline images already run non-root against: a notebook saved from

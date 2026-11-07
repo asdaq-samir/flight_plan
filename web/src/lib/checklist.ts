@@ -10,7 +10,7 @@ import { callEngine } from "./engine/engine";
  * in "Checklist". The webapp's limits are the text's: 40 characters a
  * section's title, 80 a challenge or a response.
  *
- * Read and written by the shared engine (native/engine/src/pilot/
+ * Read and written by the shared engine (native/crates/pilot/src/pilot/
  * checklist.rs, through lib/engine), the code the iPhone app reads a
  * checklist with too: the rule lives there.
  */

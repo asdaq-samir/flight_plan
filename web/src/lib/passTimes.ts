@@ -4,7 +4,7 @@
  * the briefing lists what is near the route at any time during the
  * flight, and this says whether it is at the time the airplane gets
  * there. The rules are the shared engine's
- * (native/engine/src/gonogo/pass_times.rs, through lib/engine); the time
+ * (native/crates/brief/src/gonogo/pass_times.rs, through lib/engine); the time
  * zones are the browser's, which the engine has no database of.
  */
 import type { Leg } from "./api/types";
