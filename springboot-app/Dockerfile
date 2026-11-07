@@ -44,6 +44,11 @@ COPY springboot-app/pom.xml .
 # The mount stays, as the local download cache for a changed pom.
 RUN --mount=type=cache,target=/root/.m2/repository \
     mvn -B -q dependency:go-offline && cp -R /root/.m2/repository /build/m2
+# The planner's OpenAPI document, from which the build generates the
+# planner's answers PlannerClient reads (pom.xml's
+# openapi-generator-maven-plugin): at ../planning-service from the pom,
+# where it is in the repository too.
+COPY planning-service/openapi.json /planning-service/openapi.json
 # src/main alone: the tests are neither run here (-DskipTests) nor
 # wanted in the layer, where an edited test rebuilt the jar.
 COPY springboot-app/src/main ./src/main

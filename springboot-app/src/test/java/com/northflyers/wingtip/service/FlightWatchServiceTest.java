@@ -14,6 +14,9 @@ import com.northflyers.wingtip.domain.Pilot;
 import com.northflyers.wingtip.dto.BriefingChangeDto;
 import com.northflyers.wingtip.dto.BriefingSourceDto;
 import com.northflyers.wingtip.dto.FlightWatchDto;
+import com.northflyers.wingtip.planner.model.PlannerChangesWords;
+import com.northflyers.wingtip.planner.model.PlannerSentence;
+import com.northflyers.wingtip.planner.model.PlannerSource;
 import com.northflyers.wingtip.repository.FlightRepository;
 import com.northflyers.wingtip.repository.FlightWatchRepository;
 import com.northflyers.wingtip.repository.PilotRepository;
@@ -83,15 +86,17 @@ class FlightWatchServiceTest {
         return flight;
     }
 
-    private static PlannerClient.Changes changed() {
-        return new PlannerClient.Changes(true,
-                List.of(new BriefingChangeDto(CEILING, List.of("taf:KDLH"))),
-                List.of(new BriefingSourceDto("taf:KDLH", "TAF KDLH 031720Z", "KDLH 031720Z 0318/0418 ...")),
-                "claude-haiku-5-5", null);
+    private static PlannerChangesWords changed() {
+        return new PlannerChangesWords().changed(true)
+                .sentences(List.of(new PlannerSentence().text(CEILING).sources(List.of("taf:KDLH"))))
+                .sources(List.of(new PlannerSource().id("taf:KDLH").label("TAF KDLH 031720Z")
+                        .text("KDLH 031720Z 0318/0418 ...")))
+                .model("claude-haiku-5-5");
     }
 
-    private static PlannerClient.Changes unchanged() {
-        return new PlannerClient.Changes(false, List.of(), List.of(), "claude-haiku-5-5", null);
+    private static PlannerChangesWords unchanged() {
+        return new PlannerChangesWords().changed(false).sentences(List.of()).sources(List.of())
+                .model("claude-haiku-5-5");
     }
 
     @Test
@@ -176,7 +181,8 @@ class FlightWatchServiceTest {
         given(flights.findById(7L)).willReturn(Optional.of(flightWithId(7L, pilot)));
         given(planner.briefing("C81", "KDLH", List.of("KJVL"), DEPART, 205.0)).willReturn(LATER);
         given(planner.changes("C81", "KDLH", List.of("KJVL"), THEN, LATER))
-                .willReturn(new PlannerClient.Changes(false, List.of(), List.of(), null, "Claude did not answer"));
+                .willReturn(new PlannerChangesWords().changed(false).sentences(List.of()).sources(List.of())
+                        .unavailable("Claude did not answer"));
         given(watches.save(any(FlightWatch.class))).willAnswer(call -> call.getArgument(0));
 
         assertThat(service.check(NOW)).isZero();
