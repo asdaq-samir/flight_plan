@@ -45,6 +45,7 @@ import { gridScale, sameStops, wayTime } from "../../../lib/routeWays";
 import { useRouteLineOpen } from "../../../lib/routeLine";
 import { useStripShows } from "./useStripShows";
 import type { OpenFix } from "../components/FixCard";
+import type { PointAltitude } from "../components/PointAltitudeDialog";
 import type { SuggestedStop } from "../components/StopServices";
 import { useWindPicks } from "../../../lib/windPicks";
 import { useStopsAlong } from "../../../lib/stopsAlong";
