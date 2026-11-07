@@ -64,7 +64,7 @@ describe("the runway check", () => {
     expect(from!.distances[0]!.over).toBe(true);
     expect(from!.crosswindKt).toBe(18);
     expect(from!.crosswindOver).toBe(true);
-    expect(from!.densityAltFt).toBeGreaterThan(from!.pressureAltFt);
+    expect(from!.densityAltFt!).toBeGreaterThan(from!.pressureAltFt!);
     expect(to!.distances[0]!.over).toBe(false);
     expect(to!.crosswindOver).toBe(false);
   });

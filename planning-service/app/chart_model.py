@@ -7,7 +7,6 @@ reader -- the pipeline images have no GDAL -- and has every rated
 route's corridor read already, kept on disk (app.detection)."""
 import logging
 import multiprocessing
-import os
 import threading
 from collections import deque
 from concurrent.futures import Future, ProcessPoolExecutor
@@ -21,6 +20,7 @@ from wingtip.pipeline import _publish
 from . import chart_reader, chart_scorer, detection
 from .common import load_hop
 from .detection import detect_job, faa_airports
+from .settings import get_settings
 
 # How far either side of the course the training page reads the chart:
 # its points, which its ratings are made on and the model learns from.
@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 # and every other request waited -- an airspace card took 86 s while a
 # route's chart was read (measured 2026-10-07). Two at once at the most.
 # Off where CHART_READS_IN_PROCESS=0 (the tests, which stub the read).
-READS_IN_PROCESS = os.environ.get("CHART_READS_IN_PROCESS", "1") != "0"
+READS_IN_PROCESS = get_settings().chart_reads_in_process
 _PROCESSES: ProcessPoolExecutor | None = None
 _READING: dict = {}
 _READING_LOCK = threading.RLock()  # re-entered: a read already done calls back as it is queued
