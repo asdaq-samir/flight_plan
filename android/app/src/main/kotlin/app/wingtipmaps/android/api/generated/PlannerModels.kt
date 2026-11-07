@@ -1051,7 +1051,7 @@ data class ProcedureSummary (
 
 /**
  * The aircraft's name plus its performance profile -- every field a
- * data/aircraft/*.json file carries, declared, so a page reads them as
+ * data/aircraft/\*.json file carries, declared, so a page reads them as
  * fields rather than guessing at a dict. The three figures after the
  * name are required when a profile is loaded (REQUIRED_FIELDS in
  * wingtip.aircraft); the rest fall back to defaults in wingtip.navlog when a

@@ -109,6 +109,10 @@ function kotlin(file, docPath) {
   text = text.replace(/(@SerialName\("class"\)\n\s*val )\w+/g, `$1${RENAMES.class}`);
   text = text.replace(/^(\s*)val private:/gm, `$1@SerialName("private")\n$1val ${RENAMES.private}:`);
   text = text.replace(/^(\s*val (\w+): (?:List<)?)Long/gm, (all, lead, name) => (longs.has(name) ? all : `${lead}Int`));
+  // Kotlin's block comments nest, so a "/*" in a description (as in
+  // "data/aircraft/*.json") opens a comment the KDoc's "*/" never closes
+  // and the file stops compiling; KDoc's Markdown reads "\*" as "*".
+  text = text.replace(/^(\s*\*(?!\/).*)$/gm, (line) => line.replaceAll("/*", "/\\*"));
   if (/JsonArray|JsonElement|JsonObject/.test(text)) throw new Error(`${file}: a property quicktype could not type`);
   fs.writeFileSync(file, header("//") + text);
 }

@@ -3,7 +3,7 @@ import SwiftUI
 /// The strip's head: the verdict -- go, caution or no-go, in the planner's
 /// words (Verdict, POST /api/go-no-go) -- on a paper card, the route's
 /// line under it in condensed capitals ("C81 → KJVL → KDLH · C172 ·
-/// FL045 · leaving now"), the route's other ways as chips, and at most
+/// FL-045 · leaving now"), the route's other ways as chips, and at most
 /// three one-line findings from the glance (Glance.lines), each a row
 /// into the Brief. The route's menu (Share, File, Clear) at the head's
 /// corner, where the tabs' route box had it. No photo behind the

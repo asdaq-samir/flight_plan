@@ -108,8 +108,9 @@ A pull request runs only the tests tagged `@smoke`, one per journey; the
 rest run every night (docs/CI.md). Tag a test `@smoke` only when it is the
 one that proves a journey end to end.
 On the owner's Mac run only the specs a change touches, and every browser
-run, image build and measurement through `scripts/one-at-a-time.sh`, so
-sessions sharing the Mac take turns (the `checks` skill).
+run, test suite, image build and measurement through
+`scripts/one-at-a-time.sh`: up to three run at once on the Mac mini, and a
+speed measurement takes `--alone`, the whole machine (the `checks` skill).
 
 ## The app on the phone
 

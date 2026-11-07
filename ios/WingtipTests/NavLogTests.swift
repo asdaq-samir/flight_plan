@@ -45,8 +45,8 @@ struct AltitudeTests {
     }
 
     @Test func altitudesReadAsTheOwnersFlightLevels() {
-        #expect(flightLevel(6500) == "FL065")
-        #expect(flightLevel(15500) == "FL155")
+        #expect(flightLevel(6500) == "FL-065")
+        #expect(flightLevel(15500) == "FL-155")
     }
 }
 

@@ -281,6 +281,14 @@
 //!   5-1-6), from `{"at", "stations"}`; `morse` (AIM 1-1-3) from
 //!   `{"ident"}`; `service_volume` (AIM 1-1-8 TBL 1-1-1) from `{"code"?}`;
 //!   `navaid_hours` from `{"hours"?}`;
+//! - `weather_expires_at`: when a report stops counting, Unix seconds, or
+//!   null where nothing says (crate::validity: a METAR an hour after it
+//!   was observed, AIM 7-1-28's "METAR-hourly"; a SPECI when the next
+//!   routine report is due; a TAF, the FB winds or an advisory at the end
+//!   of its valid time), from `{"product": "metar"|"speci"|"taf"|"winds"|
+//!   "advisory", "observed"?, "last_routine"?, "valid_to"?}`;
+//!   `weather_in_force`: whether it still counts at `now`, from the same
+//!   with `"now"` and, for a forecast, `"valid_from"?`;
 //! - `magnetic_variation`: degrees east, the World Magnetic Model's (wmm,
 //!   as wingtip.magnetic), from `{"lat", "lon", "date": "YYYY-MM-DD"}`.
 //!
@@ -596,6 +604,7 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
         | "departure_pattern" | "arrival_circuit" | "departure_circuit" => {
             crate::runway::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}")))
         }
+        "weather_expires_at" | "weather_in_force" => weather_validity_rule(&ask),
         "magnetic_variation" => {
             let date = ask.str("date")?;
             let bad = || format!("magnetic_variation: \"date\" is not YYYY-MM-DD: {date:?}");
@@ -628,6 +637,33 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             None => crate::gonogo::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}"))),
         },
     }
+}
+
+/// When a weather report stops counting (crate::validity), as the
+/// planner's wingtip_native.weather_expires_at and weather_in_force take
+/// it: `weather_expires_at` the instant, Unix seconds, or null, and
+/// `weather_in_force` whether it still counts at `now`.
+fn weather_validity_rule(ask: &Ask) -> Result<String, String> {
+    use crate::validity::{self, Product};
+    let product = match ask.str("product")? {
+        "metar" => Product::Metar,
+        "speci" => Product::Speci,
+        "taf" => Product::Taf,
+        "winds" => Product::WindsAloft,
+        "advisory" => Product::Advisory,
+        other => return Err(format!("{}: \"product\" is metar, speci, taf, winds or advisory, not {other:?}", ask.name)),
+    };
+    // Whole seconds, as the reports' own times are.
+    let secs = |key: &str| ask.opt_num(key).map(|n| n.map(|s| s.floor() as i64));
+    let (observed, last_routine, valid_to) = (secs("observed")?, secs("last_routine")?, secs("valid_to")?);
+    if ask.name == "weather_expires_at" {
+        let mut out = String::new();
+        json::opt_number(&mut out, validity::expires_at(product, observed, last_routine, valid_to).map(|t| t as f64));
+        return Ok(out);
+    }
+    let now = ask.num("now")?.floor() as i64;
+    let yes = validity::in_force(product, now, observed, last_routine, secs("valid_from")?, valid_to);
+    Ok(if yes { "true" } else { "false" }.to_owned())
 }
 
 /// The input of one call, read with the rule's name in each complaint.
