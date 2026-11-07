@@ -64,6 +64,16 @@ their own, so this one is separate (`tests-raw-planner-v2-`).
 Promote tags the images after main's push is green. A nightly failure is
 said in its run and does not hold Promote.
 
+Each push to main also brings the open, non-draft `claude/` pull requests
+that are behind it up to date (`update-branches.yml`): GitHub's "update
+branch", a merge of main, one at a time ten seconds apart, at most ten a
+run, leaving alone any pushed to in the last five minutes. It updates with
+`MERGE_TOKEN`, since a push made with the workflow's own `GITHUB_TOKEN`
+starts no workflow and the pull request would sit with no checks; the
+owner's token's merge commit starts CI like the owner's push. One that
+main does not merge into cleanly gets the label `needs-merge`, taken off
+once its branch is current again: merge main into it by hand.
+
 A test belongs in the smoke set (`{ tag: "@smoke" }` on the `test(...)`)
 when it is the one that proves a journey works end to end -- planning a
 route, the nav log, the map, the brief, sign-in -- and is fast. Everything

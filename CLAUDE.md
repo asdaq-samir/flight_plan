@@ -97,6 +97,13 @@ long measurements still wait for the owner's ask; CI runs everything.
 
 Python wants `pip install -r requirements-dev.txt` in that directory first.
 
+A pre-push hook runs the quick ones for what a push changes against
+origin/main: `tsc` and ESLint for `web/`, ruff for Python, `cargo check`
+for `native/` (each skipped with a note where its tool is missing). Install
+it once per clone with `scripts/install-hooks.sh`; skip it with `git push
+--no-verify` or `SKIP_HOOKS=1`. It runs outside the lock and is no
+substitute for the table above.
+
 An API that changes changes its document, which the web app's types come
 from: `python -m app.openapi` in planning-service, or `WRITE_OPENAPI=1 mvn
 -B test` in springboot-app; then `npm run types` in web and
