@@ -99,6 +99,14 @@ public class PlannerProxyController {
      *  upstream's Cache-Control. */
     static final String CYCLE_PACKS_PATH = "/api/cycle-packs";
     private static final String CYCLE_PACK_PATH = "/api/cycle-pack/";
+    /** The Brief's narrative: the nav log on screen, told in words by
+     *  Claude (the planner's app.narrative), a paid feature. */
+    static final String NARRATIVE_PATH = "/api/briefing/narrative";
+    /** The largest nav log sent to be told in words. A long cross-country
+     *  with every leg field is a few tens of KB; the planner also refuses
+     *  more than app.narrative.MAX_LEGS legs. Every byte is prompt text a
+     *  billed Claude call reads. */
+    static final int NARRATIVE_BODY_LIMIT = 256 * 1024;
     /** The ForeFlight pack: a file, its name in Content-Disposition. */
     private static final String PACK_PATH = "/api/foreflight-pack/";
 
@@ -205,6 +213,9 @@ public class PlannerProxyController {
             // The pilot's assistant, streamed line by line (NDJSON) as the
             // planner answers; StreamingProxy passes each chunk on as it comes.
             route("POST", "/api/assistant"),
+            // The Brief's narrative, streamed line by line (NDJSON) as
+            // Claude writes it (the planner's app.narrative).
+            route("POST", NARRATIVE_PATH),
             // The developer's.
             route("POST", "/api/oral/question"),
             route("POST", "/api/oral/grade"),
@@ -238,7 +249,11 @@ public class PlannerProxyController {
     /** A day's checkpoint-note generations per pilot: each is one Claude
      *  call per checkpoint without a note, which this app pays for. */
     private final SlidingWindowLimiter noteGenerations = new SlidingWindowLimiter(Duration.ofDays(1));
-    private final int noteGenerationsPerDay;
+    private final int paidCallsPerDay;
+    /** A day's narratives per pilot, counted on their own: each is a
+     *  Claude call this app pays for, and a signed-in session could
+     *  otherwise ask for them without end. */
+    private final SlidingWindowLimiter narratives = new SlidingWindowLimiter(Duration.ofDays(1));
     private final SubscriptionService subscriptions;
 
     /** The planner's paid features, each a Claude call this app pays for:
@@ -246,6 +261,7 @@ public class PlannerProxyController {
      *  (SubscriptionService) before the planner is asked. Saving a
      *  pilot's own note is free. */
     static final Map<String, PaidFeature> PAID_PATHS = Map.of(
+            NARRATIVE_PATH, PaidFeature.NARRATIVE,
             "/api/checkpoint-notes/generate", PaidFeature.CHECKPOINT_NOTES,
             "/api/oral/question", PaidFeature.ORAL,
             "/api/oral/grade", PaidFeature.ORAL);
@@ -255,12 +271,12 @@ public class PlannerProxyController {
             @Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl,
             PilotService pilots,
             SubscriptionService subscriptions,
-            @Value("${app.paid-calls.per-day:40}") int noteGenerationsPerDay) {
+            @Value("${app.paid-calls.per-day:40}") int paidCallsPerDay) {
         this.proxy = proxy;
         this.plannerBaseUrl = plannerBaseUrl.replaceAll("/+$", "");
         this.pilots = pilots;
         this.subscriptions = subscriptions;
-        this.noteGenerationsPerDay = noteGenerationsPerDay;
+        this.paidCallsPerDay = paidCallsPerDay;
     }
 
     @Operation(summary = "Any planner GET",
@@ -297,9 +313,18 @@ public class PlannerProxyController {
             }
         }
         if ("POST".equals(method) && path.equals("/api/checkpoint-notes/generate")
-                && !noteGenerations.allow(SlidingWindowLimiter.callerOf(request), noteGenerationsPerDay, Instant.now())) {
-            return StreamingProxy.error(429, "That is today's " + noteGenerationsPerDay
+                && !noteGenerations.allow(SlidingWindowLimiter.callerOf(request), paidCallsPerDay, Instant.now())) {
+            return StreamingProxy.error(429, "That is today's " + paidCallsPerDay
                     + " checkpoint-note generations used. Notes already written still show; more tomorrow.");
+        }
+        if ("POST".equals(method) && path.equals(NARRATIVE_PATH)) {
+            if (body != null && body.length() > NARRATIVE_BODY_LIMIT) {
+                return StreamingProxy.error(413, "a nav log is at most " + (NARRATIVE_BODY_LIMIT / 1024) + " KB");
+            }
+            if (!narratives.allow(SlidingWindowLimiter.callerOf(request), paidCallsPerDay, Instant.now())) {
+                return StreamingProxy.error(429, "That is today's " + paidCallsPerDay
+                        + " AI narratives used. The nav log and briefing still work; narratives are back tomorrow.");
+            }
         }
         URI target = URI.create(plannerBaseUrl + path + query(request));
 

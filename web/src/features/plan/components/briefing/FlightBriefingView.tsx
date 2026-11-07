@@ -18,7 +18,6 @@ import AltitudeReasoning from "../AltitudeReasoning";
 import type {
   Briefing, Candidate, Course, Leg, NavLogAltitude, SaveFlightRequest, Totals,
 } from "../../../../lib/api/types";
-import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, ceilingAndVisibility, clockTime, PLAN_NAME, reportedWind, windAloft } from "../../format";
 import { feetRange, flightLevel, grouped } from "../../../../lib/units";
@@ -97,12 +96,10 @@ interface Props {
    *  applies, rather than making a failed briefing indistinguishable
    *  from a slow one. */
   briefing: BriefingState;
-  /** LangGraph's (nav-log-agent) and CrewAI's (crewai-agent) own
-   *  briefing narratives -- read-only here, only for
-   *  `BriefingNarrativePrintBlock` below. Generating them is the Brief
-   *  tab's (BriefNarrative), not this component's. */
-  langgraphNarrative: FrameworkNarrative;
-  crewaiNarrative: FrameworkNarrative;
+  /** The narrative's text, once the pilot has had it written -- read-only
+   *  here, only for `BriefingNarrativePrintBlock` below. Writing it is
+   *  the Brief tab's (BriefNarrative), not this component's. */
+  narrativeText: string | null;
   /** The Brief's narrative (BriefNarrative), under its Go / No-Go. */
   narrative?: ReactNode;
   /** No VFR altitude fits the route, in a line (usePlan's Unflyable). */
@@ -110,34 +107,19 @@ interface Props {
 }
 
 /**
- * Whichever narrative(s) a pilot actually generated, print only. On
- * screen each is the Brief tab's (BriefNarrative), whose framework
- * switch is no use on paper, so a printed copy has its own text sitting
- * directly in the page. Prints neither,
- * one, or both, whichever the pilot actually asked for on screen --
- * generating a framework's narrative just to have it for a printout
- * nobody asked for would be a real, billed Claude call spent on
- * nothing.
+ * The narrative, print only, when the pilot had it written. On screen it
+ * is the Brief tab's (BriefNarrative), whose button is no use on paper,
+ * so a printed copy has its own text sitting directly in the page.
+ * Writing one just to have it for a printout nobody asked for would be
+ * a real, billed Claude call spent on nothing.
  */
-function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string | null; crewai: string | null }) {
-  if (!langgraph && !crewai) return null;
+function BriefingNarrativePrintBlock({ text }: { text: string | null }) {
+  if (!text) return null;
   // On paper only, at paper's own 14: no finger, no type scale.
   return (
     <div className="hidden break-inside-avoid-page border-b border-border px-4 py-3 print:block print:break-inside-avoid">
-      {langgraph && (
-        <>
-          <h2 className={GROUP_HEADING}>Narrative</h2>
-          <p className={cn("mt-2 text-muted-foreground", TEXT.detail)}>{langgraph}</p>
-        </>
-      )}
-      {crewai && (
-        <>
-          <h2 className={cn(GROUP_HEADING, langgraph && "mt-3")}>
-            Second narrative
-          </h2>
-          <p className={cn("mt-2 text-muted-foreground", TEXT.detail)}>{crewai}</p>
-        </>
-      )}
+      <h2 className={GROUP_HEADING}>Narrative</h2>
+      <p className={cn("mt-2 text-muted-foreground", TEXT.detail)}>{text}</p>
     </div>
   );
 }
@@ -481,7 +463,7 @@ const TILE_SECTIONS = ["TFRs & Special Use", "Risk Assessment", "Fuel", "Weight 
 export default memo(function FlightBriefingView({
   part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, route = NO_STOPS, procedures, course = null, totals = null, depart = "",
   briefing: briefingState,
-  langgraphNarrative, crewaiNarrative, narrative, problem = null,
+  narrativeText, narrative, problem = null,
 }: Props) {
   // The load's weights, for the takeoff and landing distances.
   const { loading, load, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
@@ -779,8 +761,8 @@ export default memo(function FlightBriefingView({
       {part === "preflight" && (
         <>
           {/* The narrative, printed only: on screen it is the tab's own
-              section (BriefNarrative), whose framework is a setting. */}
-          <BriefingNarrativePrintBlock langgraph={langgraphNarrative.text} crewai={crewaiNarrative.text} />
+              section (BriefNarrative). */}
+          <BriefingNarrativePrintBlock text={narrativeText} />
 
           <BriefChecks
             items={items} flight={`${landings.join("-")}|${depart}`} here={TILE_SECTIONS}

@@ -52,7 +52,7 @@ RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
 # The DAGs and the wingtip package they import (evaluate/promote run
 # in-process), baked in rather than read from the repo. This container
 # holds the host's Docker socket, and the repo is mounted read-write
-# into ml, both pipeline jobs, planning-service and both agents -- so a
+# into ml, both pipeline jobs and planning-service -- so a
 # DAG or module read from it ran, next to the socket, whatever any of
 # those had written. /opt/project, not under /opt/airflow: the
 # airflow_home_v3 volume mounted there would hide anything copied

@@ -32,9 +32,9 @@ LABELS_PATH = DATA_DIR / "labels" / "spottability_ratings.csv"
 # How long the planner works on a plan before answering that it is still
 # working (a 504 naming what it waits on; the answer is kept for the next
 # ask). The slowest real altitude selection seen was a little over two
-# minutes, on a bad aviationweather.gov day. Its clients' own timeouts
-# follow from it (wingtip.planner_client), so a slow plan reads as the
-# planner's answer and not as a planner that could not be reached.
+# minutes, on a bad aviationweather.gov day. A client's own timeout
+# should follow from it, so a slow plan reads as the planner's answer
+# and not as a planner that could not be reached.
 PLAN_LIMIT_S = 240
 
 # Who wingtip says it is to the sources it downloads from. Most take the

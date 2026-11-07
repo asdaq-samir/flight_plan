@@ -36,13 +36,9 @@ from ..schemas import (
 
 router = APIRouter()
 
-# Both optional: unset (the AWS task, or a compose file that leaves them
-# out) reports the agent as "not configured" rather than down.
-NAV_LOG_AGENT_URL = os.environ.get("NAV_LOG_AGENT_URL")
 # The gateway, by its compose name; its actuator answers liveness and
 # readiness (the readiness group includes the database).
 WEBAPP_URL = os.environ.get("WEBAPP_URL", "http://webapp:8080")
-CREWAI_AGENT_URL = os.environ.get("CREWAI_AGENT_URL")
 # Airflow, for the retrain button: its API base, the DAG to run, and
 # credentials -- AIRFLOW_USERNAME/AIRFLOW_PASSWORD, or the passwords file
 # Airflow's own standalone mode generates (docker-compose.yml mounts that
@@ -68,17 +64,6 @@ def _mtime(path: Path) -> str | None:
         return None
 
 
-def probe(url: str) -> tuple[bool, str]:
-    """Whether anything answers at url. Any HTTP status counts as up --
-    nav-log-agent answers 401 to a call without its bearer token, and
-    that is a running service saying so."""
-    try:
-        resp = requests.get(url, timeout=PROBE_TIMEOUT_S)
-        return True, f"HTTP {resp.status_code}"
-    except requests.RequestException as err:
-        return False, str(err).split("\n")[0][:160]
-
-
 def _webapp_status() -> tuple[ServiceStatus, ServiceStatus]:
     """The webapp's liveness, and its readiness -- which includes the
     database, so that is the database's row -- each as up only on a
@@ -90,13 +75,6 @@ def _webapp_status() -> tuple[ServiceStatus, ServiceStatus]:
         except requests.RequestException as err:
             return ServiceStatus(up=False, detail=str(err).split("\n")[0][:160])
     return ask("liveness"), ask("readiness")
-
-
-def _agent_status(url: str | None) -> ServiceStatus | None:
-    if not url:
-        return None
-    up, detail = probe(url)
-    return ServiceStatus(up=up, detail=detail)
 
 
 def _read_metrics(directory: Path) -> dict | None:
@@ -302,16 +280,12 @@ def status() -> Status:
     """One snapshot of the whole stack, for Settings' Dev tab. The
     network probes run side by side so a service that is down costs one
     timeout, not one per service."""
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=2) as pool:
         webapp = pool.submit(_webapp_status)
-        nav_log_agent = pool.submit(_agent_status, NAV_LOG_AGENT_URL)
-        crewai_agent = pool.submit(_agent_status, CREWAI_AGENT_URL)
         pipeline = pool.submit(_pipeline_status)
         return Status(
             checked_at=datetime.now(tz=timezone.utc).isoformat(),
             services={
-                "nav_log_agent": nav_log_agent.result(),
-                "crewai_agent": crewai_agent.result(),
                 "webapp": webapp.result()[0],
                 "db": webapp.result()[1],
             },

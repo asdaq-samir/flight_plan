@@ -25,12 +25,10 @@ import org.springframework.web.context.request.async.AsyncRequestNotUsableExcept
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
- * The one HTTP client and the one piping loop behind every service this
- * app proxies: the planner ({@link PlannerProxyController}) and the two
- * narrative agents ({@link ComparisonProxyController}).
- *
- * <p>Both proxies were written separately and arrived at the same four
- * things, which is why they are here once. Each is load-bearing:
+ * The one HTTP client and the one piping loop behind the service this
+ * app proxies, the planner ({@link PlannerProxyController}). There were
+ * once two narrative agents behind it too; the four things below were
+ * what every proxy here arrived at, and each is load-bearing:
  *
  * <ul>
  *   <li><b>HTTP/1.1, pinned.</b> The JDK client defaults to attempting an
@@ -60,9 +58,8 @@ public class StreamingProxy {
     private static final Logger log = LoggerFactory.getLogger(StreamingProxy.class);
 
     /** What a caller needs in order to say which upstream went missing.
-     *  The wording differs between them ("planner service unreachable"
-     *  against "the langgraph agent is unreachable") and reaches a
-     *  pilot, so each caller supplies its own rather than sharing one. */
+     *  The wording ("planner service unreachable") reaches a pilot, so
+     *  the caller supplies its own rather than a generic one. */
     public record Upstream(String name, String unreachableDetail, String timedOutDetail) {}
 
     /** Turns an upstream response into this app's, once there is one to

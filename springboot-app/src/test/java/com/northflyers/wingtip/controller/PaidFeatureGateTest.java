@@ -29,21 +29,18 @@ import org.springframework.test.web.servlet.RequestBuilder;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
- * The paid features Claude writes are refused, before any agent or the
- * planner is asked, with the subscription's own answer -- a 402 without
+ * The paid features Claude writes are refused, before the planner is
+ * asked, with the subscription's own answer -- a 402 without
  * one, a 429 past the month's cap -- and its sentence; what is free (a
  * pilot's own note saved) is never checked. The upstreams point nowhere:
  * a call that got past the gate would be a 502.
  */
-@WebMvcTest({ComparisonProxyController.class, PlannerProxyController.class})
+@WebMvcTest(PlannerProxyController.class)
 @Import(StreamingProxy.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
         // A deployment that sells the subscription, whose gate these are.
         "app.subscription.enabled=true",
-        "nav-log-agent.base-url=http://127.0.0.1:9",
-        "nav-log-agent.api-key=test-key",
-        "crewai-agent.base-url=http://127.0.0.1:9",
         "planner-service.base-url=http://127.0.0.1:9",
 })
 class PaidFeatureGateTest {
@@ -65,7 +62,7 @@ class PaidFeatureGateTest {
     @Test
     void theWrittenBriefingWithoutTheSubscriptionIsA402ThatSaysSo() throws Exception {
         refuse(PaidFeature.NARRATIVE, 402, "The written briefing comes with the subscription, its first month free.");
-        finish(post("/api/comparison?framework=langgraph")
+        finish(post("/api/planner/briefing/narrative")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"departure_ident\":\"C81\"}"))
                 .andExpect(status().isPaymentRequired())

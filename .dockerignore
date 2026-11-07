@@ -10,7 +10,7 @@ __pycache__/
 data/raw/
 # Same reasoning as data/raw/ above -- generated/large, not needed at
 # build time, and was still being tarred into the build context for
-# every service using `context: .` (webapp, ml, the agents...).
+# every service using `context: .` (webapp, ml, the planner...).
 data/processed/
 data/models/
 # Build output/dependency dirs for the two toolchains built *inside*

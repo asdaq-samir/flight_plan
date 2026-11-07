@@ -26,7 +26,7 @@ vi.mock("../../../lib/api/client", async importOriginal => ({
     briefing: vi.fn(),
     describeCheckpoints: vi.fn(),
     saveCheckpointNote: vi.fn(),
-    frameworkNarrative: vi.fn(),
+    narrative: vi.fn(),
     me: vi.fn(),
   },
 }));

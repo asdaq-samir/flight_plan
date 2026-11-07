@@ -111,7 +111,7 @@ class SecurityRulesTest {
     void plannerWritesAreRefusedWhereNobodyCanSignInUnlessTheDeploymentOptsIn() throws Exception {
         mockMvc.perform(post("/api/planner/picks").with(csrf())).andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/planner/retrain").with(csrf())).andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/comparison").with(csrf())).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/planner/briefing/narrative").with(csrf())).andExpect(status().isUnauthorized());
     }
 
     /** Planning a route stays open to anyone: reads are not refused. */

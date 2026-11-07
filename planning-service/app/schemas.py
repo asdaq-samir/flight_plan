@@ -1854,6 +1854,35 @@ CheckpointNoteMessage = Annotated[
 ]
 
 
+# --- /api/briefing/narrative: the Brief's narrative as it is written (app.narrative) ---
+
+
+class NarrativeDelta(BaseModel):
+    """A piece of the briefing as Claude writes it."""
+
+    type: Literal["delta"] = "delta"
+    text: str
+
+
+class NarrativeDone(BaseModel):
+    """The whole briefing, once it is written."""
+
+    type: Literal["done"] = "done"
+    briefing: str
+
+
+class NarrativeError(BaseModel):
+    """Why there is no briefing, in words a pilot reads. It may come after
+    deltas: a failure once the first line is out cannot change the status
+    any more."""
+
+    type: Literal["error"] = "error"
+    detail: str
+
+
+NarrativeMessage = Annotated[NarrativeDelta | NarrativeDone | NarrativeError, Field(discriminator="type")]
+
+
 # --- everything else ----------------------------------------------------
 
 
@@ -2549,15 +2578,12 @@ class ServiceStatus(BaseModel):
 
 
 class Services(BaseModel):
-    """None for an agent this planner was not told the address of. The
-    webapp and its database are probed from here too -- its liveness
-    and its readiness group, which includes the database -- rather
-    than by the browser: a phone's probes queued behind its chart
+    """The webapp and its database, probed from here -- its liveness and
+    its readiness group, which includes the database -- rather than by
+    the browser: a phone's probes queued behind its chart
     tiles on one HTTP/1.1 connection pool and timed out, and the
     console read "no answer" for a gateway that had just served it."""
 
-    nav_log_agent: ServiceStatus | None
-    crewai_agent: ServiceStatus | None
     webapp: ServiceStatus | None = None
     db: ServiceStatus | None = None
 
@@ -2762,6 +2788,7 @@ STREAM_MESSAGES = {
     "NavLogMessage": NavLogMessage,
     "DetectMessage": DetectMessage,
     "CheckpointNoteMessage": CheckpointNoteMessage,
+    "NarrativeMessage": NarrativeMessage,
 }
 
 

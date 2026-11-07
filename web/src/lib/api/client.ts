@@ -12,9 +12,8 @@ import type { Aircraft, AircraftBases, AssignLessonRequest, LessonProgressReques
  * query parameter or response field is a compile error at the call
  * site, not a silent 404 or `undefined` -- every response type named
  * below is a generated one, and `data` checks it against the path's own.
- * The two calls no schema describes (Spring Security's own logout, and
- * the narrative the webapp forwards to an agent untouched) are plain
- * fetches that keep the same two rules.
+ * The one call no schema describes (Spring Security's own logout) is a
+ * plain fetch that keeps the same two rules.
  */
 
 export class ApiError extends Error {
@@ -446,6 +445,18 @@ export const api = {
   },
 
   /**
+   * The Brief's narrative: the nav log on screen told in words by
+   * Claude, streamed as it is written -- `delta` lines, then `done` or
+   * `error`, the same NDJSON shape as `navlog`. A real, billed Claude
+   * call, so the gateway lets a subscribed, signed-in pilot through
+   * within the month's cap (PlannerProxyController).
+   */
+  async *narrative(request: NarrativeRequest, signal?: AbortSignal): AsyncGenerator<NarrativeMessage> {
+    const result = await planner.POST("/api/briefing/narrative", { body: request, parseAs: "stream", signal });
+    yield* ndjson<NarrativeMessage>(result.data as ReadableStream | undefined);
+  },
+
+  /**
    * One "how to spot it" line per checkpoint, in route order -- the
    * same streaming shape as `detect`, so a slow LLM call on one
    * checkpoint doesn't hold up the ones that already arrived.
@@ -731,31 +742,6 @@ export const api = {
     if (!res.redirected) return "/app/plan";
     const landing = new URL(res.url);
     return landing.pathname + landing.search;
-  },
-
-  /**
-   * One framework's narrative for the nav log on screen, streamed as
-   * Claude writes it -- a separate top-level controller
-   * (ComparisonProxyController), since neither nav-log-agent (LangGraph)
-   * nor crewai-agent (CrewAI) is planning-service's concern. Each is a
-   * real, billed Claude call, and a pilot picking one shouldn't pay for
-   * the other. The same NDJSON shape as `navlog`: text deltas, then
-   * `done` or `error`.
-   */
-  async *frameworkNarrative(
-    framework: "langgraph" | "crewai", request: NarrativeRequest, signal?: AbortSignal,
-  ): AsyncGenerator<NarrativeMessage> {
-    // A plain fetch: the webapp forwards this body to the agent as it
-    // is, so its schema describes it only as a string.
-    const res = await fetch(`/api/comparison?${new URLSearchParams({ framework })}`, {
-      method: "POST", signal, body: JSON.stringify(request),
-      headers: { "Content-Type": "application/json", ...csrfHeaders("POST") },
-    });
-    // Once anyone can sign in, a narrative -- a billed Claude call --
-    // needs a session, and Spring's 401 carries no body to say so.
-    if (res.status === 401) throw new ApiError("Sign in to generate a narrative", 401);
-    await failIfNotOk(res);
-    yield* ndjson<NarrativeMessage>(res.body ?? undefined);
   },
 
   /** A signed-in pilot's own airplanes -- also a Spring Boot call,

@@ -8,8 +8,7 @@
 # checkout, mounted by docker-compose.yml -- so the page and the
 # planner's code are always this commit's, whichever commit built the
 # image. Everything else is the local stack's own defaults -- Mailpit
-# for the sign-in link, developer@example.com a developer, no agents
-# (their profile is not asked for), no charts on disk -- and the FAA and
+# for the sign-in link, developer@example.com a developer, no charts on disk -- and the FAA and
 # airport data the planner fetches for itself into data/raw, which the
 # job keeps between runs, with the corridor's elevations seeded from
 # web/e2e/fixtures (the USGS lookup refuses a GitHub runner).
