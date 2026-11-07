@@ -115,6 +115,13 @@ enum Engine {
         try JSONSerialization.jsonObject(with: Data(called(name, written(input)).utf8), options: .fragmentsAllowed)
     }
 
+    /// The engine's answer as the text it wrote, the input written as
+    /// every call here writes it: for BridgeFixturesTests, which hold this
+    /// bridge's text to the shared fixtures before any decoder reads it.
+    static func callText(_ name: String, _ input: [String: Any?]) throws -> String {
+        try called(name, written(input))
+    }
+
     /// The engine's answer as text, or its complaint thrown.
     private static func called(_ name: String, _ input: String) throws -> String {
         let interval = signposter.beginInterval("engine", id: signposter.makeSignpostID(), "\(name, privacy: .public)")
