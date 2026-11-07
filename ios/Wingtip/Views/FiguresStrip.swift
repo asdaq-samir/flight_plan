@@ -2,8 +2,10 @@ import SwiftUI
 
 /// The flight's figures in one line -- To, Dist, ETE, Fuel -- what the
 /// web app's pill shows at the sheet's foot (FlightLine), and what the
-/// pilot glances at in the air. Fuel red where it lands under the
-/// reserve the planner holds it to (14 CFR 91.151, in the planner).
+/// pilot glances at in the air. The fuel is the engine's `strip_fuel`,
+/// the web's and Android's: the fuel required, less what a flight under
+/// way has burnt, red where the tanks do not hold it and its reserve (14
+/// CFR 91.151, 91.167).
 struct FiguresStrip: View {
     @Environment(Plan.self) private var plan
     @Environment(OwnShip.self) private var ownShip
@@ -18,12 +20,29 @@ struct FiguresStrip: View {
         guard let fix = dryRun.fix ?? ownShip.fix, let gs = fix.groundspeedKt, Flight.underway(gs), let course = plan.course,
               let along = Flight.along(fix.coordinate, line: course.coordinates),
               Flight.off(fix.coordinate, line: course.coordinates) <= 3 else { return nil }
-        let required = plan.totals?.fuelRequiredGal.map { max(0, $0 - Flight.burnt(legs: plan.legs, alongNm: along.alongNm)) }
+        let required = Self.fuel(plan.totals, burntGal: Flight.burnt(legs: plan.legs, alongNm: along.alongNm)).requiredGal
         return (along.leftNm, along.leftNm / gs * 60, required)
     }
 
+    /// The engine's answer to strip_fuel.
+    struct StripFuel: Decodable {
+        struct Short: Decodable { let name: String; let shortGal: Double }
+        let requiredGal: Double?
+        let short: [Short]
+    }
+
+    /// The strip's fuel from the planner's totals, as the engine works it
+    /// for the three apps: required, less `burntGal`, and where short.
+    static func fuel(_ totals: Totals?, burntGal: Double? = nil) -> StripFuel {
+        let answer: StripFuel? = try? Engine.call("strip_fuel", json: [
+            "fuel_required_gal": totals?.fuelRequiredGal, "fuel_margin_gal": totals?.fuelMarginGal, "burnt_gal": burntGal,
+        ], decoder: Planner.snakeCase)
+        return answer ?? StripFuel(requiredGal: nil, short: [])
+    }
+
     var body: some View {
-        let warn = (plan.totals?.fuelMarginGal ?? 0) < 0
+        let fuel = Self.fuel(plan.totals)
+        let warn = !fuel.short.isEmpty
         HStack {
             stripFigure("TO", plan.routed ? plan.dest : "—")
             if let flying {
@@ -34,7 +53,7 @@ struct FiguresStrip: View {
                 let distance = plan.totals?.distanceNm ?? plan.course?.distanceNm
                 stripFigure("DIST", distance.map(AirportWords.nm) ?? "—", spoken: distance.map(SpokenFigures.nauticalMiles))
                 stripFigure("ETE", plan.totals?.eteMin.map(hoursMinutes) ?? "—", spoken: plan.totals?.eteMin.map(SpokenFigures.minutes))
-                stripFigure("FUEL", plan.totals?.fuelGal.map(AirportWords.gal) ?? "—", spoken: plan.totals?.fuelGal.map(SpokenFigures.gallons), warn: warn)
+                stripFigure("FUEL", fuel.requiredGal.map(AirportWords.gal) ?? "—", spoken: fuel.requiredGal.map(SpokenFigures.gallons), warn: warn)
             }
         }
         .padding(.horizontal)

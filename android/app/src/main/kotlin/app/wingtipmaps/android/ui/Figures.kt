@@ -13,6 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.wingtipmaps.android.Plan
+import app.wingtipmaps.android.api.NavLogTotals
+import app.wingtipmaps.android.engine.Engine
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -44,21 +48,45 @@ fun hoursMinutes(minutes: Double): String {
 /**
  * The flight's figures in one line -- To, Dist, ETE, Fuel -- what the
  * web app's pill shows at the sheet's foot (FlightLine) and the iOS app's
- * FiguresStrip, and what the pilot glances at in the air. Fuel in the
- * error colour where it lands under the reserve the planner holds it to
- * (14 CFR 91.151, in the planner): a warning, never a limit.
+ * FiguresStrip, and what the pilot glances at in the air. The fuel is the
+ * engine's `strip_fuel`, the web's and the iPhone's: the fuel required, in
+ * the error colour where the tanks do not hold it and its reserve (14 CFR
+ * 91.151, 91.167): a warning, never a limit.
  */
 @Composable
 fun FiguresStrip(state: Plan.State) {
     val distance = state.totals?.distanceNm ?: state.course?.distanceNm
-    val warn = (state.totals?.fuelMarginGal ?: 0.0) < 0
+    val fuel = stripFuel(state.totals)
+    val warn = fuel.short.isNotEmpty()
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Figure("TO", if (state.routed) state.dest else "—")
         Figure("DIST", distance?.let(::nm) ?: "—")
         Figure("ETE", state.totals?.eteMin?.let(::hoursMinutes) ?: "—")
-        Figure("FUEL", state.totals?.fuelGal?.let(::gal) ?: "—", warn = warn)
+        Figure("FUEL", fuel.requiredGal?.let(::gal) ?: "—", warn = warn)
     }
 }
+
+@Serializable
+private class StripFuelAsk(
+    @SerialName("fuel_required_gal") val fuelRequiredGal: Double?,
+    @SerialName("fuel_margin_gal") val fuelMarginGal: Double?,
+)
+
+/** The engine's answer to strip_fuel. */
+@Serializable
+class StripFuel(
+    @SerialName("required_gal") val requiredGal: Double? = null,
+    val short: List<ShortFlight> = emptyList(),
+) {
+    @Serializable
+    class ShortFlight(val name: String, @SerialName("short_gal") val shortGal: Double)
+}
+
+/** The strip's fuel from the planner's totals, as the engine works it for
+ *  the three apps; none where the engine cannot answer. */
+fun stripFuel(totals: NavLogTotals?): StripFuel =
+    runCatching { Engine.call<StripFuelAsk, StripFuel>("strip_fuel", StripFuelAsk(totals?.fuelRequiredGal, totals?.fuelMarginGal)) }
+        .getOrDefault(StripFuel())
 
 /** One figure of the strip, its name over it. */
 @Composable
