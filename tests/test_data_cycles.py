@@ -59,7 +59,10 @@ def on_disk(monkeypatch, tmp_path):
     (cifp / procedures.CIFP_FILE).write_text("")
     monkeypatch.setattr(terrain, "DEFAULT_FAA_CACHE_DIR", faa)
     monkeypatch.setattr(procedures, "CIFP_DIR", tmp_path / "cifp")
-    monkeypatch.setattr(charts, "serving_cycle", lambda: "10-29-2026")
+    # status() reads the held answer, never serving_cycle (which can fetch),
+    # and a tile server is what makes that answer the one served.
+    monkeypatch.setattr(charts, "CHART_TILES_URL", "https://tiles.example")
+    monkeypatch.setitem(charts._serving_cache, "value", "10-29-2026")
     monkeypatch.setattr(pack, "phone_index", lambda: {"cycle": "2026-10-01"})
     return tmp_path
 

@@ -15,7 +15,7 @@ const CURRENT: Currency = {
 
 describe("the risk assessment", () => {
   test("a quiet day is low, and a few things together raise it", () => {
-    expect(assess(QUIET)).toEqual({ score: 0, level: "low", factors: [] });
+    expect(assess(QUIET)).toEqual({ score: 0, level: "low", words: "Go, with the usual care.", factors: [] });
     const evening = assess({ ...QUIET, night: true, hazards: 1, ticked: { pressure: true } });
     expect(evening.score).toBe(3 + 2 + 3);
     expect(evening.level).toBe("caution");
