@@ -53,7 +53,7 @@ struct ProfileCard: View {
                                 Text(hoursMinutes(ete)).foregroundStyle(.secondary).monospacedDigit()
                             }
                         }
-                        // "FL045" read as the feet it stands for.
+                        // "FL-045" read as the feet it stands for.
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel([SpokenFigures.feet(altitude), name(of: altitude), ete.map(SpokenFigures.minutes)].compactMap { $0 }.joined(separator: ", "))
                         .tag(altitude)
@@ -133,10 +133,14 @@ struct ProfileCard: View {
     }
 }
 
-/// The owner's FL-style figure for an altitude: hundreds of feet, three
-/// digits (FL065 for 6,500 ft), knowingly not the FAA's meaning.
+/// The owner's FL-style figure for an altitude, the app's one copy:
+/// "FL-" and hundreds of feet in three digits ("FL-065" for 6,500 ft),
+/// written as the web's lib/units flightLevel and Android's StripData
+/// write it (the owner, 2026-10-27: "make it in the format FL-***"),
+/// knowingly not the FAA's meaning, which starts flight levels at 18,000
+/// ft (14 CFR 1.1, 91.121(a)(2)). VoiceOver still says the feet.
 func flightLevel(_ feet: Double) -> String {
-    String(format: "FL%03d", Int((feet / 100).rounded()))
+    String(format: "FL-%03d", Int((feet / 100).rounded()))
 }
 
 /// The side view itself, drawn: the ground in brown, Class B and C in

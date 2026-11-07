@@ -172,10 +172,10 @@ struct StripDataTests {
     @Test func theHeadsLineIsTheRouteTheAirplaneTheAltitudeAsFLAndWhen() {
         #expect(StripData.routeName(dep: "C81", dest: "KDLH", stops: ["KJVL"]) == "C81 → KJVL → KDLH")
         #expect(StripData.routeName(dep: "KDLH", dest: "KDLH", stops: []) == "KDLH local")
-        #expect(StripData.flightLevel(4500) == "FL045")
-        #expect(StripData.flightLevel(10500) == "FL105")
+        #expect(flightLevel(4500) == "FL-045")
+        #expect(flightLevel(10500) == "FL-105")
         #expect(StripData.headLine(dep: "C81", dest: "KDLH", stops: ["KJVL"], airplane: "C172", cruiseFt: 4500, departAt: nil)
-                == "C81 → KJVL → KDLH · C172 · FL045 · leaving now")
+                == "C81 → KJVL → KDLH · C172 · FL-045 · leaving now")
         #expect(StripData.headLine(dep: "C81", dest: "KDLH", stops: [], airplane: "", cruiseFt: nil, departAt: nil) == "C81 → KDLH · leaving now")
     }
 
