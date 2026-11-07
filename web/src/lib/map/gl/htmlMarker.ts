@@ -1,8 +1,7 @@
-import type { DivIconOptions } from "leaflet";
 import { Marker } from "maplibre-gl";
+import type { IconLike } from "../icons";
 
-/** A div icon's look: Leaflet's DivIcon, or the same options made here. */
-export interface IconLike { options: Pick<DivIconOptions, "html" | "iconSize" | "iconAnchor" | "className"> }
+export type { IconLike };
 
 /**
  * A MapLibre marker drawn from one of the app's own div icons (icons.ts:

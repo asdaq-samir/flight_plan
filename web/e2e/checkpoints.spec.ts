@@ -74,7 +74,7 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // not the wind's runway.
   await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:9,KDLH:27&auto=-");
   await settle(page);
-  const marker = page.locator(".leaflet-marker-icon", { hasText: /^1[01]$/ }).first();
+  const marker = page.locator(".maplibregl-marker", { hasText: /^1[01]$/ }).first();
   await expect(marker).toBeVisible({ timeout: slow(15000) });
   // A DOM click, not a pointer one: the legs are still streaming in
   // and each re-draws the markers, so Playwright's wait for the marker
@@ -232,7 +232,7 @@ test("plan page: the checkpoints are their numbers at the route's zoom, named in
   const labels = page.locator("[data-checkpoint-label]");
   // The route fitted: its dots numbered and no names, where two dozen dark
   // names covered the chart (the design review, 2026-10-28).
-  const dots = page.locator(".leaflet-marker-icon").filter({ hasText: /^\d+$/ });
+  const dots = page.locator(".maplibregl-marker").filter({ hasText: /^\d+$/ });
   await expect.poll(() => dots.count(), { timeout: slow(30000) }).toBeGreaterThan(3);
   await mapStill(page);
   await expect(labels).toHaveCount(0);
@@ -259,7 +259,7 @@ test("plan page: the checkpoints are their numbers at the route's zoom, named in
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
   })));
   // Nor over the route's own airports' marks, nor their idents beside them.
-  const chips = await page.locator(".leaflet-marker-icon", { hasText: /^(C81|KDLH)$/ }).evaluateAll(els => els.map(el => {
+  const chips = await page.locator(".maplibregl-marker", { hasText: /^(C81|KDLH)$/ }).evaluateAll(els => els.map(el => {
     const [mark, ident] = [...el.children].map(c => c.getBoundingClientRect());
     return { left: mark!.left, right: Math.max(mark!.right, ident!.right), top: Math.min(mark!.top, ident!.top), bottom: Math.max(mark!.bottom, ident!.bottom) };
   }));

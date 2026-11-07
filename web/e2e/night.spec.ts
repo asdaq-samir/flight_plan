@@ -11,14 +11,10 @@ import { openMapSettings, openSetup, pickControl, settle, slow } from "./helpers
 
 test.use({ colorScheme: "dark" });
 
-const DIMMED = "brightness(0.5) contrast(1.15)";
-
-/** Each tile image of the chart's layers, not the layer's container,
- *  which Safari's engine drew in banded lines (index.css). */
-const TILE = ".leaflet-layer.chart-tiles img.leaflet-tile";
-
-const filterOf = (page: Page, selector: string) =>
-  page.locator(selector).first().evaluate(el => getComputedStyle(el).filter);
+/** How the map paints the chart's tiles (ChartGl's data-chart-look): dimmed
+ *  at night, as printed, or brightened in sunlight -- the map's own raster
+ *  paint, nothing over the chart touched. */
+const lookOf = (page: Page) => page.getByTestId("gl-map").getAttribute("data-chart-look");
 
 test("in the dark theme the page is the night's navy and only the chart's tiles are dimmed, until Chart at night is Normal", async ({ page }) => {
   test.setTimeout(slow(60000));
@@ -36,20 +32,8 @@ test("in the dark theme the page is the night's navy and only the chart's tiles 
   expect(tokens).toEqual({ background: "#0b1422", card: "#17283a" });
   expect(await page.locator("body").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(11, 20, 34)");
 
-  // The chart's tiles dimmed, their layer's container not; the panes over
-  // it as they were.
-  const chart = page.locator(TILE).first();
-  await expect(chart).toBeAttached({ timeout: slow(15000) });
-  await expect.poll(() => filterOf(page, TILE)).toBe(DIMMED);
-  expect(await filterOf(page, ".leaflet-layer.chart-tiles")).toBe("none");
-  for (const pane of [".leaflet-marker-pane", ".leaflet-overlay-pane", ".leaflet-tooltip-pane"]) {
-    expect(await filterOf(page, pane)).toBe("none");
-  }
-  // The course in the night's magenta over it, once the route is drawn.
-  const core = page.locator("path.course-core").first();
-  if (await core.count()) {
-    expect(await core.evaluate(el => getComputedStyle(el).stroke)).toBe("rgb(242, 119, 230)");
-  }
+  // The chart's tiles dimmed, by the map's paint.
+  await expect.poll(() => lookOf(page), { timeout: slow(15000) }).toBe("dimmed");
 
   // Normal: the chart as printed, and kept so across a reload.
   await openMapSettings(page);
@@ -57,11 +41,11 @@ test("in the dark theme the page is the night's navy and only the chart's tiles 
   await expect(night.getByRole("radio", { name: "Dimmed" })).toHaveAttribute("aria-checked", "true");
   await night.getByRole("radio", { name: "Normal" }).click();
   await expect(html).toHaveAttribute("data-chart-night", "normal");
-  await expect.poll(() => filterOf(page, TILE)).toBe("none");
+  await expect.poll(() => lookOf(page)).toBe("normal");
   await page.reload();
   await settle(page);
   await expect(html).toHaveAttribute("data-chart-night", "normal");
-  await expect.poll(() => filterOf(page, TILE)).toBe("none");
+  await expect.poll(() => lookOf(page)).toBe("normal");
 
   // Back to Dimmed for the next test's sake, and the light theme never dims.
   await openMapSettings(page);
@@ -71,5 +55,5 @@ test("in the dark theme the page is the night's navy and only the chart's tiles 
   await openSetup(page);
   await pickControl(page, "theme-select", "theme-light");
   await expect(html).not.toHaveClass(/dark/);
-  await expect.poll(() => filterOf(page, TILE)).toBe("none");
+  await expect.poll(() => lookOf(page)).toBe("normal");
 });

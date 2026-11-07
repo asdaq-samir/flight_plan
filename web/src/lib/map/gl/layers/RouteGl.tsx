@@ -3,7 +3,7 @@ import { useMemo, type ReactNode } from "react";
 import type { Course } from "../../../api/types";
 import type { AirspaceClass } from "../../../preferences";
 import { courseColour } from "../../chartColors";
-import { airportMarkIcon, fixMarkIcon } from "../../icons";
+import { airportMarkIcon, dotIcon, fixMarkIcon } from "../../icons";
 import { useGlData, useGlLayer, useGlMap, useGlTap } from "../glLayer";
 import { CHECKPOINT_SOURCE, ROUTE_SOURCE, glZoom, pointFeatures, routeFeature, routeLayers } from "../glStyle";
 import { useGlProbe } from "../useGlProbe";
@@ -27,7 +27,10 @@ export interface GlCandidate {
   lat: number;
   lon: number;
   colour: string;
-  card: ReactNode;
+  /** Its card, opened by a tap; or what a tap does instead (the training
+   *  map's, which selects it). */
+  card?: ReactNode;
+  select?: () => void;
 }
 
 export interface GlEndpoint {
@@ -76,12 +79,15 @@ const NAMES: SymbolLayerSpecification = {
 export function RouteGl({ course, checkpoints, candidates, endpoints }: {
   course: Course | null; checkpoints: GlCheckpoint[]; candidates: GlCandidate[]; endpoints: GlEndpoint[];
 }) {
-  const layers = useMemo(() => routeLayers(GL_FONT, courseColour()), []);
+  const layers = useMemo(() => routeLayers(courseColour()), []);
   // The line in the route's slot, the marks over every mark on the chart.
   useGlLayer("route", LINE_SOURCES, layers.filter(l => "source" in l && l.source === ROUTE_SOURCE));
-  useGlLayer("top", MARK_SOURCES, [CANDIDATE_DOTS, ...layers.filter(l => "source" in l && l.source === CHECKPOINT_SOURCE), NAMES]);
+  useGlLayer("top", MARK_SOURCES, [CANDIDATE_DOTS, NAMES]);
   const line = useMemo(() => (course ? routeFeature(course.course_line as [number, number][]) : null), [course]);
   useGlData(ROUTE_SOURCE, line);
+  // The course drawn, for the browser tests (the Leaflet map's path).
+  useGlProbe("route-line", ["route-core"], () => ({ course: true }));
+  useGlProbe("candidate-marks", ["candidates"], f => ({ key: f.properties.key }));
   const dots = useMemo<GeoJSON.FeatureCollection>(() => ({
     type: "FeatureCollection",
     features: checkpoints.map(c => ({
@@ -97,17 +103,19 @@ export function RouteGl({ course, checkpoints, candidates, endpoints }: {
     icon: e.fix ? fixMarkIcon(e.ident) : airportMarkIcon(e.ident, e.space, e.colour),
   })), [endpoints]);
   useGlMarks(fields);
-  useGlProbe("checkpoint-marks", ["checkpoints"], f => ({ key: f.properties.key, number: f.properties.number }));
+  // The chosen checkpoints as the app's numbered dots (icons.ts dotIcon),
+  // markers a tap selects and opens the card of, the map flying in to it:
+  // a route's few dozen, the nav log's numbers on them.
   const { openCard } = useGlMap();
-  useGlTap(["checkpoints"], TAP.mark, TAP.rank.checkpoint, feature => {
-    const c = checkpoints.find(p => p.key === String(feature.properties.key));
-    if (!c) return;
-    c.select();
-    openCard(c.card);
-  });
+  const numbered = useMemo<GlMark[]>(() => checkpoints.map(c => ({
+    key: `cp-${c.key}`, lat: c.lat, lon: c.lon, icon: dotIcon(c.colour, c.number),
+    onTap: () => { c.select(); openCard(c.card); },
+  })), [checkpoints, openCard]);
+  useGlMarks(numbered);
   useGlTap(["candidates"], 8, TAP.rank.checkpoint + 0.5, feature => {
     const c = candidates.find(p => p.key === String(feature.properties.key));
-    if (c) openCard(c.card);
+    if (c?.select) c.select();
+    else if (c?.card) openCard(c.card);
   });
   return null;
 }
