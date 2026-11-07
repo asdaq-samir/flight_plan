@@ -176,7 +176,6 @@ engine (#482).
 |---|---|
 | `pipeline.py` | collect → engineer → retrain, callable and non-interactive. |
 | `model_registry.py` | Evaluate a retrained model, promote it if better. |
-| `model_candidates.py`, `torch_model.py` | The same regression in PyTorch, TensorFlow and Spark MLlib, each a re-runnable entry point that persists an artifact. |
 | `chartlabels.py` | Checkpoints marked by hand on the chart. |
 | `chartfeatures.py` | Features for the chart reader's detections. |
 | `chartmodel.py` | The chart model: the training page's 0-5 ratings on detections, trained in the training image, scored in the planner (`planning-service/app/chart_scorer.py`), ranking the planner's checkpoints. |

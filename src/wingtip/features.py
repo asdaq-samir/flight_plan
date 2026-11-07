@@ -1,7 +1,6 @@
-"""Feature engineering shared by Notebook 02 (pandas) and, later, Notebook
-06 (Spark). Kept dependency-light (plain pandas/numpy, no sklearn) so the
-Spark notebook can reimplement the same feature *definitions* with the
-Spark DataFrame API without importing pandas-specific code.
+"""Feature engineering shared by Notebook 02 and the pipeline. Kept
+dependency-light (plain pandas/numpy, no sklearn) so importing it, as
+wingtip.pipeline does at its top, never drags in the training stack.
 """
 import numpy as np
 import pandas as pd

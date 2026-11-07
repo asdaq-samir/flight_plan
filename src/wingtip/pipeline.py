@@ -140,13 +140,12 @@ def metrics_record(
 ) -> dict:
     """metrics.json, the same shape whichever library did the training.
 
-    Four trainers write this file -- the sklearn one below and PyTorch,
-    TensorFlow and Spark in `model_candidates` -- and `model_registry`'s
-    promotion gate and the developer console both read it by key. It was
-    four copies of one dict literal, which is three chances for a
-    trainer to quietly report something the registry cannot compare.
-    `extra` is whatever that trainer has and the others do not, such as
-    a cross-validation score.
+    Two trainers write this file -- retrain() below and the chart model
+    (wingtip.chartmodel) -- and `model_registry`'s promotion gate and the
+    developer console both read it by key, so one shape keeps either
+    from reporting something the registry cannot compare. `extra` is
+    whatever that trainer has and the other does not, such as a
+    cross-validation score.
     """
     return {
         "model_type": model_type,
@@ -409,13 +408,10 @@ def holdout_split(labeled_df: pd.DataFrame) -> pd.Series:
 class LabeledSplit:
     """The labelled candidates and the one holdout every trainer scores on.
 
-    retrain(), the PyTorch and TensorFlow candidates and Spark's each built
-    this themselves -- the name_uniqueness fill, the rating as float, the
-    split -- and Spark's still drew its own stratified random split, so the
-    comparison table set a model scored on one fifth of the landmarks
-    against models scored on another. `labeled` is the whole table, for a
-    trainer that scores every labelled candidate (Spark) and for the
-    notebooks; `held_out` marks holdout_split's rows."""
+    One place builds it -- the name_uniqueness fill, the rating as float,
+    the split -- so retrain() and the notebooks score on the same
+    landmarks. `labeled` is the whole table, for the notebooks; `held_out`
+    marks holdout_split's rows."""
 
     labeled: pd.DataFrame
     held_out: pd.Series
