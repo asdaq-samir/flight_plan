@@ -15,7 +15,7 @@ export function aircraftKey(a: AircraftChoice): string {
  *  engine's test (native/engine/src/aircraft), the iPhone's too, asked as
  *  a pattern's `test` was. */
 export const N_NUMBER = {
-  test: (text: string): boolean => callEngine<boolean>("n_number", { text }),
+  test: (text: string): boolean => callEngine("n_number", { text }),
 };
 
 /** The stock profile an airplane the FAA's registry names flies on, by its
@@ -25,7 +25,7 @@ export const N_NUMBER = {
  *  (native/engine/src/aircraft/registry.rs), which the iPhone's
  *  Registered asks too. */
 export function profileOfRegistered(registered: { manufacturer?: string | null; model?: string | null; year?: number | null }): string | null {
-  return callEngine<string | null>("registered_profile", {
+  return callEngine("registered_profile", {
     manufacturer: registered.manufacturer ?? null, model: registered.model ?? null, year: registered.year ?? null,
   });
 }

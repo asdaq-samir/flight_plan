@@ -1,16 +1,9 @@
-import { callEngine } from "../../../../lib/engine/engine";
+import { callEngine, type EngineAnswer } from "../../../../lib/engine/engine";
 import type { NavLogRow } from "./rows";
 
-export interface ProfilePoint {
-  along_nm: number;
-  plan_ft: number;
-}
-
-export interface ProfileMark {
-  kind: "TOC" | "TOD";
-  along_nm: number;
-  plan_ft: number;
-}
+export type PlanProfile = EngineAnswer<"plan_profile">;
+export type ProfilePoint = PlanProfile["points"][number];
+export type ProfileMark = PlanProfile["marks"][number];
 
 /**
  * The plan's altitudes as a line over the ground, from the nav log's
@@ -21,7 +14,7 @@ export interface ProfileMark {
  * the line there. Worked out by the shared engine
  * (native/engine/src/motion/profile.rs), which the dry run flies.
  */
-export function planProfile(rows: NavLogRow[]): { points: ProfilePoint[]; marks: ProfileMark[]; length_nm: number } {
+export function planProfile(rows: NavLogRow[]): PlanProfile {
   return callEngine("plan_profile", { rows });
 }
 

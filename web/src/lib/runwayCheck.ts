@@ -11,17 +11,12 @@
  * code behind the planner's Go / No-Go and the phones'.
  */
 import type { AircraftProfile, Airport, Briefing, Course, Runway, ShortField } from "./api/types";
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { RunwayPicks } from "./pattern";
 import type { Distances } from "./takeoffLanding";
 
-/** Distances as the engine answers them. */
-interface EngineDistances {
-  ground_roll_ft: number;
-  total_ft: number;
-  caveats: string[];
-  over: boolean;
-}
+/** Distances as the engine answers them, and whether over the runway. */
+type EngineDistances = EngineAnswer<"gonogo_end_distance">;
 
 const distances = (d: EngineDistances): Distances & { over: boolean } =>
   ({ groundRollFt: d.ground_roll_ft, totalFt: d.total_ft, caveats: d.caveats, over: d.over });
@@ -50,7 +45,7 @@ export function softSurface(runway: Runway | undefined): boolean {
  *  from the altimeter reported (a standard 29.92 without one) and the
  *  temperature reported, else a standard day's at its elevation. */
 export function fieldAir(elevationFt: number, altimeterInHg: number | null | undefined, tempC: number | null | undefined) {
-  const air = callEngine<{ pressure_alt_ft: number; temp_c: number }>("gonogo_field_air", {
+  const air = callEngine("gonogo_field_air", {
     elevation_ft: elevationFt, altimeter_in_hg: altimeterInHg ?? null, temp_c: tempC ?? null,
   });
   return { pressureAltFt: air.pressure_alt_ft, tempC: air.temp_c };
@@ -67,7 +62,7 @@ export function fieldAir(elevationFt: number, altimeterInHg: number | null | und
  */
 export function endDistance(table: ShortField, runway: Runway | undefined, air: { pressureAltFt: number; tempC: number },
   weightLb: number | null | undefined, headwindKt: number): Distances & { over: boolean } {
-  return distances(callEngine<EngineDistances>("gonogo_end_distance", {
+  return distances(callEngine("gonogo_end_distance", {
     table, runway: runway ?? null, pressure_alt_ft: air.pressureAltFt, temp_c: air.tempC, weight_lb: weightLb ?? null, headwind_kt: headwindKt,
   }));
 }
@@ -119,11 +114,7 @@ export function runwayChecks(aircraft: AircraftProfile | null | undefined, brief
   const fields: Airport[] = [course.departure, ...(course.stops ?? []).filter(s => s.kind !== "fix"), course.destination];
   const idents = new Set(fields.map(f => f.ident));
   const runwaysAt = (ident: string) => briefing.airports[ident]?.runways ?? [];
-  const checks = callEngine<{
-    field: number; role: string; runway: number | null; end: string | null; picked: boolean; pressure_alt_ft: number; density_alt_ft: number;
-    temp_c: number; reported: boolean; headwind_kt: number; crosswind_kt: number; crosswind_over: boolean; grass: boolean;
-    distances: (EngineDistances & { kind: "takeoff" | "landing"; runway: number | null; end: string | null })[];
-  }[]>("gonogo_runway_checks", {
+  const checks = callEngine("gonogo_runway_checks", {
     aircraft: { takeoff: takeoffTable, landing: landingTable, crosswind: aircraft?.crosswind ?? null },
     fields: fields.map(f => ({ ident: f.ident, elevation_ft: f.elevation_ft ?? null })),
     metars: Object.fromEntries(Object.entries(briefing.metars).filter(([i]) => idents.has(i))),

@@ -52,7 +52,7 @@ export function proceduresOf(param: string | null): PickedProcedure[] {
   // The shared engine's reading (crate::route::picks), the one the
   // planner's PlanQuery.procedure_picks asks too: the planner refuses a
   // piece that is not exactly one, the address leaves it out.
-  const read = callEngine<{ pick: { ident: string; id: string; transition: string | null; direct: string | null } | null }[]>(
+  const read = callEngine(
     "procedures_read", { text: param },
   );
   return read.flatMap(({ pick }) => {
@@ -103,12 +103,12 @@ export async function typedProcedure(
  *  come with a space round it. The one test for the app, which the
  *  traffic's (fbo) had a second of. */
 export function sameField(a: string, b: string): boolean {
-  return callEngine<boolean>("same_field", { a, b });
+  return callEngine("same_field", { a, b });
 }
 
 /** The procedures picked, for the address. */
 export function proceduresParam(picks: PickedProcedure[]): string {
-  return callEngine<string>("procedures_write", { picks });
+  return callEngine("procedures_write", { picks });
 }
 
 /** One line of a fix's altitudes as an approach chart sets it (the FAA's
@@ -126,7 +126,7 @@ export interface AltitudeLine {
 export function altitudeLines(fix: Pick<ProcedureFix, "min_ft" | "max_ft">): { lines: AltitudeLine[]; words: string | null } {
   // Which lines and how each is set are the engine's (crate::route::picks);
   // the figures' print and the words are the page's.
-  const set = callEngine<{ crossing: "at" | "between" | "at_or_above" | "at_or_below" | null; lines: { ft: number; under: boolean; over: boolean }[] }>(
+  const set = callEngine(
     "altitude_lines", { min_ft: fix.min_ft ?? null, max_ft: fix.max_ft ?? null },
   );
   const lines = set.lines.map(({ ft, under, over }) => ({ text: altFt(ft), under, over }));

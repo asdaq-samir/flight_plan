@@ -1,5 +1,5 @@
 import type { Briefing } from "./api/types";
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
 /**
  * A pilot's personal minimums -- the weather they have decided they will
@@ -40,7 +40,7 @@ export const MINIMUM_CHOICES: Record<keyof Minimums, number[]> = {
 export function bestCrosswind(
   runways: Briefing["airports"][string]["runways"],
   reported?: { speedKt?: number | null; gustKt?: number | null } | null,
-): { end: string | null; kt: number } | null {
+): EngineAnswer<"gonogo_best_crosswind"> {
   return callEngine("gonogo_best_crosswind", {
     runways, reported: reported ? { speed_kt: reported.speedKt ?? null, gust_kt: reported.gustKt ?? null } : null,
   });

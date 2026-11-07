@@ -1,5 +1,5 @@
 import type { TrafficAircraft } from "../api/types";
-import { callEngine } from "../engine/engine";
+import { callEngine, type EngineAnswer } from "../engine/engine";
 import { M_PER_NM, destination, type LatLon } from "../geo";
 import type { Fix } from "./ownShip";
 
@@ -14,7 +14,7 @@ import type { Fix } from "./ownShip";
  * flown path.
  */
 
-interface Mark { label: string; near: boolean }
+type Mark = EngineAnswer<"traffic_marks">[number];
 
 /** The engine's marks of the airplanes on the map against own ship's
  *  height, each kept with its airplane (`markTraffic`): one call for them
@@ -26,14 +26,14 @@ const heights = (p: Pick<TrafficAircraft, "altitude_ft" | "vertical_fpm">) => ({
 /** Works out the label and colour of every airplane in `planes` against
  *  own ship's height at once, for trafficLabel and nearOwnHeight to read. */
 export function markTraffic(planes: TrafficAircraft[], ownFt: number | null): void {
-  const marks = callEngine<Mark[]>("traffic_marks", { own_ft: ownFt, planes: planes.map(heights) });
+  const marks = callEngine("traffic_marks", { own_ft: ownFt, planes: planes.map(heights) });
   planes.forEach((p, i) => marked.set(p, { own: ownFt, mark: marks[i]! }));
 }
 
 function mark(plane: Pick<TrafficAircraft, "altitude_ft" | "vertical_fpm">, own: number | null): Mark {
   const kept = marked.get(plane as TrafficAircraft);
   if (kept && kept.own === own) return kept.mark;
-  return callEngine<Mark[]>("traffic_marks", { own_ft: own, planes: [heights(plane)] })[0]!;
+  return callEngine("traffic_marks", { own_ft: own, planes: [heights(plane)] })[0]!;
 }
 
 /** Under the airplane: its height against own ship's in hundreds of
@@ -76,7 +76,7 @@ const engineFix = (fix: Fix) => ({ lat: fix.lat, lon: fix.lon, heading_deg: fix.
 export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string | null {
   // Only what the rule reads crosses, not each airplane's every field.
   const heard = planes.map(p => ({ hex: p.hex, lat: p.lat, lon: p.lon, altitude_ft: p.altitude_ft, track_deg: p.track_deg, speed_kt: p.speed_kt, seen_s: p.seen_s }));
-  return callEngine<string | null>("own_ship_hex", { planes: heard, fix: fix ? engineFix(fix) : null });
+  return callEngine("own_ship_hex", { planes: heard, fix: fix ? engineFix(fix) : null });
 }
 
 
@@ -140,6 +140,6 @@ export function colourRuns(path: { lat: number; lon: number; altFt: number | nul
  * knowing what is coming, not for avoiding it.
  */
 export function closestApproach(own: Fix, plane: TrafficAircraft): { inMin: number; nm: number; aboveFt: number | null } | null {
-  const cpa = callEngine<{ in_min: number; nm: number; above_ft: number | null } | null>("closest_approach", { own: engineFix(own), plane });
+  const cpa = callEngine("closest_approach", { own: engineFix(own), plane });
   return cpa && { inMin: cpa.in_min, nm: cpa.nm, aboveFt: cpa.above_ft };
 }

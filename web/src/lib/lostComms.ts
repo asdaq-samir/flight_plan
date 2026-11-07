@@ -10,7 +10,7 @@
  * and the phones' wt_lost_comms. ROUTES stays here as the page's labels
  * and the type of its pick; lostComms.test.ts holds it to the engine's.
  */
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
 /** 91.185(c)(1): the route, in the rule's order -- the first that applies. */
 export const ROUTES = [
@@ -41,19 +41,14 @@ export interface Clearance {
 export type Because = "assigned" | "minimum" | "expected";
 
 /** The engine's "lost_comms" answer, as /api/lost-comms gives it. */
-export interface LostCommsAnswer {
-  vfr: string;
-  routes: { key: string; label: string; rule: string }[];
-  segments: { name: string; fly: number | null; because: Because | null; words: string }[];
-  leave: string;
-}
+export type LostCommsAnswer = EngineAnswer<"lost_comms">;
 
 /** 91.185(c)(2): on each segment, the highest of the altitude assigned,
  *  the minimum for IFR operations, and the altitude ATC said to expect --
  *  and which it was. Null where none is known. A segment with no name is
  *  "Segment", as the planner names it. */
 export function segmentAltitudes(segments: Segment[], c: Clearance): { name: string; fly: number | null; because: Because | null }[] {
-  const answer = callEngine<LostCommsAnswer>("lost_comms", {
+  const answer = callEngine("lost_comms", {
     segments: segments.map(s => ({ name: s.name, minimum_ft: s.minimumFt })),
     assigned_ft: c.assignedFt, expected_ft: c.expectedFt, expected_from: c.expectedFrom,
   });
@@ -62,5 +57,5 @@ export function segmentAltitudes(segments: Segment[], c: Clearance): { name: str
 
 /** 91.185(c)(3): when to leave the clearance limit, in words. */
 export function leaveLimit(approachFix: boolean, efc: string, eta: string): string {
-  return callEngine<LostCommsAnswer>("lost_comms", { segments: [], approach_fix: approachFix, efc, eta }).leave;
+  return callEngine("lost_comms", { segments: [], approach_fix: approachFix, efc, eta }).leave;
 }

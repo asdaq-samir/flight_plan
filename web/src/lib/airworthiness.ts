@@ -1,17 +1,10 @@
 import type { Inspections, Squawk } from "./api/types";
+import type { GonogoFactor } from "./engine/contract";
 import { callEngine } from "./engine/engine";
 import type { RiskFactor } from "./frat";
 
-/** A factor as the engine answers it, with its mark. */
-export interface EngineFactor {
-  key: string;
-  label: string;
-  why: string | null;
-  points: number;
-  stop: boolean;
-  group?: string;
-  finding: "caution" | "stop" | null;
-}
+/** A factor as the engine answers it, with its mark (the contract's). */
+export type EngineFactor = GonogoFactor;
 
 /** A factor as the pages read it: `stop` only where it is one, the mark
  *  theirs to draw (RiskAssessment), a self check's group kept. */
@@ -60,7 +53,7 @@ export function squawksInput(open: Squawk[]) {
  * and the phones' own.
  */
 export function inspectionFactors(i: Inspections, day: string, ifr: boolean): RiskFactor[] {
-  return callEngine<EngineFactor[]>("gonogo_inspection_factors", { inspections: inspectionsInput(i), day, ifr }).map(riskFactor);
+  return callEngine("gonogo_inspection_factors", { inspections: inspectionsInput(i), day, ifr }).map(riskFactor);
 }
 
 /**
@@ -72,5 +65,5 @@ export function inspectionFactors(i: Inspections, day: string, ifr: boolean): Ri
  * caution to read before flight (91.7(b)).
  */
 export function squawkFactors(open: Squawk[], night: boolean, ifr: boolean): RiskFactor[] {
-  return callEngine<EngineFactor[]>("gonogo_squawk_factors", { squawks: squawksInput(open), night, ifr }).map(riskFactor);
+  return callEngine("gonogo_squawk_factors", { squawks: squawksInput(open), night, ifr }).map(riskFactor);
 }

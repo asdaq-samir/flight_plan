@@ -7,7 +7,7 @@ import { assess, CAUTION_FROM, HIGH_FROM, LEVEL_WORDS, SELF_CHECKS, type FratInp
 // show: the same checks, points, groups and sources, the same levels.
 describe("the risk page's labels", () => {
   it("lists the engine's self checks", () => {
-    const engine = callEngine<{ key: string; group: string; label: string; why: string; points: number; stop: boolean }[]>("gonogo_self_checks", {});
+    const engine = callEngine("gonogo_self_checks", {});
     expect(SELF_CHECKS.map(c => ({ ...c, stop: !!c.stop }))).toEqual(engine.map(({ key, group, label, why, points, stop }) => ({ key, group, label, why, points, stop })));
   });
 
@@ -22,7 +22,7 @@ describe("the risk page's labels", () => {
     expect(at({ rusty: true, stress: true, pressure: true, unfamiliar: true }).level).toBe("caution");
     expect(at({ rusty: true, stress: true, pressure: true, unfamiliar: true, eating: true }).level).toBe("high");
     for (const [level, ticked] of [["low", {}], ["caution", { rusty: true, stress: true }], ["high", { alcohol: true }]] as const) {
-      const a = callEngine<{ level: string; words: string }>("gonogo_risk", { day: "2026-10-05", ticked });
+      const a = callEngine("gonogo_risk", { day: "2026-10-05", ticked });
       expect([a.level, a.words]).toEqual([level, LEVEL_WORDS[level]]);
     }
   });

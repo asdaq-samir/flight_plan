@@ -159,15 +159,6 @@ export function tafOf(raw: string | null | undefined, now: number): IForecastCon
 /** What of a group's figures the hour's reading turns on. */
 const held = (f: ReturnType<typeof figuresOf>) => ({ category: f.category, gust_kt: f.windGustKt, thunder: f.precip === "thunder" });
 
-/** The engine's "taf_hour" answer. */
-interface HourRead {
-  before_worse: boolean;
-  at_times: string | null;
-  at_times_gust_kt: number | null;
-  at_times_thunder: boolean;
-  at_times_chance: boolean;
-}
-
 /** The TAF's hour starting `at`; null outside its validity. The parser
  *  finds the groups in force; what they make of the hour -- a BECMG under
  *  way the worse of before and after, a TEMPO's or PROB's worse weather at
@@ -184,7 +175,7 @@ function hourAt(taf: IForecastContainer, at: number): Omit<Hour, "now"> | null {
   const becoming = prevailing.type === WeatherChangeType.BECMG && at < prevailing.by.getTime();
   const before = becoming ? taf.forecast.filter(f => prevails(f) && f.start.getTime() < prevailing.start.getTime()).at(-1) : undefined;
   const was = before && figuresOf(before);
-  const read = callEngine<HourRead>("taf_hour", {
+  const read = callEngine("taf_hour", {
     prevailing: held(figures), becoming, before: was ? held(was) : null,
     // A PROB30 or PROB40 group, alone or before a TEMPO, carries its per
     // cent; a plain TEMPO none.

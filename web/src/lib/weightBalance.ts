@@ -33,7 +33,7 @@ export interface Balance {
 
 /** The loading's own sample (its POH's), and a pilot of 170 lb. */
 export function defaultLoad(loading: Loading, fuelGal: number): Load {
-  const d = callEngine<{ empty_weight_lb: number; empty_arm_in: number; stations_lb: number[]; fuel_gal: number }>("gonogo_default_load", {
+  const d = callEngine("gonogo_default_load", {
     loading, fuel_gal: fuelGal,
   });
   return { emptyWeightLb: d.empty_weight_lb, emptyArmIn: d.empty_arm_in, stationsLb: d.stations_lb, fuelGal: d.fuel_gal };
@@ -52,12 +52,14 @@ export function inEnvelope(envelope: [number, number][], arm: number, weight: nu
  * each station's and the baggage's own most.
  */
 export function balance(loading: Loading, load: Load, tripFuelGal: number | null): Balance {
-  const b = callEngine<{ takeoff: { weight_lb: number; arm_in: number }; landing: { weight_lb: number; arm_in: number }; problems: string[] }>(
+  const b = callEngine(
     "gonogo_balance", {
       loading,
       load: { empty_weight_lb: load.emptyWeightLb, empty_arm_in: load.emptyArmIn, stations_lb: load.stationsLb, fuel_gal: load.fuelGal },
       trip_fuel_gal: tripFuelGal,
     });
-  const condition = (c: { weight_lb: number; arm_in: number }): Condition => ({ weightLb: c.weight_lb, armIn: c.arm_in });
+  // The engine's arm is null where the weight is zero (no centre of
+  // gravity); NaN keeps it a number, as the pages read it.
+  const condition = (c: { weight_lb: number; arm_in: number | null }): Condition => ({ weightLb: c.weight_lb, armIn: c.arm_in ?? NaN });
   return { takeoff: condition(b.takeoff), landing: condition(b.landing), problems: b.problems };
 }

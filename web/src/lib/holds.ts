@@ -16,21 +16,13 @@ export interface Hold {
   length: { turns: number } | { minutes: number };
 }
 
+import type { RouteHold as EngineHold, RouteHoldIn } from "./engine/contract";
 import { callEngine } from "./engine/engine";
 import { bearing } from "./units";
 
-/** A hold as the engine reads and writes it (native/engine/src/route,
- *  the planner's wingtip.holds too): flat, the legs and the length each one
- *  of two, the other null. */
-interface EngineHold {
-  fix: string;
-  inbound: number;
-  right: boolean;
-  leg_min: number | null;
-  leg_nm: number | null;
-  turns: number | null;
-  minutes: number | null;
-}
+// A hold as the engine reads and writes it (native/engine/src/route, the
+// planner's wingtip.holds too) is the contract's RouteHold: flat, the legs
+// and the length each one of two, the other null.
 
 const fromEngine = (h: EngineHold): Hold => ({
   fix: h.fix, inbound: h.inbound, right: h.right,
@@ -38,7 +30,7 @@ const fromEngine = (h: EngineHold): Hold => ({
   length: h.turns != null ? { turns: h.turns } : { minutes: h.minutes! },
 });
 
-const toEngine = (h: Hold) => ({
+const toEngine = (h: Hold): RouteHoldIn => ({
   fix: h.fix, inbound: h.inbound, right: h.right,
   ...("min" in h.leg ? { leg_min: h.leg.min } : { leg_nm: h.leg.nm }),
   ...("turns" in h.length ? { turns: h.length.turns } : { minutes: h.length.minutes }),
@@ -48,19 +40,19 @@ const toEngine = (h: Hold) => ({
  *  (crate::route::holds), the one reading the planner and the phones
  *  have too. */
 export function holdOf(text: string): Hold | null {
-  const h = callEngine<EngineHold | null>("hold_read", { text });
+  const h = callEngine("hold_read", { text });
   return h && fromEngine(h);
 }
 
 /** How long a hold is held, as the address codes it: "2T", "10M". */
 export function lengthCode(length: Hold["length"]): string {
-  return callEngine<string>("hold_length_write", length);
+  return callEngine("hold_length_write", length);
 }
 
 /** A length's code read back ("2T" two turns, "10M" ten minutes), or
  *  null for one that is not. */
 export function lengthOfCode(code: string): Hold["length"] | null {
-  return callEngine<Hold["length"] | null>("hold_length_read", { text: code });
+  return callEngine("hold_length_read", { text: code });
 }
 
 /** How long a hold is held, in words: "2 turns", "1 turn", "10 min". */
@@ -71,13 +63,13 @@ export function lengthWords(length: Hold["length"]): string {
 /** A hold as the address writes it: the inbound course in three figures,
  *  000 for north, as the planner reads it (wingtip.holds). */
 export function holdText(hold: Hold): string {
-  return callEngine<string>("hold_write", { hold: toEngine(hold) });
+  return callEngine("hold_write", { hold: toEngine(hold) });
 }
 
 /** The address's holds, each valid one, by its point: an airport, a
  *  fix, or the pilot's own point off one, not a present position. */
 export function holdsOf(value: string | null | undefined): Hold[] {
-  const read = callEngine<{ part: string; hold: EngineHold | null }[]>("holds_read", { text: value ?? "" });
+  const read = callEngine("holds_read", { text: value ?? "" });
   return read.flatMap(({ hold }) => (hold ? [fromEngine(hold)] : []));
 }
 

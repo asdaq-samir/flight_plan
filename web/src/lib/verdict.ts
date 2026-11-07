@@ -122,7 +122,9 @@ function engineInput({ weather, airspace, altitude, fuel, runways, balance, risk
 
 /** Each tab's finding, in the order a pilot goes through them. */
 export function verdictItems(input: VerdictInput): VerdictItem[] {
-  return callEngine<VerdictItem[]>("gonogo_verdict_items", engineInput(input));
+  // The engine's items are plain strings; its keys, tabs and findings are
+  // the ones VerdictItem names (gonogo/verdict.rs verdict_items).
+  return callEngine("gonogo_verdict_items", engineInput(input)) as VerdictItem[];
 }
 
 /** What the findings come to, in a line over them. */

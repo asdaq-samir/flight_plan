@@ -11,7 +11,7 @@ export const acDay = (iso: string) => format(parseISO(iso), "MM-dd-yyyy");
  *  the record comes newest first. Picked by the shared engine
  *  (native/engine/src/pilot/endorsements.rs), as the iPhone app picks. */
 export function inForce(signed: SignedEndorsement[]): Map<string, SignedEndorsement> {
-  const picked = callEngine<[string, number][]>("endorsements_in_force", { signed: signed.map(e => ({ code: e.code, voided: e.voided })) });
+  const picked = callEngine("endorsements_in_force", { signed: signed.map(e => ({ code: e.code, voided: e.voided })) });
   return new Map(picked.map(([code, at]) => [code, signed[at]!]));
 }
 
@@ -33,7 +33,7 @@ export function signatureLine(instructor: Instructor, signedOn: string): string 
  *  under 61.199 (61.197(e)). The shared engine words it
  *  (native/engine/src/pilot/endorsements.rs), as the iPhone app does. */
 export function lapseWarning(instructor: Instructor, signedOn: string): string | null {
-  return callEngine<string | null>("endorsement_lapse", { until: instructor.until ?? null, until_kind: instructor.untilKind ?? null, signed_on: signedOn });
+  return callEngine("endorsement_lapse", { until: instructor.until ?? null, until_kind: instructor.untilKind ?? null, signed_on: signedOn });
 }
 
 /** A solo cross-country's airports in order: "KUGN KRFD KUGN". */

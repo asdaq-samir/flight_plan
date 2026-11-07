@@ -36,7 +36,7 @@ function figure(x: number | null | undefined): number | null {
  *  none). A METAR from the planner comes with its category; a TAF
  *  period's figures and a METAR's text read here do not. */
 export function categoryOf(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string | null {
-  return callEngine<string | null>("flight_category", { ceiling_ft: figure(ceilingFt), visibility_sm: figure(visibilitySm) });
+  return callEngine("flight_category", { ceiling_ft: figure(ceilingFt), visibility_sm: figure(visibilitySm) });
 }
 
 export function colourOf(category: string | null | undefined): string {

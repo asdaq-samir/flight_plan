@@ -19,14 +19,14 @@ import { callEngine } from "./engine/engine";
  * are not what it makes of the same fields.
  */
 export function renderEndorsement(template: string, student: string, fields: Record<string, string>): string {
-  return callEngine<string>("endorsement_render", { template, student, fields });
+  return callEngine("endorsement_render", { template, student, fields });
 }
 
 /** The ACS codes in what was pasted -- a report's text, a list, codes
  *  typed in lower case -- each once, in the order given; a sub-element's
  *  letter lower case, as the ACS writes it: K1a. */
 export function acsCodesIn(text: string): string[] {
-  return callEngine<string[]>("acs_codes", { text });
+  return callEngine("acs_codes", { text });
 }
 
 /** The ACS's own table (lib/acs.json, from the FAA's PDFs). */

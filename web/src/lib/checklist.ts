@@ -16,9 +16,9 @@ import { callEngine } from "./engine/engine";
  */
 
 export function checklistOf(text: string): ChecklistDto {
-  return callEngine<ChecklistDto>("checklist_read", { text });
+  return callEngine("checklist_read", { text });
 }
 
 export function textOf(checklist: ChecklistDto): string {
-  return callEngine<string>("checklist_write", { checklist });
+  return callEngine("checklist_write", { checklist });
 }
