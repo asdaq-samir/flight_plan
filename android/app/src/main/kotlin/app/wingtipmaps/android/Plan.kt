@@ -10,14 +10,17 @@ import app.wingtipmaps.android.api.Leg
 import app.wingtipmaps.android.api.NavLogMessage
 import app.wingtipmaps.android.api.NavLogTotals
 import app.wingtipmaps.android.api.Planner
+import app.wingtipmaps.android.engine.CyclePacks
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -56,6 +59,7 @@ class Plan(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<State> = _state.asStateFlow()
 
     private var running: Job? = null
+    private var keepingPacks: Job? = null
 
     init {
         restore()
@@ -106,6 +110,7 @@ class Plan(app: Application) : AndroidViewModel(app) {
                         is NavLogMessage.Done -> {
                             _state.update { it.copy(legs = fresh.toList(), totals = message.totals, stage = null) }
                             keep()
+                            keepForTheAir()
                         }
                         is NavLogMessage.Problem -> _state.update { it.copy(problem = message.error.detail, stage = null) }
                     }
@@ -141,6 +146,23 @@ class Plan(app: Application) : AndroidViewModel(app) {
         if (!s.routed || s.course == null || s.totals == null) return
         val kept = Kept(s.dep, s.dest, s.stops, s.aircraft, s.course, s.legs, s.totals)
         prefs.edit().putString(KEY, Gateway.json.encodeToString(kept)).apply()
+    }
+
+    /** The cycle packs of the regions the route crosses (CyclePacks),
+     *  fetched once the route is planned, so the airspace there, what is
+     *  ahead in the air and a clearance's places are answered with no
+     *  connection: the iOS app's Plan.keepForTheAir does the same. A job
+     *  of its own, so a re-plan does not cut it short, and the next
+     *  route's keep replaces one still running (the files are each
+     *  written whole, so nothing is left half kept). */
+    private fun keepForTheAir() {
+        val line = _state.value.course?.courseLine ?: return
+        val packs = CyclePacks.of(getApplication<Application>())
+        keepingPacks?.cancel()
+        keepingPacks = viewModelScope.launch {
+            val regions = withContext(Dispatchers.Default) { CyclePacks.regions(line) }
+            packs.keep(regions)
+        }
     }
 
     /** The last plan kept, back on the page at launch: planned again when
