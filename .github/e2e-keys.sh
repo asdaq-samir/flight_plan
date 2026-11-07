@@ -12,9 +12,12 @@
 #                     page below, mounted over the image's
 #                     (docker-compose.ci.yml).
 #   planning-service  its packages: the Dockerfile, the base it is built
-#                     FROM (docker/Dockerfile.base) and the requirements
-#                     it installs. Not its code, which the stack mounts
-#                     from the checkout over the image's
+#                     FROM (docker/Dockerfile.base), the requirements
+#                     it installs, and native/, which the base builds
+#                     into the wingtip_native wheel (COPY native): an
+#                     engine-only change must not run the suite on the
+#                     old engine. Not its Python code, which the stack
+#                     mounts from the checkout over the image's
 #                     (docker-compose.yml).
 #   page              the page: web/ but its browser suite (web/e2e),
 #                     the two API documents its types are made from, and
@@ -25,6 +28,6 @@
 set -euo pipefail
 key() { { echo "zstd"; git ls-tree -r HEAD -- "$@"; } | git hash-object --stdin | cut -c1-16; }
 echo "webapp $(key springboot-app/Dockerfile springboot-app/pom.xml springboot-app/src/main)"
-echo "planning-service $(key planning-service/Dockerfile docker/Dockerfile.base planning-service/requirements.txt src/requirements.txt src/requirements-charts.txt)"
+echo "planning-service $(key planning-service/Dockerfile docker/Dockerfile.base planning-service/requirements.txt src/requirements.txt src/requirements-charts.txt native)"
 echo "page $(git ls-tree -r HEAD -- web planning-service/openapi.json springboot-app/openapi.json .nvmrc \
   | grep -v $'\tweb/e2e/' | git hash-object --stdin | cut -c1-16)"
