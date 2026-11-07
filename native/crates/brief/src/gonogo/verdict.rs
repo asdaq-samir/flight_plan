@@ -402,24 +402,6 @@ pub fn finding_json(found: Option<(&str, String)>) -> String {
     }
 }
 
-/// The whole verdict as POST /api/go-no-go answers it, JSON {"line":
-/// {"finding", "words"}, "items": [...]}: each finding, the alternate's
-/// say in the weather's (None where it has none, or under VFR), and the
-/// line over them.
-pub fn verdict_json(v: &Input, alternate: Option<&Alternates>) -> String {
-    let found = alternate_finding(alternate);
-    let items = with_alternate(verdict_items(v), found.as_ref().map(|(f, d)| (*f, d.as_str())));
-    let (finding, words) = verdict_line(&items);
-    let mut out = String::from("{\"line\":{\"finding\":");
-    json::string(&mut out, finding);
-    out.push_str(",\"words\":");
-    json::string(&mut out, &words);
-    out.push_str("},\"items\":");
-    out.push_str(&items_json(&items));
-    out.push('}');
-    out
-}
-
 /// Strings as JSON, for the planner's lists.
 pub fn strings_json(items: &[String]) -> String {
     let mut out = String::new();

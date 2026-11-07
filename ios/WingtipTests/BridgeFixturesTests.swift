@@ -16,7 +16,10 @@ import Testing
 /// Each fixture is asked by the rule names the phones call: read_atis,
 /// checklist_read and checklist_write, read_clearance, cleared_route,
 /// our_call, direct_of, hold_read, hold_write, holding_leg_minutes,
-/// logbook_csv_read and logbook_csv_write, readback_check, traffic_marks.
+/// logbook_csv_read and logbook_csv_write, readback_check, traffic_marks,
+/// and the flight's figures by the names the engine answers them by:
+/// wind_triangle, gonogo_density_altitude, magnetic_variation and
+/// weather_in_force.
 private final class BridgeFixtureBundle {}
 
 private struct BridgeFixtureMissing: Error { let name: String }
@@ -196,6 +199,41 @@ struct BridgeFixturesTests {
         for c in all {
             let got = try ask("traffic_marks", ["own_ft": c["ownFt"], "planes": [c["plane"] as Any]])
             check(got, [["label": c["label"] as Any, "near": c["near"] as Any]], "\(c["plane"] ?? "") against \(c["ownFt"] ?? "none")")
+        }
+    }
+
+    /// The flight's figures in flightRules.json. The fixture's cruising
+    /// altitudes (14 CFR 91.159) and reserves (91.151, 91.167) have no name
+    /// of their own in wt_call, since no phone asks them alone; the engine's
+    /// flight_rules.rs and the planner's test_flight_rules.py hold those.
+    @Test func theFlightsFiguresAreWorkedThroughTheBridge() throws {
+        let f = try fixture("flightRules")
+        let winds = cases(f, "windTriangle")
+        #expect(winds.count >= 10)
+        for c in winds {
+            let got = try ask("wind_triangle", ["tc": c["tc"], "tas": c["tas"], "wind_from_deg": c["windFrom"], "wind_kt": c["windKt"]])
+            check(got, c["expected"], "the wind triangle at \(c["tc"] ?? "")° with \(c["windKt"] ?? "") kt from \(c["windFrom"] ?? "")°")
+        }
+        // Density altitude to a millionth of a foot, as flight_rules.rs
+        // holds it: the fixture's last places are the planner's Python's.
+        for c in cases(f, "densityAltitude") {
+            let got = try ask("gonogo_density_altitude", ["pressure_alt_ft": c["pressureAltitudeFt"], "temp_c": c["oatC"]]) as? NSNumber
+            let want = (c["densityAltitudeFt"] as? NSNumber)?.doubleValue ?? .nan
+            #expect(abs((got?.doubleValue ?? .nan) - want) < 1e-6, "density altitude at \(c["pressureAltitudeFt"] ?? "") ft, \(c["oatC"] ?? "") °C")
+        }
+        // magnetic_variation takes a date, so only the fixture's whole
+        // years (1 January, decimal year exactly the year) can be asked.
+        let years = cases(f, "declination").filter { ($0["year"] as? Double).map { $0 == $0.rounded() } ?? false }
+        #expect(years.count >= 3)
+        for c in years {
+            let year = Int((c["year"] as? Double) ?? 0)
+            try check(ask("magnetic_variation", ["lat": c["lat"], "lon": c["lon"], "date": "\(year)-01-01"]), c["deg"],
+                      "variation at \(c["lat"] ?? ""), \(c["lon"] ?? "") in \(year)")
+        }
+        for c in cases(f, "weatherInForce") {
+            let got = try ask("weather_in_force", ["product": c["product"], "now": c["now"], "observed": c["observed"],
+                                                   "last_routine": c["lastRoutine"], "valid_from": c["validFrom"], "valid_to": c["validTo"]])
+            check(got, c["inForce"], "\(c["why"] ?? "")")
         }
     }
 }

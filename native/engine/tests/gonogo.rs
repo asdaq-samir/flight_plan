@@ -184,9 +184,7 @@ fn the_alternate_speaks_for_the_weather_where_the_weather_says_nothing_worse() {
     vnr.weather.vfr_not_recommended = strings(&["x"]);
     let stopped = verdict::with_alternate(verdict::verdict_items(&vnr), Some((f, &d)));
     assert_eq!(stopped[0].section.as_deref(), Some("Adverse Conditions"));
-    let whole: Value = serde_json::from_str(&verdict::verdict_json(&quiet(), Some(&filed(Some(false), true)))).unwrap();
-    assert_eq!(whole["line"]["finding"], "stop");
-    assert_eq!(whole["items"][0]["section"], "Alternate");
+    assert_eq!(verdict::verdict_line(&items).0, "stop");
 }
 
 // --- minimums ---------------------------------------------------------------
@@ -845,9 +843,13 @@ fn every_rule_answers_by_name_from_the_planners_and_the_webs_own_objects() {
         "risk": {"level": "low", "line": "Low · 2 points"}}"#;
     let items = call("gonogo_verdict_items", quiet);
     assert_eq!(items[3]["detail"], "Needs 27.6 gal with taxi and a 30 min reserve; 12.4 gal spare");
-    let whole = call("gonogo_verdict", &format!(r#"{{"verdict": {quiet}, "alternate": {{"destination": {{"required": true}}, "alternate": null}}}}"#));
-    assert_eq!(whole["line"]["finding"], "caution");
-    assert_eq!(whole["items"][0]["section"], "Alternate");
+    // The whole verdict as the planner's app.gonogo puts it together: the
+    // items, the alternate's say in the weather's, the line over them.
+    let found = call("gonogo_alternate_finding", r#"{"data": {"destination": {"required": true}, "alternate": null}}"#);
+    let with = call("gonogo_with_alternate", &format!(r#"{{"items": {items}, "found": {found}}}"#));
+    assert_eq!(with[0]["section"], "Alternate");
+    let line = call("gonogo_verdict_line", &format!(r#"{{"items": {with}}}"#));
+    assert_eq!(line["finding"], "caution");
     // An alternate with no `good` at all says nothing; one with good null
     // is the pilot's to check (useAlternate's `=== null`).
     assert!(call("gonogo_alternate_finding", r#"{"data": {"destination": {"required": true}, "alternate": {"ident": "KMSN", "reasons": []}}}"#).is_null());

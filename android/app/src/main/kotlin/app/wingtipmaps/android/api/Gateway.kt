@@ -106,10 +106,6 @@ object Gateway {
         return body
     }
 
-    /** A call that sends a body and reads its answer into a type. */
-    suspend inline fun <reified T> sendFor(method: String, path: String, json: String? = null): T =
-        this.json.decodeFromString<T>(send(method, path, json))
-
     /** A read that is nobody's when signed out: null for the statuses in
      *  `none` (401, 403 and 204 unless a call says otherwise). */
     suspend inline fun <reified T> read(path: String, none: Set<Int> = setOf(204, 401, 403)): T? {

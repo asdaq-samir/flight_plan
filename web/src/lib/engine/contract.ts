@@ -711,13 +711,6 @@ export interface EngineContract {
     answer: WeatherInForceAnswer;
   };
   /**
-   * POST /api/go-no-go's line and items: each tab's finding, the IFR alternate's in the weather's (14 CFR 91.169), and the line over them. The findings are the planner's; the decision is the pilot in command's (14 CFR 91.3).
-   */
-  gonogo_verdict: {
-    input: GonogoVerdictInput;
-    answer: GonogoVerdictAnswer;
-  };
-  /**
    * Each tab's finding, in the order a pilot goes through them (AIM 7-1-5(b)), each with where it is shown in full.
    */
   gonogo_verdict_items: {
@@ -2171,13 +2164,6 @@ export interface WeatherInForceInput {
    */
   valid_to?: number | null;
 }
-export interface GonogoVerdictInput {
-  verdict: VerdictInput;
-  /**
-   * /api/alternate's answer; null or left out under VFR.
-   */
-  alternate?: GonogoAlternateData | null;
-}
 /**
  * The web's VerdictInput: each tab's say, and the risk assessment's level and line (null while the briefing is awaited).
  *
@@ -2310,42 +2296,6 @@ export interface VerdictInput {
   } | null;
 }
 /**
- * The planner's /api/alternate answer, as much as the finding reads.
- *
- * This interface was referenced by `EngineContract`'s JSON-Schema
- * via the `definition` "GonogoAlternateData".
- */
-export interface GonogoAlternateData {
-  destination?: {
-    /**
-     * Read as JavaScript reads it: missing, null, false, 0 and "" are false.
-     */
-    required?: boolean | null;
-  };
-  alternate?: {
-    ident?: string | null;
-    /**
-     * False: under its alternate minimums; null: the pilot's to check; left out: says nothing.
-     */
-    good?: boolean | null;
-    reasons?: string[] | null;
-  } | null;
-}
-export interface GonogoVerdictAnswer {
-  line: GonogoLine;
-  items: GonogoItem[];
-}
-/**
- * What the findings come to, in a line over them.
- *
- * This interface was referenced by `EngineContract`'s JSON-Schema
- * via the `definition` "GonogoLine".
- */
-export interface GonogoLine {
-  finding: "ok" | "caution" | "stop" | "unknown" | "pending";
-  words: string;
-}
-/**
  * One tab's finding and where it is shown in full.
  *
  * This interface was referenced by `EngineContract`'s JSON-Schema
@@ -2380,11 +2330,43 @@ export interface GonogoVerdictLineInput {
       }[]
     | null;
 }
+/**
+ * What the findings come to, in a line over them.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "GonogoLine".
+ */
+export interface GonogoLine {
+  finding: "ok" | "caution" | "stop" | "unknown" | "pending";
+  words: string;
+}
 export interface GonogoAlternateFindingInput {
   /**
    * /api/alternate's answer.
    */
   data?: GonogoAlternateData | null;
+}
+/**
+ * The planner's /api/alternate answer, as much as the finding reads.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "GonogoAlternateData".
+ */
+export interface GonogoAlternateData {
+  destination?: {
+    /**
+     * Read as JavaScript reads it: missing, null, false, 0 and "" are false.
+     */
+    required?: boolean | null;
+  };
+  alternate?: {
+    ident?: string | null;
+    /**
+     * False: under its alternate minimums; null: the pilot's to check; left out: says nothing.
+     */
+    good?: boolean | null;
+    reasons?: string[] | null;
+  } | null;
 }
 export interface GonogoWithAlternateInput {
   items?:

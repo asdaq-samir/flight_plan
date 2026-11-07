@@ -82,9 +82,6 @@ enum Formats {
 
     /// A day in the phone's own style, "Nov 3, 2026".
     static func day(_ date: Date) -> String { date.formatted(date: .abbreviated, time: .omitted) }
-
-    /// A day and its time, "Nov 3, 2026 at 2:07 PM".
-    static func dayAndTime(_ date: Date) -> String { date.formatted(date: .abbreviated, time: .shortened) }
 }
 
 extension String {
