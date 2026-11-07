@@ -4,8 +4,8 @@
 # the same stack (the owner renamed the app Wingtip, 2026-11-06).
 name: wingtip
 
-# Shared, not copy-pasted into each service below -- three of the
-# Python services (planning-service, crewai-agent and, once, model-service) had
+# Shared, not copy-pasted into each service below -- the Python
+# services (planning-service and, once, model-service and the agents) had
 # byte-identical healthcheck timing and the identical required-env
 # line for ANTHROPIC_API_KEY, which meant a change to either (say, a
 # longer start_period, or a reworded failure message) only actually
@@ -24,9 +24,9 @@ x-python-healthcheck: &python-healthcheck
 # start, so a required-variable marker anywhere in it fails every command
 # -- `docker compose up webapp`, and even `docker compose config`. That
 # put an Anthropic key in front of the map, the planner and the chart
-# tiles, none of which call an LLM at all. The services that genuinely
-# need a key are behind the `ai` profile below and refuse to start
-# without one themselves, which is the same fail-fast a level later.
+# tiles, none of which call an LLM at all. The planner's Claude features
+# (the narrative, checkpoint notes, the assistant, the words) answer
+# without one by saying the model cannot be reached.
 x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:-}
 
 # Every long-running service below restarts with Docker (restart:
@@ -143,7 +143,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.dev-services
     environment:
-      DEV_SERVICES: ml,retrain,nav-log-agent
+      DEV_SERVICES: ml,retrain
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks: [docker-control]
@@ -179,8 +179,9 @@ services:
       # planning-service/app/main.py) is read against: the desk this
       # runs on, not UTC.
       TZ: ${TZ:-America/Chicago}
-      # /api/checkpoint-notes: one Claude call per checkpoint that has
-      # no saved note yet.
+      # The planner's Claude calls: /api/checkpoint-notes (one per
+      # checkpoint with no saved note yet), the briefing's narrative
+      # (/api/briefing/narrative), the assistant and the words.
       ANTHROPIC_API_KEY: *anthropic-api-key
       # The map's Google overlay (routers/basemaps): a browser key for
       # Google's Map Tiles API, none by default.
@@ -200,77 +201,10 @@ services:
       SWIM_HOST_TFMS: ${SWIM_HOST_TFMS:-}
       SWIM_VPN_TFMS: ${SWIM_VPN_TFMS:-}
       SWIM_QUEUE_TFMS: ${SWIM_QUEUE_TFMS:-}
-      # /api/status probes these. Optional -- the AWS task sets neither.
-      NAV_LOG_AGENT_URL: http://nav-log-agent:8000
-      CREWAI_AGENT_URL: http://crewai-agent:8000
       # Traces to Jaeger, with the tracing profile up and TRACING=1 (see
       # the jaeger service below); unset, the planner sends none.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${TRACING:+http://jaeger:4318}
       OTEL_SERVICE_NAME: planner
-    healthcheck:
-      <<: *python-healthcheck
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
-
-  nav-log-agent:
-    restart: unless-stopped
-    # Behind a profile because it is opt-in and wants a bearer token of
-    # its own (below), not because it needs an Anthropic key -- its MCP
-    # tools fetch the planner's nav log and do the memory lookup with no
-    # LLM at all, and leave the narrative to whichever agent connected. Only `generate_nav_log_briefing` spends credit.
-    # Start it with `--profile ai`, or by naming it
-    # (`docker compose up -d nav-log-agent`), which enables its profile.
-    profiles: ["ai"]
-    build:
-      context: .
-      dockerfile: nav-log-agent/Dockerfile
-    ports:
-      - "127.0.0.1:8082:8000"
-    volumes:
-      - .:/workspace
-    depends_on:
-      db:
-        condition: service_healthy
-      planning-service:
-        condition: service_healthy
-    environment:
-      PYTHONPATH: /workspace/src
-      ANTHROPIC_API_KEY: *anthropic-api-key
-      # The MCP server's own bearer-token gate -- see app/main.py's
-      # BearerAuthMiddleware. Unset, the server exits on startup saying
-      # so ("refuses to start unauthenticated") rather than coming up
-      # open, so the check that used to happen at compose-parse time
-      # still happens loudly, one step later -- and now only for the
-      # people actually starting this service.
-      NAV_LOG_AGENT_API_KEY: ${NAV_LOG_AGENT_API_KEY:-}
-      # The nav log is the planner's own (wingtip.planner_client), not one
-      # this agent assembles, so the one a pilot sees is the one it briefs.
-      PLANNING_SERVICE_URL: http://planning-service:8000
-      # The db's own password, as the webapp's datasource has it.
-      DATABASE_URL: postgresql://wingtip:${POSTGRES_PASSWORD:-wingtip}@db:5432/wingtip
-
-  crewai-agent:
-    restart: unless-stopped
-    # Behind the same `ai` profile as nav-log-agent, and for the same
-    # reason: every one of its crew's steps is a Claude call.
-    profiles: ["ai"]
-    build:
-      context: .
-      dockerfile: crewai-agent/Dockerfile
-    # No published port -- the image's own command is app.server, a thin
-    # HTTP wrapper only ever called by webapp over the internal docker
-    # network (crewai-agent:8000), the same no-auth-of-its-own design as
-    # planning-service. The one-shot CLI is
-    # `docker compose run --rm crewai-agent python -m app.main ...`.
-    volumes:
-      - .:/workspace
-    depends_on:
-      planning-service:
-        condition: service_healthy
-    environment:
-      PYTHONPATH: /workspace/src
-      ANTHROPIC_API_KEY: *anthropic-api-key
-      # The same planner nav log nav-log-agent briefs (wingtip.planner_client).
-      PLANNING_SERVICE_URL: http://planning-service:8000
     healthcheck:
       <<: *python-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
@@ -376,20 +310,6 @@ services:
       # this proxy never runs hot enough locally to miss C2. The AWS
       # task definition sets neither.
       JAVA_TOOL_OPTIONS: -XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=/cds/webapp.jsa -XX:TieredStopAtLevel=1
-      # The flight planning drawer's narrative popover (ComparisonProxyController) --
-      # neither is in `depends_on` above, unlike planning-service: that
-      # popover is a developer-facing extra, not core to planning a
-      # route, so webapp must still start cleanly with nav-log-agent/
-      # crewai-agent down (it just reports
-      # "unavailable" per-framework, same 502-on-unreachable pattern
-      # PlannerProxyController already uses).
-      NAV_LOG_AGENT_URL: http://nav-log-agent:8000
-      # Optional here unlike nav-log-agent's own copy of this var (that
-      # one still fails fast -- an unprotected MCP server would be a
-      # real regression, not a degraded feature): blank just means the
-      # comparison panel's LangGraph call 401s and reports unavailable.
-      NAV_LOG_AGENT_API_KEY: ${NAV_LOG_AGENT_API_KEY:-}
-      CREWAI_AGENT_URL: http://crewai-agent:8000
       # Sign-in with Google/Apple, optional unlike ANTHROPIC_API_KEY
       # above: `docker compose up` must still work with none of these
       # set (the `oauth` Spring profile stays inactive and OIDC sign-in

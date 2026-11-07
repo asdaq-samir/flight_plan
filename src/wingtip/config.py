@@ -43,9 +43,9 @@ LABELS_PATH = DATA_DIR / "labels" / "spottability_ratings.csv"
 # How long the planner works on a plan before answering that it is still
 # working (a 504 naming what it waits on; the answer is kept for the next
 # ask). The slowest real altitude selection seen was a little over two
-# minutes, on a bad aviationweather.gov day. Its clients' own timeouts
-# follow from it (wingtip.planner_client), so a slow plan reads as the
-# planner's answer and not as a planner that could not be reached.
+# minutes, on a bad aviationweather.gov day. A client's own timeout
+# should follow from it, so a slow plan reads as the planner's answer
+# and not as a planner that could not be reached.
 PLAN_LIMIT_S = 240
 
 # Who wingtip says it is to the sources it downloads from. Most take the
@@ -96,9 +96,8 @@ def _none_if_blank(value):
 class Settings(BaseSettings):
     """Every environment variable wingtip and the planner read, by its
     own name (case aside; the field `log_level` is LOG_LEVEL), with its
-    default. Unset optional keys (SWIM_*, the ADS-B keys, the agents'
-    addresses) are None, which is how each feature knows it is
-    off. ANTHROPIC_API_KEY is not here: the anthropic SDK reads it itself."""
+    default. Unset optional keys (SWIM_*, the ADS-B keys) are None,
+    which is how each feature knows it is off. ANTHROPIC_API_KEY is not here: the anthropic SDK reads it itself."""
 
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
 
@@ -173,9 +172,6 @@ class Settings(BaseSettings):
     dev_services_url: str | None = None
     #: The webapp's address, for the status page's health probe.
     webapp_url: str = "http://webapp:8080"
-    #: The agents' addresses for the status page; None where they do not run.
-    nav_log_agent_url: str | None = None
-    crewai_agent_url: str | None = None
     #: The FAA SWIM subscription (app.swim_reader): the broker, the account, and the CA store.
     #: A feed is read only where all of host, username, password and its own VPN and queue are set.
     swim_host: str | None = None

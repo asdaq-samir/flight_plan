@@ -356,8 +356,8 @@ def test_each_outcome_of_the_altitude_resolver(monkeypatch, altitude):
 
 def test_a_plan_whose_scoring_hangs_answers_within_the_bound(monkeypatch):
     """Scoring ran before the bounded wait, so a slow scorer put the plan
-    past the agents' client timeout -- model-service then, the chart's
-    first read now."""
+    past its callers' timeout -- model-service then, the chart's first
+    read now."""
     import threading
 
     from app.routers import plan as plan_router
@@ -423,7 +423,7 @@ def test_no_altitude_says_where_and_why_in_a_pilots_words():
     # along -- with the altitude it needs.
     assert why["brief"] == "Ceiling 14,000 ft: terrain 1,010 nm along needs 14,500"
     assert planning.no_altitude(selection, where="540 nm past KDLH")["brief"] == "Ceiling 14,000 ft: terrain 540 nm past KDLH needs 14,500"
-    # One message for /api/plan's 422, which the agents read.
+    # One message for /api/plan's 422.
     detail = planning.no_altitude_detail(selection)
     assert detail.startswith("No legal VFR cruising altitude 980-1040 nm along the route. The terrain")
     assert "altitude_ft" not in detail

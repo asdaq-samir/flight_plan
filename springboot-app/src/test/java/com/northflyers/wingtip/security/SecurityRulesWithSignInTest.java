@@ -154,9 +154,9 @@ class SecurityRulesWithSignInTest {
     /** Every narrative is a real, billed Claude call. */
     @Test
     void aNarrativeNeedsASession() throws Exception {
-        mockMvc.perform(post("/api/comparison").with(csrf())).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/planner/briefing/narrative").with(csrf())).andExpect(status().isUnauthorized());
         signedInAs(PilotRole.PILOT);
-        mockMvc.perform(post("/api/comparison").with(oidcLogin()).with(csrf())).andExpect(notRefused());
+        mockMvc.perform(post("/api/planner/briefing/narrative").with(oidcLogin()).with(csrf())).andExpect(notRefused());
     }
 
     private void signedInAs(PilotRole role) {

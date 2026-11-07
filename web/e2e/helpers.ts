@@ -432,7 +432,7 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
   await panelFull(page);
   const phase: PhaseTab = name in PHASE_OF ? PHASE_OF[name as keyof typeof PHASE_OF] : name as PhaseTab;
   if (phase === "Preflight") {
-    await page.route(url => url.pathname.endsWith("/api/comparison"), route => route.fulfill({
+    await page.route(url => url.pathname.endsWith("/api/planner/briefing/narrative"), route => route.fulfill({
       status: 200, contentType: "application/x-ndjson",
       body: JSON.stringify({ type: "done", briefing: "A test narrative." }) + "\n",
     }));

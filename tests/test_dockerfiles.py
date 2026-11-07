@@ -27,8 +27,6 @@ IMAGES = [
     "docker/Dockerfile.ml",
     "docker/Dockerfile.processing",
     "docker/Dockerfile.training",
-    "nav-log-agent/Dockerfile",
-    "crewai-agent/Dockerfile",
 ]
 
 

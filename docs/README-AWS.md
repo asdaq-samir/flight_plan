@@ -35,9 +35,9 @@ pilot ──HTTPS──▶ CloudFront  (app.example.com, ACM certificate)
                         EC2 t3a.medium on Spot, a group of one (Amazon Linux 2023,
                         docker-compose.prod.yml), its fixed address and data disk
                         taken over by whichever server is running
-                          caddy ─▶ webapp ─▶ planning-service (the chart model and the engine in-process)
-                                     │            └──────────▶ nav-log-agent ─▶ Anthropic
-                                     └──▶ db (Postgres 18 + pgvector, on the data disk)
+                          caddy ─▶ webapp ─▶ planning-service (the chart model and the engine in-process) ─▶ Anthropic
+                                     │
+                                     └──▶ db (Postgres 18, on the data disk)
                           nightly pg_dump ─▶ S3 server bucket (14 days)
 
 EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m wingtip.charts refresh
@@ -95,7 +95,6 @@ offers one.
 
 | Left out | Why | In production |
 |---|---|---|
-| crewai-agent | The same briefing nav-log-agent writes, built to compare frameworks | The comparison popover's CrewAI side reports it unavailable |
 | The pipelines and the training run | Retraining runs on the owner's machine (`python -m wingtip.pipeline run`) | The console's retrain button says there is no sidecar to start it, and gives the command; a new model is uploaded (below) |
 | Mailpit | A development mailer | Sign-in mail goes through Amazon SES |
 | dev-services, Jupyter | Development tools | The console's service buttons say there is no sidecar |
@@ -110,7 +109,7 @@ Prices in us-east-1, October 2026, at today's traffic:
 | Its public IPv4 address | $3.65 |
 | 20 GB system disk and 30 GB data disk, gp3 | $4.00 |
 | S3 tiles: 1.5 million uploads a cycle ($7.50 per 56 days) and up to three cycles stored | ~$4.50 |
-| Secrets Manager, four secrets | $1.60 |
+| Secrets Manager, three secrets | $1.20 |
 | Route 53 hosted zone | $0.50 |
 | Daily snapshots of the data disk, seven kept | ~$1 |
 | The health check (HTTPS, every 30 s) and the server's logs in CloudWatch | ~$1.60 |
@@ -130,7 +129,7 @@ The template's `BudgetEmail` sets an alarm at 80% of $50 a month.
 ## Rehearse it locally
 
 [`infra/rehearsal/run.sh`](../infra/rehearsal/run.sh) runs the production stack on this machine before anything goes to AWS. It is
-`docker-compose.prod.yml` as the server runs it: the four images built
+`docker-compose.prod.yml` as the server runs it: the two images built
 from this checkout, no source mounted, and Caddy demanding CloudFront's
 secret header. Stand-ins replace what only AWS has:
 
@@ -225,7 +224,7 @@ its settings, but has no images to run until the first push to ECR.
    rm app-secret.json
    ```
 
-3. The next green CI run on `main` promotes its images, pushes the four
+3. The next green CI run on `main` promotes its images, pushes the two
    the server runs to ECR (`promote.yml`, `push-ecr`) and runs
    [`infra/server/deploy.sh`](../infra/server/deploy.sh) on the server
    (`deploy`). To deploy without waiting for one:
@@ -237,7 +236,7 @@ its settings, but has no images to run until the first push to ECR.
    ```
 
 `deploy.sh` writes the server's `.env` from the stack's settings and the
-four secrets, pulls the images and starts what changed. It is safe to run
+three secrets, pulls the images and starts what changed. It is safe to run
 at any time.
 
 ### Mail
@@ -344,8 +343,7 @@ with the next cycle.
 
 At 07:17 UTC every night `backup.sh` copies to
 `s3://<ServerBucketName>/backups/<date>/` what the server alone holds:
-the database (`postgres.dump`: accounts, aircraft, flights, the briefing
-agent's memory) and the planner's `data/labels` (`labels.tar.gz`: the
+the database (`postgres.dump`: accounts, aircraft, flights) and the planner's `data/labels` (`labels.tar.gz`: the
 checkpoint notes pilots and Claude have written). The bucket keeps 14
 days. The dump is written to a file and checked with `pg_restore --list`
 before it is uploaded, so a truncated one never replaces a good day, and a
@@ -360,7 +358,7 @@ aws s3 cp $B/postgres.dump - | \
   docker compose --env-file /srv/wingtip/.env -f docker-compose.prod.yml \
   exec -T db pg_restore -U wingtip -d wingtip --clean --if-exists
 aws s3 cp $B/labels.tar.gz - | tar -xz -C /srv/wingtip/data
-docker compose --env-file /srv/wingtip/.env -f docker-compose.prod.yml restart webapp nav-log-agent planning-service
+docker compose --env-file /srv/wingtip/.env -f docker-compose.prod.yml restart webapp planning-service
 ```
 
 Everything else in the data folder (the FAA's files, the chart sheets)

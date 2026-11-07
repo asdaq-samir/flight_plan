@@ -9,8 +9,7 @@
  * use, so a field renamed in planning-service/app/schemas.py or in a
  * Java DTO is a compile error at every call site rather than a silent
  * `undefined` at runtime. What is written by hand below is only what
- * no server schema describes: the page's own compositions, and the
- * narrative agents' request and stream.
+ * no server schema describes: the page's own compositions.
  */
 import type { components } from "./schema";
 import type { components as WebappComponents } from "./webapp-schema";
@@ -210,6 +209,13 @@ export interface AircraftChoice {
 }
 /** One line of the per-checkpoint description stream. */
 export type CheckpointDescriptionMessage = Schemas["CheckpointNoteMessage"];
+/** The nav log on screen, sent to be told in words (the Brief's narrative,
+ *  POST /api/briefing/narrative): checked on arrival, a field the prompt
+ *  cannot read a 422 naming it. */
+export type NarrativeRequest = Schemas["NarrativeRequest"];
+/** One line of the narrative's stream: text as Claude writes it, then the
+ *  whole briefing, or why there is none. */
+export type NarrativeMessage = Schemas["NarrativeMessage"];
 export type CheckpointNoteSaved = Schemas["CheckpointNoteSaved"];
 
 /** What the nav log stream's "altitude" message carries -- the generated
@@ -343,32 +349,3 @@ export type ApproachLesson = Webapp["ApproachLessonDto"];
 export type AssignLessonRequest = Webapp["AssignLessonRequest"];
 export type LessonProgressRequest = Webapp["LessonProgressRequest"];
 export type QuizAnswer = Webapp["QuizAnswerDto"];
-
-// ---------------------------------------------------------------------
-// The narrative agents, reached through ComparisonProxyController, which
-// forwards the body as it is: no server schema describes it, so it is
-// composed here from the planner's own types.
-
-/** The nav log on screen, handed to an agent to write about -- what
- *  `/api/comparison` forwards to nav-log-agent or crewai-agent. Both
- *  agents check it on arrival against wingtip.narrative.NarrativeRequest: a
- *  missing field, or one it does not know, is a 422 naming it. */
-export interface NarrativeRequest {
-  departure_ident: string;
-  destination_ident: string;
-  /** Omitted, the planner's default airplane. */
-  aircraft_name?: string | null;
-  altitude_ft: number;
-  altitude_selection: AltitudeBreakdown | null;
-  /** Whose altitudes the legs fly: a plan's name, or "custom" for the
-   *  pilot's own -- what the agents brief as the altitude's provenance. */
-  flown?: AltitudeChoice | "custom";
-  legs: Leg[];
-}
-
-/** One line of a narrative stream: text as Claude writes it, then the
- *  whole briefing, or why there is none. */
-export type NarrativeMessage =
-  | { type: "delta"; text: string }
-  | { type: "done"; briefing: string }
-  | { type: "error"; detail: string };

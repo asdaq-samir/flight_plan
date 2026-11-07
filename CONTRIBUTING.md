@@ -11,9 +11,9 @@ Docker is the only thing to install: every service builds its own image.
 docker compose up webapp          # the app at http://localhost:8080/app
 ```
 
-The two briefing agents, `nav-log-agent` and `crewai-agent`, call Claude and
-need an `ANTHROPIC_API_KEY` of your own:
-`docker compose --profile ai up`. The full setup is in
+The planner's Claude features (the written briefing, checkpoint notes, the
+assistant) need an `ANTHROPIC_API_KEY` of your own in `.env`; without one
+they say the model cannot be reached. The full setup is in
 [docs/README.md](docs/README.md#getting-started).
 
 ## Where a change goes
