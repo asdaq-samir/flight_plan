@@ -168,6 +168,11 @@ RUN --mount=type=cache,id=wingtip-cargo-registry,target=/usr/local/cargo/registr
 
 FROM python:$py-slim
 ENV PYTHONDONTWRITEBYTECODE=1
+# rasterio's wheel links libexpat, which GitHub's runner has and slim lacks.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \\
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \\
+    rm -f /etc/apt/apt.conf.d/docker-clean \\
+    && apt-get update && apt-get install -y --no-install-recommends libexpat1
 RUN --mount=type=cache,id=wingtip-uv,target=/root/.cache/uv pip install -q uv
 COPY reqs /reqs
 RUN --mount=type=cache,id=wingtip-uv,target=/root/.cache/uv \\
@@ -291,9 +296,9 @@ case "${1:-}" in
     # The time in the turn, apart from the time in line before it. Called
     # plainly, not under `||`, so `set -e` stops an area at its first
     # failing step.
-    start=$(date +%s)
-    trap 'echo "check: $2 ran in $(( $(date +%s) - start ))s" >&2' EXIT
-    run_area "$2"
+    start=$(date +%s) area=$2
+    trap 'echo "check: $area ran in $(( $(date +%s) - start ))s" >&2' EXIT
+    run_area "$area"
     exit 0 ;;
   ""|-h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 64 ;;
 esac
