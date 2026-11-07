@@ -3,7 +3,6 @@ spot it" sentence, streamed one checkpoint at a time rather than making
 the whole nav log wait on N sequential LLM calls. Persisted separately
 from chart_picks.csv (that file is ML training data); this is an
 operational annotation a pilot edits, not a label."""
-import os
 
 import anthropic
 from fastapi import APIRouter, Header, HTTPException
@@ -16,6 +15,7 @@ from wingtip import geo
 from ..common import line, load_route, ndjson
 from ..schemas import CheckpointNoteSaved, NoteCheckpoint, NoteDone, NoteError, NoteStart, PilotNotesForgotten
 from ..scoring import route_checkpoints
+from ..settings import get_settings
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ router = APIRouter()
 # on eight of the C81 to KDLH route's checkpoints (2026-10-08) it wrote
 # lines as useful as claude-sonnet-5's for a quarter of the cost, $0.0002
 # a checkpoint against $0.00085.
-CHECKPOINT_NOTE_MODEL = os.environ.get("CHECKPOINT_NOTE_MODEL", "claude-haiku-5-5")
+CHECKPOINT_NOTE_MODEL = get_settings().checkpoint_note_model
 # Medium, not low: at low effort the same eight ran to 28 words where the
 # prompt asks under 20, and one line ended "Wait, that's not quite right;
 # let me give one clean sentence instead." -- in a pilot's nav log. At

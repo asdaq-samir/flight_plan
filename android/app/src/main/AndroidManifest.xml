@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The native Android app (docs/NATIVE-ANDROID.md). The network for the
      planner, the gateway and the chart's tiles; whether there is one, for
-     the words shown when there is not. No location yet: own ship is a
-     later phase. -->
+     the words shown when there is not; and the position own ship reads. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -11,8 +10,12 @@
          kept with the screen off while flying through a foreground
          service of the location type (Android 14 wants the typed
          permission too), with the notification Android requires for one
-         and the alerts the flight pieces post (notify/Notifications.kt). -->
+         and the alerts the flight pieces post (notify/Notifications.kt).
+         Precise and approximate both: Android 12 and later ignore a
+         request for precise location alone, and let the pilot pick
+         approximate, which own ship then says is not enough to fly by. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

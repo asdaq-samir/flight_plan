@@ -5,6 +5,8 @@ import { cn } from "cn";
 import FindingIcon from "../../../../components/FindingIcon";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { clockTime, duration } from "../../../../lib/clock";
+import { dataWarning } from "../../../../lib/dataCycles";
+import { useDataCycles } from "../../../../lib/map/layerAges";
 import { glanceLines, useGlance, type FieldGlance, type GlanceLine } from "../../../../lib/glance";
 import { pilotQuery, trainingQuery } from "../../../../lib/queryClient";
 import { FINDING_TONE, type Finding } from "../../../../lib/status";
@@ -125,6 +127,22 @@ function Line({ line, onOpen }: { line: GlanceLine; onOpen: (tab: PanelTab) => v
   );
 }
 
+/** One line when FAA data the plan rests on -- the airports and their
+ *  frequencies, the charts, the procedures, the obstacles -- is past its
+ *  cycle (the engine's data_cycle, lib/dataCycles): the plan is still
+ *  made from it (warn, never limit), and a pilot should know before they
+ *  go. Nothing while every edition is in force. */
+function DataWarning() {
+  const line = dataWarning(useDataCycles());
+  if (!line) return null;
+  return (
+    <div className={cn("flex items-center gap-2.5 rounded-xl bg-caution-wash px-3.5 py-2.5", TEXT.detail)} role="status" data-testid="brief-data-out-of-date">
+      <FindingIcon finding="caution" className="size-5 shrink-0" />
+      <span className={cn("min-w-0 flex-1", FINDING_TONE.caution)}>{line}</span>
+    </div>
+  );
+}
+
 /** The student's instructor, where they have one (their training's
  *  accepted link): the flights put to them are what the instructor signs
  *  off from their own phone (InstructorPage). */
@@ -202,6 +220,7 @@ export default function BriefGlance({ onOpen, before: first, afterVerdict, after
           </CollapsibleContent>
         </Collapsible>
       )}
+      <DataWarning />
       <Card
         tab="preflight" label="Before you go" finding={before?.finding ?? "pending"} onOpen={onOpen}
         stats={(

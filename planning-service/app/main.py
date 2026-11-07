@@ -28,7 +28,6 @@ they send is a model in app.schemas.
 """
 import csv
 import logging
-import os
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -40,7 +39,7 @@ from pydantic import TypeAdapter
 from wingtip import (
     airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, sua, water, weather,
 )
-from wingtip import airspace_at, congested
+from wingtip import airspace_at, congested, data_cycles
 from wingtip import pack as cycle_pack
 from wingtip import traffic as traffic_data
 from wingtip import airports as airport_table
@@ -51,6 +50,7 @@ from .planning import StillComputing
 from .routers import airports, airspace as airspace_router, basemaps, briefing, chart, classb, devml, devservices, notes, oral, plan
 from .routers import assistant, clearance, figures, gonogo, narrative, packs, route_options, system, traffic, weather_map, words
 from .schemas import STREAM_MESSAGES, Index
+from .settings import get_settings
 
 # Nothing else in the process configured logging, so every log.info() in
 # this codebase -- this file's own, and every one already written in
@@ -62,7 +62,11 @@ from .schemas import STREAM_MESSAGES, Index
 # app.routers.classb (2026-09-23) and running one
 # live to see it -- nothing appeared. LOG_LEVEL, not a hardcoded INFO,
 # so a noisy deploy can be turned back down without a code change.
-logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+# The environment is read and checked here at the latest (wingtip.config
+# reads it on import): a malformed value -- a word where a number goes --
+# stops the planner at boot with SettingsError naming the variable,
+# rather than on the first request that needs it.
+logging.basicConfig(level=get_settings().log_level)
 
 log = logging.getLogger(__name__)
 
@@ -73,11 +77,11 @@ WEATHER_REFRESH_S = 240
 EDITIONS_CHECK_EVERY_S = 6 * 3600
 #: Whether the FAA's aircraft registry is downloaded and read here
 #: (wingtip.registry): on, but on a test stack (docker-compose.ci.yml).
-REGISTRY_REFRESH = os.environ.get("REGISTRY_REFRESH", "1") != "0"
+REGISTRY_REFRESH = get_settings().registry_refresh
 #: Whether the cycle pack (wingtip.pack) is built here, from the files the
 #: planner holds, once a cycle: on, but on a test stack, which reads the
 #: files themselves and need not write 400 MB a run.
-CYCLE_PACK = os.environ.get("CYCLE_PACK", "1") != "0"
+CYCLE_PACK = get_settings().cycle_pack
 # Set once the reference data below is loaded: the health probe reports
 # it, so a test run against a fresh stack can wait for a planner that
 # answers at full speed rather than one still parsing airspace under
@@ -243,7 +247,7 @@ def _warm_reference_data() -> None:
         except Exception:  # noqa: BLE001 -- a corridor is read whole meanwhile, and the next start tries again
             log.exception("chart cells not read")
 
-    if os.environ.get("LANDMARKS_BUILD", "1") != "0":
+    if get_settings().landmarks_build:
         threading.Thread(target=_build_landmarks, name="landmark-cells", daemon=True).start()
 
     # Then keep the weather warm: the METAR/TAF/SIGMET files and the
@@ -265,7 +269,19 @@ def _warm_reference_data() -> None:
     # 0.0 as above: a startup read that failed is tried again on the first
     # pass, and after a good one refresh() sees a fresh file and does nothing.
     last_registry_check = 0.0
+    # Whether the FAA's data on disk is still in its cycle
+    # (wingtip.data_cycles): with the refreshes off (production), nothing
+    # fetches a new edition, and an old one reads as if nothing were wrong.
+    # Checked on every switch's setting, as often as the editions are; the
+    # log is told once a day while one is out of date.
+    last_cycles_check = 0.0
     while True:
+        if time.time() - last_cycles_check >= EDITIONS_CHECK_EVERY_S:
+            last_cycles_check = time.time()
+            try:
+                data_cycles.warn_if_out_of_date()
+            except Exception:  # noqa: BLE001 -- the next check tries again
+                log.warning("FAA data cycles not checked", exc_info=True)
         if chart_refresh.AUTO_REFRESH and time.time() - last_editions_check >= EDITIONS_CHECK_EVERY_S:
             last_editions_check = time.time()
             try:

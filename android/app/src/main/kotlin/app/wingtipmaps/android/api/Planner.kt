@@ -1,6 +1,7 @@
 package app.wingtipmaps.android.api
 
 import app.wingtipmaps.android.Config
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -39,10 +40,22 @@ object Planner {
     fun get(path: String, query: Map<String, String?> = emptyMap()): Request =
         Request.Builder().url(url(path, query)).header("Accept", "application/json").build()
 
+    /** How long a call made in the air waits for the planner, the whole
+     *  call, before the phone answers from what it keeps (the cycle
+     *  packs): five seconds, as the iOS app's Planner.inFlight. OkHttp's
+     *  own waits are ten seconds to connect and ten between reads with no
+     *  limit on the whole, so with one bar of signal the alert ahead,
+     *  asked again every ten seconds, would be cancelled before it ever
+     *  fell back. */
+    const val IN_FLIGHT_MS = 5_000L
+
     /** An answer's body, or the planner's own words why not. Every planner
-     *  call goes through here. */
-    suspend fun fetch(path: String, query: Map<String, String?> = emptyMap()): String =
-        Gateway.client.newCall(get(path, query)).await().use { response ->
+     *  call goes through here; `timeoutMs` bounds the whole call for those
+     *  made in the air (IN_FLIGHT_MS). */
+    suspend fun fetch(path: String, query: Map<String, String?> = emptyMap(), timeoutMs: Long? = null): String =
+        Gateway.client.newCall(get(path, query)).also { call ->
+            if (timeoutMs != null) call.timeout().timeout(timeoutMs, TimeUnit.MILLISECONDS)
+        }.await().use { response ->
             val body = response.body?.string() ?: ""
             if (response.code != 200) throw Failure(response.code, detail(body))
             body

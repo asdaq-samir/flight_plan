@@ -15,7 +15,6 @@ is what enforces the list. It sits on a network only this service
 shares, so nothing else in the stack can ask it anything.
 """
 import logging
-import os
 
 import requests
 from fastapi import APIRouter, HTTPException
@@ -23,6 +22,7 @@ from fastapi import APIRouter, HTTPException
 from wingtip import retry
 
 from ..schemas import DevService, DevServices, DevServiceStarted
+from ..settings import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ RETRAIN_SERVICE = "retrain"
 
 #: Unset in every deployment that is not the compose stack, which is
 #: how the console knows not to offer a start button at all.
-SIDECAR_URL = os.environ.get("DEV_SERVICES_URL", "").rstrip("/") or None
+SIDECAR_URL = get_settings().dev_services_url
 
 
 def _sidecar(method: str, path: str) -> requests.Response | None:

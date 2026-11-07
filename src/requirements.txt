@@ -27,6 +27,7 @@ shapely==2.1.2      # wingtip.airspace polygons, wingtip.weather's hazards, wing
 pyshp==3.1.6        # wingtip.airspace reads the FAA Class Airspace shapefile
 pyproj==3.8.0       # wingtip.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
 pydantic==2.13.5    # pinned once here for planning-service's FastAPI and its schemas
+pydantic-settings==2.16.2   # wingtip.config's Settings -- every environment variable wingtip and the planner read
 scipy==1.18.1       # wingtip.geo's cluster_points KD-tree (imported at wingtip.geo's module level)
 pygeomag==1.1.0     # the oracle tests/test_flight_rules.py holds the engine's WMM-2025 (wingtip.magnetic) to
 astral==3.2         # wingtip.sun -- civil twilight, which sets the night fuel reserve

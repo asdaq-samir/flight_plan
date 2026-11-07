@@ -6,19 +6,18 @@ pipeline action offered from here, a retrain: the training run
 (`python -m wingtip.pipeline run`) as a container the dev-services
 sidecar starts."""
 import json
-import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
 from fastapi import APIRouter, HTTPException
-from wingtip import chartlabels, charts, checkpoint_notes, model_registry, retry, weather
+from wingtip import chartlabels, charts, checkpoint_notes, data_cycles, model_registry, retry, weather
 from wingtip.terrain import DEFAULT_FAA_CACHE_DIR
 
 from .. import chart_model, chart_refresh, errors
 from ..common import PROCESSED_DIR, paths
-from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
+from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS, get_settings
 from ..schemas import (
     ChartModelSnapshot,
     ChartRefreshStarted,
@@ -42,7 +41,7 @@ router = APIRouter()
 
 # The gateway, by its compose name; its actuator answers liveness and
 # readiness (the readiness group includes the database).
-WEBAPP_URL = os.environ.get("WEBAPP_URL", "http://webapp:8080")
+WEBAPP_URL = get_settings().webapp_url
 PROBE_TIMEOUT_S = 3.0
 
 # The FAA downloads a nav log depends on, wherever wingtip keeps them.
@@ -220,6 +219,10 @@ def status() -> Status:
     with ThreadPoolExecutor(max_workers=2) as pool:
         webapp = pool.submit(_webapp_status)
         pipeline = pool.submit(_pipeline_status)
+        # Each FAA data set's cycle, from the disk; one out of date is
+        # logged too (once a day), for the owner.
+        cycles = data_cycles.status()
+        data_cycles.warn_if_out_of_date(cycles)
         return Status(
             checked_at=datetime.now(tz=timezone.utc).isoformat(),
             services={
@@ -234,6 +237,7 @@ def status() -> Status:
             pipeline=pipeline.result().model_copy(update={"training": _training()}),
             corridors=_corridors(),
             recent_errors=errors.recent(),
+            data_cycles=cycles,
         )
 
 

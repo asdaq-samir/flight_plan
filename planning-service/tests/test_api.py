@@ -101,6 +101,9 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     }
     for corridor in body["corridors"]:
         assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
+    # Each FAA data set on disk, with whether it is in its cycle.
+    for cycle in body["data_cycles"]:
+        assert cycle["state"] in {"in_force", "expired", "not_yet", "unknown"} and cycle["current"]
 
 
 class FakeSidecar:
