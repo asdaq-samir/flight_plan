@@ -131,7 +131,9 @@ the location button over the map (`ui/MapButtons`) as Apple Maps has
 it: a tap turns the reading on and follows, a drag lets go, a tap again
 turns it off. The system's permission dialogs for location and for
 notifications are asked from `RootScreen`, the one screen, since a
-request needs an Activity.
+request needs an Activity. Setup's Map section has the Traffic switch
+(`TrafficSwitch`, kept in the DataStore settings file under "traffic",
+on until turned off), where the iOS app's Setup has it.
 
 Still to come: the tile store and the route's tiles for the air, the
 briefing, the checkpoints and the side view, the altitude wheel, the
