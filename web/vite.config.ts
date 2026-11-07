@@ -156,7 +156,9 @@ export default defineConfig({
         navigateFallbackDenylist: [/\/(privacy|terms|support)\.html$/],
         // wasm: the shared engine (lib/engine), which the page waits for
         // before it draws, so it must be there with no network.
-        globPatterns: ["**/*.{js,css,html,svg,woff2,wasm}"],
+        // mjs: MapLibre's worker (lib/map/gl/worker), without which the map
+        // parses no source, so a route reopened with no connection has a map.
+        globPatterns: ["**/*.{js,mjs,css,html,svg,woff2,wasm}"],
         // Not kept ahead for every pilot, at the first load and after each
         // deploy: Inter's non-Latin subsets (170 KB), fetched by the browser
         // only for a glyph they hold, the developer's pages (77 KB), and the
