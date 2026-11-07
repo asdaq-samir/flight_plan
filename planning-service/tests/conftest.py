@@ -4,6 +4,7 @@ import json
 
 import pytest
 from wingtip import airports, airspace, faa_data, fixes, pattern, publications, tfr, weather
+from wingtip.config import get_settings
 
 from app import chart_model, chart_scorer, detection, planning, prefetch, scoring
 
@@ -16,6 +17,16 @@ def _fresh_caches():
     answer instead."""
     for cache in (planning._ALTITUDE_CACHE, planning._PLANS_CACHE, planning._CLASS_B_WAYS, scoring._SCORE_CACHE, detection._DETECT_JOBS):
         cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _settings_from_this_tests_environment():
+    """wingtip.config.get_settings() reads the environment once and keeps
+    it; a test that sets a variable clears it after (get_settings.cache_clear()),
+    and this clears it either side of every test so none sees another's."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def airport(ident: str) -> dict:

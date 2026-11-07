@@ -21,17 +21,18 @@ from __future__ import annotations
 
 import html
 import logging
-import os
 
 import anthropic
 from pydantic import BaseModel, Field
+
+from .settings import get_settings
 
 #: Haiku, as the checkpoint notes' CHECKPOINT_NOTE_MODEL: the job is short
 #: sentences over figures already worked out and given whole, not a
 #: judgement -- what does not rest on them is dropped below -- and it is a
 #: quarter of Sonnet's cost. The app is free for now, and a weather watch
 #: asks every half hour.
-WORDS_MODEL = os.environ.get("WORDS_MODEL", "claude-haiku-5-5")
+WORDS_MODEL = get_settings().words_model
 #: Medium, as the notes found: at low the same model ran long and wandered
 #: into a pilot's text. Adaptive thinking is on by default on this model
 #: and is not set here.

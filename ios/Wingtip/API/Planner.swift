@@ -39,13 +39,23 @@ enum Planner {
         var errorDescription: String? { detail ?? "The planner answered \(status)." }
     }
 
-    /// A planner call by its path and query.
-    static func get(_ path: String, _ query: [String: String?] = [:]) -> URLRequest {
+    /// How long a call made in the air waits for the planner before the
+    /// phone answers from what it keeps (the cycle packs): five seconds,
+    /// not URLSession's sixty. With one bar of signal at altitude a call
+    /// that hangs would hold the alert ahead past the next ten-second ask,
+    /// which cancels it, so the packs' answer would never be shown. The
+    /// whole call is bound by it (load), not only the wait for data.
+    static let inFlight: TimeInterval = 5
+
+    /// A planner call by its path and query; `timeout` for the calls made
+    /// in the air (inFlight), the session's own wait otherwise.
+    static func get(_ path: String, _ query: [String: String?] = [:], timeout: TimeInterval? = nil) -> URLRequest {
         var parts = URLComponents(url: Config.gateway.appending(path: Config.plannerPath(path)), resolvingAgainstBaseURL: false)!
         let items = query.compactMap { key, value in value.map { URLQueryItem(name: key, value: $0) } }.sorted { $0.name < $1.name }
         parts.queryItems = items.isEmpty ? nil : items
         var request = URLRequest(url: parts.url!)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let timeout { request.timeoutInterval = timeout }
         return request
     }
 
@@ -54,7 +64,7 @@ enum Planner {
     /// website's calls carry it; without, for a POST that changes nothing,
     /// which the gateway lets through with no session or token
     /// (SecurityConfig).
-    static func request(_ method: String, _ path: String, json: (any Encodable)?, csrf: Bool) async throws -> URLRequest {
+    static func request(_ method: String, _ path: String, json: (any Encodable)?, csrf: Bool, timeout: TimeInterval? = nil) async throws -> URLRequest {
         // The CSRF cookie is written on any of the gateway's answers once
         // asked for: one GET first where there is none yet.
         if csrf, Gateway.csrfToken == nil { _ = try? await Gateway.me() }
@@ -64,13 +74,16 @@ enum Planner {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let json { request.httpBody = try snakeEncoder.encode(json) }
         if csrf, let token = Gateway.csrfToken { request.setValue(token, forHTTPHeaderField: "X-XSRF-TOKEN") }
+        if let timeout { request.timeoutInterval = timeout }
         return request
     }
 
     /// An answer's body, or the planner's own words why not. Every
-    /// planner call goes through here.
+    /// planner call goes through here, on the gateway's session: its
+    /// cookies are the pilot's, and its cache answers what the planner
+    /// said may be kept (Gateway.session).
     static func data(for request: URLRequest, ok: ClosedRange<Int> = 200...200) async throws -> Data {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await load(request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard ok.contains(status) else {
             // The path names the call (an ident in it is public); the query
@@ -81,13 +94,31 @@ enum Planner {
         return data
     }
 
-    static func fetch<T: Decodable>(_ type: T.Type, _ path: String, _ query: [String: String?] = [:]) async throws -> T {
-        try snakeCase.decode(T.self, from: try await data(for: get(path, query)))
+    /// The call made. A request asked to wait no longer than inFlight is
+    /// bound as a whole: URLRequest.timeoutInterval only counts time with
+    /// no data, so a server trickling bytes would hold the call past the
+    /// next ten-second ask, which cancels it. The race ends it at that
+    /// time whatever arrives.
+    private static func load(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        guard request.timeoutInterval <= inFlight else { return try await Gateway.session.data(for: request) }
+        return try await withThrowingTaskGroup(of: (Data, URLResponse).self) { group in
+            group.addTask { try await Gateway.session.data(for: request) }
+            group.addTask {
+                try await Task.sleep(for: .seconds(inFlight))
+                throw URLError(.timedOut)
+            }
+            defer { group.cancelAll() }
+            return try await group.next()!
+        }
+    }
+
+    static func fetch<T: Decodable>(_ type: T.Type, _ path: String, _ query: [String: String?] = [:], timeout: TimeInterval? = nil) async throws -> T {
+        try snakeCase.decode(T.self, from: try await data(for: get(path, query, timeout: timeout)))
     }
 
     /// A planner POST that changes nothing, its body in snake case.
-    static func postRead<T: Decodable>(_ type: T.Type, _ path: String, _ body: some Encodable) async throws -> T {
-        try snakeCase.decode(T.self, from: try await data(for: request("POST", path, json: body, csrf: false)))
+    static func postRead<T: Decodable>(_ type: T.Type, _ path: String, _ body: some Encodable, timeout: TimeInterval? = nil) async throws -> T {
+        try snakeCase.decode(T.self, from: try await data(for: request("POST", path, json: body, csrf: false, timeout: timeout)))
     }
 
     /// An answer streamed a line at a time (newline-delimited JSON: the
@@ -97,7 +128,7 @@ enum Planner {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let (bytes, response) = try await URLSession.shared.bytes(for: try await make())
+                    let (bytes, response) = try await Gateway.session.bytes(for: try await make())
                     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                     guard status == 200 else {
                         Log.planner.error("stream answered \(status)")
@@ -140,9 +171,11 @@ enum Planner {
     }
 
     /// The fields nearest a point (/api/airports/nearest), nearest first.
+    /// Asked in the air (Nearest, Direct To, the watch), so it waits no
+    /// longer than inFlight.
     static func nearest(lat: Double, lon: Double, limit: Int = 10) async throws -> [NearestAirport] {
         struct Answer: Decodable { let airports: [NearestAirport] }
-        return try await fetch(Answer.self, "/api/airports/nearest", ["lat": String(lat), "lon": String(lon), "limit": String(limit)]).airports
+        return try await fetch(Answer.self, "/api/airports/nearest", ["lat": String(lat), "lon": String(lon), "limit": String(limit)], timeout: inFlight).airports
     }
 
     /// The airplanes heard about a point (/api/traffic), out to a radius.
@@ -177,13 +210,14 @@ enum Planner {
     }
 
     /// What the airplane's track runs into in the next minutes
-    /// (/api/airspace/ahead): the planner's alerts, in its words.
+    /// (/api/airspace/ahead): the planner's alerts, in its words. Waits no
+    /// longer than inFlight, so OwnShip falls back to the packs.
     static func ahead(lat: Double, lon: Double, trackDeg: Double, groundspeedKt: Double, altitudeFt: Double?) async throws -> [AheadAlert] {
         struct Answer: Decodable { let alerts: [AheadAlert] }
         return try await fetch(Answer.self, "/api/airspace/ahead", [
             "lat": String(lat), "lon": String(lon), "track": String(Int(trackDeg.rounded())), "gs": String(Int(groundspeedKt.rounded())),
             "alt": altitudeFt.map { String(Int($0.rounded())) },
-        ]).alerts
+        ], timeout: inFlight).alerts
     }
 
     /// The ways to fly a route (/api/route-options): the planner's grid
@@ -198,9 +232,10 @@ enum Planner {
     }
 
     /// An ATC clearance heard: the places it named, found near the route
-    /// (/api/clearance/places, wingtip.spoken).
+    /// (/api/clearance/places, wingtip.spoken). Heard in the air, so it
+    /// waits no longer than inFlight before the packs read it (Engine.hear).
     static func clearancePlaces(_ ask: ClearanceAsk) async throws -> ClearancePlaces {
-        try await postRead(ClearancePlaces.self, "/api/clearance/places", ask)
+        try await postRead(ClearancePlaces.self, "/api/clearance/places", ask, timeout: inFlight)
     }
 
     /// The names a clearance near the route will likely say, for the

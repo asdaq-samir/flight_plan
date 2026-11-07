@@ -76,6 +76,9 @@ export type Frequency = Schemas["Frequency"];
 export type Briefing = Schemas["Briefing"];
 export type OnRoute = Schemas["OnRoute"];
 export type MapLayerAges = Schemas["MapLayerAges"];
+/** An FAA data set the planner uses and whether its edition is still in
+ *  its cycle (the engine's data_cycle). */
+export type DataCycle = Schemas["DataCycle"];
 /** `GET /api/alternate`: under IFR, whether the destination needs an
  *  alternate (14 CFR 91.169(b)), the pilot's alternate checked against its
  *  minimums at its ETA (91.169(c)), and the nearest fields that will do. */

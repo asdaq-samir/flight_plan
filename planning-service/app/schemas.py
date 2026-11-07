@@ -862,6 +862,9 @@ class ForecastStation(BaseModel):
     icaoId: str
     ceiling_ft: float | None
     visibility_sm: float | None
+    #: A ceiling forecast with no height ("OVC///") over the flight: the
+    #: worst ceiling is not known, whatever `ceiling_ft` says (14 CFR 1.1).
+    ceiling_unknown: bool = False
     lat: float | None = None
     lon: float | None = None
     along_track_nm: float | None = None
@@ -869,6 +872,7 @@ class ForecastStation(BaseModel):
     #: time at that distance along.
     eta: str | None = None
     eta_ceiling_ft: float | None = None
+    eta_ceiling_unknown: bool = False
     eta_visibility_sm: float | None = None
     raw: str | None = None
 
@@ -876,6 +880,9 @@ class ForecastStation(BaseModel):
 class Forecast(BaseModel):
     min_ceiling_ft: float | None
     min_visibility_sm: float | None
+    #: The stations forecasting a ceiling with no height: the worst
+    #: ceiling along the route is not known there.
+    ceiling_unknown_at: list[str] = []
     stations: list[ForecastStation]
 
 
@@ -885,6 +892,9 @@ class Metar(BaseModel):
     observed_at: str | None = None
     flight_category: str | None = None
     ceiling_ft: float | None = None
+    #: The lowest broken or overcast layer was reported with no height
+    #: ("OVC///"): the ceiling is not known, not absent (14 CFR 1.1).
+    ceiling_unknown: bool = False
     visibility_sm: float | None = None
     wind_dir_true_deg: float | None = None
     wind_speed_kt: float | None = None
@@ -1532,6 +1542,29 @@ class DataSource(BaseModel):
     failing: bool = False
 
 
+class DataCycle(BaseModel):
+    """One FAA data set the planner uses and whether its edition is still
+    in its cycle (wingtip.data_cycles, the engine's `data_cycle`): NASR
+    and the CIFP on AIRAC's 28 days, the charts and the obstacle file on
+    56. Days are YYYY-MM-DD, UTC. An edition past its cycle is still used,
+    and said to be out of date (warn, never limit)."""
+
+    # "nasr", "charts", "cifp", "dof" or "packs".
+    key: str
+    name: str
+    kind: Literal["airac", "chart", "dof"]
+    # The date the edition held is named by; None where nothing says.
+    edition: str | None = None
+    # The day it counts from, and the first day it no longer does.
+    effective: str | None = None
+    expires: str | None = None
+    # The day the edition in force today took effect.
+    current: str
+    state: Literal["in_force", "expired", "not_yet", "unknown"]
+    # How many editions have come out since the one held.
+    behind: int = 0
+
+
 class MapLayerAges(BaseModel):
     """When the planner fetched what the map's weather layers are drawn
     from (ISO 8601 UTC; None before the first fetch): the METARs the
@@ -1541,6 +1574,10 @@ class MapLayerAges(BaseModel):
     metars_at: str | None = None
     tfrs_at: str | None = None
     sources: list[DataSource] = []
+    # Each FAA data set's edition and whether it is in its cycle, for the
+    # Status page, the map's settings and the Brief to say when one is
+    # out of date.
+    data_cycles: list[DataCycle] = []
 
 
 class Briefing(BaseModel):
@@ -2745,6 +2782,9 @@ class Status(BaseModel):
     corridors: list[CorridorStatus]
     # What the planner failed at lately, the newest first (app.errors).
     recent_errors: list[RecentError] = []
+    # Each FAA data set's edition and whether it is in its cycle; the ones
+    # out of date are logged too (wingtip.data_cycles).
+    data_cycles: list[DataCycle] = []
 
 
 class RetrainStarted(BaseModel):

@@ -5,25 +5,40 @@
  * request fails (offline), those airports are the answer, so Enter may
  * take the first of them.
  */
-import { renderHook, waitFor } from "@testing-library/react";
+import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("./api/client", async importOriginal => ({
   ...(await importOriginal<typeof import("./api/client")>()),
   api: { airportIndex: vi.fn(), airportSearch: vi.fn(), warmAirportIndex: vi.fn() },
 }));
 
-const { api } = await import("./api/client");
-const { useAirportSearch } = await import("./useAirportSearch");
+// Each test has lib/airportIndex afresh, as a page load does: it keeps the
+// index it read (and the download it warmed) in the module, so a test that
+// read it first left the next one nothing to warm. Shuffled, "is downloaded
+// once the page is idle" failed after "is read when something is typed".
+let api: typeof import("./api/client").api;
+let useAirportSearch: typeof import("./useAirportSearch").useAirportSearch;
 
 function wrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
 }
 
-beforeEach(() => {
+// Each hook unmounted after its test, so its timers go with it: the
+// search's 100 ms debounce, and the 2 s stand-in for requestIdleCallback
+// (jsdom has none). Testing Library unmounts by itself only where vitest
+// has globals, which this config has not; left mounted, a timer fired
+// after the file's jsdom was torn down and set state into a React with no
+// window, an unhandled "window is not defined" that failed the run.
+afterEach(cleanup);
+
+beforeEach(async () => {
+  vi.resetModules();
+  ({ api } = await import("./api/client"));
+  ({ useAirportSearch } = await import("./useAirportSearch"));
   vi.clearAllMocks();
   vi.mocked(api.warmAirportIndex).mockResolvedValue(true);
   vi.mocked(api.airportIndex).mockResolvedValue({

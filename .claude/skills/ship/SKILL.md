@@ -34,10 +34,10 @@ Write "airplane". Read `git log -3 --format=%B` first to match the voice. End wi
 git push -u origin claude/<topic>
 gh pr create --base main --fill   # once, for the branch's first push
 ```
-To bring the branch up to date, `git merge origin/main` (never rebase a pushed branch). auto-merge-agents.yml turns auto-merge on once Claude's review has run, and the pull request merges by itself once the "CI passed" check is green. Nothing merges red.
+To bring the branch up to date, `git merge origin/main` (never rebase a pushed branch). auto-merge-agents.yml turns auto-merge on as the pull request opens, and it merges by itself once the "CI passed" check is green; Claude's review runs only when the "review" label is put on it (the owner, 2026-11-06), so run the covering checks and the aviation-check skill before pushing. Nothing merges red.
 
 ## 5. Follow CI
-- **One push at a time when it matters.** ci.yml cancels the running CI on the same branch when a new push arrives, and the cancelled run's path-filtered jobs (image builds, pdoc) never run again. If a push touched `src/`, a requirements file or a Dockerfile, wait for its run to finish before pushing again.
+- **One push at a time when it matters.** On a pull request, ci.yml cancels the running CI on the same branch when a new push arrives (main's runs queue instead), and the cancelled run's path-filtered jobs (image builds, pdoc) never run again. If a push touched `src/`, a requirements file or a Dockerfile, wait for its run to finish before pushing again.
 - **In CI,** `gh` is installed and signed in, so use `gh run view`, `gh pr checks` and the rest.
 - **On the owner's Mac there's no `gh` CLI.** Use the public API with `curl`, every three minutes at most (CI takes about two): it allows 60 requests an hour unauthenticated, and a poller that runs while you wait on something else is still polling. Don't use Python's `urllib`, because the host's Python has no CA bundle.
   ```sh

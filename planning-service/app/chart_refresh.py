@@ -20,19 +20,18 @@ check off -- a test stack, or a deployment that renders its pyramid
 elsewhere.
 """
 import logging
-import os
 import time
 
 from wingtip import charts
 
-from .settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
+from .settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS, get_settings
 
 log = logging.getLogger(__name__)
 
 # How often to ask whether the FAA has moved to a new chart cycle
 # (every 56 days).
 CHECK_EVERY_S = 3600
-AUTO_REFRESH = os.environ.get("CHARTS_AUTO_REFRESH", "1") != "0"
+AUTO_REFRESH = get_settings().charts_auto_refresh
 # Someone asked, so it should not wait on the one-worker night pace.
 ON_REQUEST_WORKERS = 2
 

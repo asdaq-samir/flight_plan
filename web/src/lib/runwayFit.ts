@@ -38,6 +38,11 @@ export interface EndFit {
   /** Longer than the runway; or within its margin (DISTANCE_MARGIN). */
   short: boolean;
   close: boolean;
+  /** The distance or the runway's length not known: whether it fits is
+   *  not known either. */
+  unknown: boolean;
+  /** The distance was read past the POH's table. */
+  beyond: boolean;
 }
 
 export function endFit({ aircraft, runway, end, wind, elevationFt, altimeterInHg, tempC, weightLb, kind }: {
@@ -45,7 +50,8 @@ export function endFit({ aircraft, runway, end, wind, elevationFt, altimeterInHg
   runway: Runway;
   end: RunwayEnd;
   wind: FitWind | null;
-  elevationFt: number;
+  /** Null where not known: no distance is worked out then. */
+  elevationFt: number | null;
   altimeterInHg: number | null | undefined;
   tempC: number | null | undefined;
   weightLb: number | null;
@@ -59,6 +65,6 @@ export function endFit({ aircraft, runway, end, wind, elevationFt, altimeterInHg
   });
   return {
     crosswindKt: fit.crosswind_kt, crosswindOver: fit.crosswind_over, neededFt: fit.needed_ft, lengthFt: fit.length_ft, short: fit.short,
-    close: fit.close,
+    close: fit.close, unknown: fit.unknown, beyond: fit.beyond,
   };
 }

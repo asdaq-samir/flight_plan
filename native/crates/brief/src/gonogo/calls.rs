@@ -92,6 +92,14 @@ pub(crate) fn truth(v: &Value, key: &str) -> bool {
     truthy(v.get(key))
 }
 
+/// Whether a section left out a member it decides its finding by: one not
+/// sent at all, as `{"weather": {}}` sends nothing, so the section checked
+/// nothing and its finding is "unknown" rather than "ok" (a null is sent:
+/// the web's and the planner's say "none" so).
+fn left_out(v: &Value, keys: &[&str]) -> bool {
+    keys.iter().any(|k| v.get(k).is_none())
+}
+
 fn truthy(v: Option<&Value>) -> bool {
     match v {
         None | Some(Value::Null) => false,
@@ -205,6 +213,19 @@ pub fn call(name: &str, v: &Value) -> Option<R<String>> {
             let at = i.num(v, "at_us")? as i64;
             Ok(format!("\"{}\"", pass_times::tfr_when(at, us("effective_us")?, us("expires_us")?)))
         })(),
+        "gonogo_hazard_window" => (|| {
+            let margin_min = i.opt_num(v, "margin_min")?.unwrap_or(pass_times::PASS_MARGIN_MIN as f64);
+            let when = pass_times::window_when(
+                i.num(v, "enter")?,
+                i.num(v, "leave")?,
+                i.opt_num(v, "valid_from")?,
+                i.opt_num(v, "valid_to")?,
+                margin_min * 60.0,
+            );
+            let mut out = String::new();
+            json::opt_string(&mut out, when);
+            Ok(out)
+        })(),
         "gonogo_sua_when" => (|| {
             let clock = |key: &str| -> R<Option<(u32, u32)>> {
                 match v.get(key) {
@@ -248,6 +269,7 @@ fn verdict_input(i: In, v: &Value) -> R<verdict::Input> {
     };
     Ok(verdict::Input {
         weather: verdict::Weather {
+            missing: left_out(w, &["vfr_not_recommended", "under_minimums", "hazards", "unchecked"]),
             pending: truth(w, "pending"),
             failed: i.opt_str(w, "failed")?,
             vfr_not_recommended: i.strings(w, "vfr_not_recommended")?,
@@ -258,6 +280,7 @@ fn verdict_input(i: In, v: &Value) -> R<verdict::Input> {
             worst: i.opt_str(w, "worst")?,
         },
         airspace: verdict::Airspace {
+            missing: left_out(a, &["unchecked", "in_force", "special_use"]),
             pending: truth(a, "pending"),
             unchecked: truth(a, "unchecked"),
             in_force: i.strings(a, "in_force")?,
@@ -265,6 +288,7 @@ fn verdict_input(i: In, v: &Value) -> R<verdict::Input> {
             special_use,
         },
         altitude: verdict::Altitude {
+            missing: left_out(t, &["cautions"]),
             pending: truth(t, "pending"),
             problem: i.opt_str(t, "problem")?,
             cautions: i.strings(t, "cautions")?,
@@ -278,10 +302,13 @@ fn verdict_input(i: In, v: &Value) -> R<verdict::Input> {
             ifr: truth(f, "ifr"),
         },
         runways: verdict::Runways {
+            missing: left_out(r, &["short", "crosswind"]),
             pending: truth(r, "pending"),
             worked: truth(r, "worked"),
             short: i.strings(r, "short")?,
             crosswind: i.strings(r, "crosswind")?,
+            beyond: i.strings(r, "beyond")?,
+            unchecked: i.strings(r, "unchecked")?,
         },
         balance: verdict::Balance {
             pending: truth(b, "pending"),

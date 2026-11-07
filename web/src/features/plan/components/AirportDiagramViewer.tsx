@@ -1,11 +1,9 @@
-import L from "leaflet";
-// This viewer builds its own MapContainer, not MapShell's, so it names
-// the stylesheet itself rather than lean on the RouteMap chunk having
-// loaded; Vite emits it once.
-import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo } from "react";
+import { Map as GlMap, type LngLatBoundsLike, type StyleSpecification } from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+// The worker MapLibre parses its sources in (lib/map/gl/worker).
+import "../../../lib/map/gl/worker";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ImageOverlay, MapContainer, useMap } from "react-leaflet";
 import { Button } from "../../../components/ui/button";
 import { api } from "../../../lib/api/client";
 import { chartPagePicture } from "../../../lib/diagram";
@@ -13,12 +11,18 @@ import { TEXT } from "../../../lib/text";
 import { cn } from "cn";
 import FullScreenViewer from "./FullScreenViewer";
 
-/** No further out than the whole first page in sight (FitFirst), and in
- *  to two of its pixels a point: past that the picture, drawn at 360 dots
- *  an inch (wingtip.publications), only grows coarser. */
-const MAX_ZOOM = 1;
 /** Between one page and the next, in the pages' own pixels. */
 const GAP = 60;
+/** Degrees a page's pixel is laid on: the pages sit on a sliver of the
+ *  equator, a few hundredths of a degree across, where the map's Mercator
+ *  is flat to a part in a million -- MapLibre has no plane of plain pixels
+ *  as Leaflet's CRS.Simple was. */
+const K = 1e-5;
+/** No further in than two screen points a picture's pixel: past that the
+ *  picture, drawn at 360 dots an inch (wingtip.publications), only grows
+ *  coarser (Leaflet's MAX_ZOOM 1). MapLibre's world is 512 points across
+ *  360 degrees at zoom 0. */
+const MAX_ZOOM = Math.log2((2 * 360) / (512 * K));
 
 export interface Page {
   src: string;
@@ -26,42 +30,64 @@ export interface Page {
   height: number;
 }
 
-/** The pages one under another, each centred, in the map's own pixels
- *  (CRS.Simple: up is north, so down the pages is south). */
+type Box = [west: number, south: number, east: number, north: number];
+
+/** The pages one under another, each centred, in degrees (down the pages
+ *  is south). */
 function laidOut(pages: Page[]) {
   const wide = Math.max(...pages.map(p => p.width));
   let top = 0;
   const placed = pages.map(p => {
     const left = (wide - p.width) / 2;
-    const bounds = L.latLngBounds([-(top + p.height), left], [-top, left + p.width]);
+    const box: Box = [left * K, -(top + p.height) * K, (left + p.width) * K, -top * K];
     top += p.height + GAP;
-    return { ...p, bounds };
+    return { ...p, box };
   });
-  return { placed, all: L.latLngBounds([-(top - GAP), 0], [0, wide]) };
+  const all: Box = [0, -(top - GAP) * K, wide * K, 0];
+  return { placed, all };
 }
 
-/** The first page whole as the furthest out, however the screen is turned:
- *  the rest is a drag down, as a document is. */
-function FitFirst({ first }: { first: L.LatLngBounds }) {
-  const map = useMap();
+const corners = ([w, s, e, n]: Box): [[number, number], [number, number], [number, number], [number, number]] => [[w, n], [e, n], [e, s], [w, s]];
+const bounds = ([w, s, e, n]: Box): LngLatBoundsLike => [[w, s], [e, n]];
+
+/** The pages on a MapLibre map of their own: a pinch, a drag and a double
+ *  tap do what they do on the chart; the first page whole as the furthest
+ *  out, however the screen is turned, the rest a drag down. */
+function Pages({ placed, all }: ReturnType<typeof laidOut>) {
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (!box.current) return;
+    const style: StyleSpecification = {
+      version: 8,
+      sources: Object.fromEntries(placed.map((p, i) => [`page-${i}`, { type: "image" as const, url: new URL(p.src, window.location.href).href, coordinates: corners(p.box) }])),
+      layers: [
+        // The chart's paper round the pages.
+        { id: "paper", type: "background", paint: { "background-color": "#ffffff" } },
+        ...placed.map((_, i) => ({ id: `page-${i}`, type: "raster" as const, source: `page-${i}`, paint: { "raster-fade-duration": 0 } })),
+      ],
+    };
+    const map = new GlMap({
+      container: box.current, style, bounds: bounds(placed[0]!.box), maxBounds: bounds(all), maxZoom: MAX_ZOOM,
+      attributionControl: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, renderWorldCopies: false,
+    });
+    map.touchZoomRotate.disableRotation();
     const fit = () => {
-      const whole = map.getBoundsZoom(first);
-      map.setMinZoom(whole);
-      if (map.getZoom() < whole) map.fitBounds(first);
+      const whole = map.cameraForBounds(bounds(placed[0]!.box))?.zoom;
+      if (whole === undefined) return;
+      map.setMinZoom(Math.min(whole, MAX_ZOOM));
+      if (map.getZoom() < whole) map.fitBounds(bounds(placed[0]!.box), { duration: 0 });
     };
-    fit();
+    map.on("load", fit);
     map.on("resize", fit);
-    return () => {
-      map.off("resize", fit);
-    };
-  }, [map, first]);
-  return null;
+    return () => { map.remove(); };
+  }, [placed, all]);
+  // Black at night where it is drawn white on black: the canvas inverted.
+  return <div ref={box} data-pages={placed.length} className="min-h-0 flex-1 bg-white dark:bg-black dark:[&_canvas]:invert" />;
 }
 
 /**
  * One of the FAA's charts full screen, to pinch in on as the chart is: its
- * pages on a Leaflet map of their own pixels (CRS.Simple), one under
+ * pages on a MapLibre map of their own (Pages), one under
  * another, so a pinch, a drag and a double tap do what they do on the
  * chart and the pages stay on the screen. In the app, at the pilot's ask,
  * where a chart was a link out to the FAA's site and its PDF. A modal
@@ -82,17 +108,7 @@ export default function ChartViewer({ title, pages, loading = false, failed = fa
   return (
     <FullScreenViewer title={title} testId="airport-diagram-viewer" closeTestId="airport-diagram-close" onClose={onClose}>
       {layout ? (
-        <MapContainer
-          crs={L.CRS.Simple} bounds={layout.placed[0]!.bounds} maxBounds={layout.all} maxBoundsViscosity={1}
-          zoomSnap={0} minZoom={-5} maxZoom={MAX_ZOOM}
-          attributionControl={false} zoomControl={false}
-          // The chart's paper round it, black at night where it is drawn
-          // white on black.
-          className="min-h-0 flex-1 bg-white! dark:bg-black! dark:[&_.leaflet-image-layer]:invert"
-        >
-          {layout.placed.map(p => <ImageOverlay key={p.src} url={p.src} bounds={p.bounds} />)}
-          <FitFirst first={layout.placed[0]!.bounds} />
-        </MapContainer>
+        <Pages {...layout} />
       ) : (
         <div className="flex flex-col items-start gap-2 px-4 pt-4" data-testid="chart-viewer-status">
           <p className={cn("text-muted-foreground", TEXT.prose)}>

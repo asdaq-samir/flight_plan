@@ -1,0 +1,6 @@
+# Breaking changes to the planner's or the webapp's API made on purpose,
+# which ci.yml's api-compat job lets through (oasdiff --err-ignore).
+# One line each, dated, with the method and path and oasdiff's own words
+# for the change, as its failure printed them, and why no released app
+# is hurt. Kept after the merge, as the record of what was broken when.
+# See docs/CI.md, "API compatibility".

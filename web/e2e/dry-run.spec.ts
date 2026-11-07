@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, openPanel, openProfile, closeProfile, settle, settled, sideDrawer, slow } from "./helpers";
+import { chartZoom, grabberTo, openPanel, openProfile, closeProfile, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
  * The planned flight's dry run flies own ship, as if a pilot were flying
@@ -27,11 +27,7 @@ test("the dry run flies own ship along the route, and gives it back as it was", 
   // Each tap goes out to the route and back in on the airplane (the
   // owner's "toggling the zoom in and out is not working"): the base
   // chart's level in use, its top tile container's.
-  const level = () => page.evaluate(() => {
-    const levels = [...document.querySelectorAll<HTMLElement>(".leaflet-tile-pane .leaflet-layer:nth-child(2) .leaflet-tile-container")];
-    const top = levels.reduce<HTMLElement | null>((t, c) => (!t || Number(c.style.zIndex) > Number(t.style.zIndex) ? c : t), null);
-    return Number(top?.querySelector<HTMLImageElement>("img.leaflet-tile")?.src.match(/\/(\d+)\/\d+\/\d+/)?.[1] ?? NaN);
-  });
+  const level = () => chartZoom(page);
   const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
   await expect(arrow).toHaveAttribute("data-face", "route");
   await expect(arrow).toHaveAccessibleName("Show the whole route");
@@ -46,9 +42,9 @@ test("the dry run flies own ship along the route, and gives it back as it was", 
   // Moving: its place on the chart changes as the run plays (with the
   // map following it, the marker itself may stay put, so the map pane's too).
   const where = () => page.evaluate(() => {
-    const icon = document.querySelector('[data-own-ship="on"]')!.closest(".leaflet-marker-icon") as HTMLElement;
-    const pane = document.querySelector(".leaflet-map-pane") as HTMLElement;
-    return `${icon.style.transform} ${pane.style.transform}`;
+    const icon = document.querySelector('[data-own-ship="on"]')!.closest(".maplibregl-marker") as HTMLElement;
+    const map = document.querySelector<HTMLElement>("[data-testid=gl-map]")!;
+    return `${icon.style.transform} ${map.dataset.center}`;
   });
   const first = await where();
   await expect.poll(where, { timeout: slow(10_000) }).not.toBe(first);
@@ -152,7 +148,7 @@ test("the dry run keeps the flight's own figures at the foot, counting down from
 
 /** Own ship's marker, on screen. */
 async function shipAt(page: Page) {
-  const box = (await page.locator(".leaflet-marker-icon").filter({ has: page.locator('[data-own-ship="on"]') }).last().boundingBox())!;
+  const box = (await page.locator(".maplibregl-marker").filter({ has: page.locator('[data-own-ship="on"]') }).last().boundingBox())!;
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
@@ -214,8 +210,7 @@ test("half way a dry run started from the profile's card plays in the card, in o
   // pressed it should also zoom into plane on the route"). Read before
   // the profile opens: it opens through the map's Play, whose run zooms
   // in before the helper stops it.
-  const level = () => page.evaluate(() => Math.max(0, ...[...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/sec/"]')]
-    .map(tile => Number(tile.src.match(/\/sec\/(\d+)\//)?.[1] ?? NaN)).filter(Number.isFinite)));
+  const level = () => chartZoom(page);
   await settled(panel);
   const fitted = await level();
   await openProfile(page);

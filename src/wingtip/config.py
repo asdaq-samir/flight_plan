@@ -8,9 +8,20 @@ pays for pathlib and nothing else.
 
 wingtip.pipeline re-exports these, so `from wingtip.pipeline import
 CANDIDATES_PATH` keeps working for the notebooks and the training run.
+
+It is also where every environment variable the Python reads is
+declared, once, typed, with its default: `Settings` below, read through
+`get_settings()`. wingtip and the planner (app.settings re-exports it)
+ask it rather than os.environ, so a malformed value fails in one place
+with a message naming the variable, and the list of knobs is one class
+to read rather than a grep. pydantic-settings is the one import that
+costs anything here, and pydantic is in every image that imports wingtip.
 """
-import os
+import functools
 from pathlib import Path
+
+from pydantic import ValidationError, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
@@ -59,13 +70,174 @@ MIN_LABELED_ROWS = 30
 # data, which had no tile cache and no chart west of Duluth.)
 #
 # Chart editions are listed on the products page, each under a
-# cycle-dated URL; the anchor date is one such cycle, from which the
-# others are 56-day arithmetic when the page cannot be reached.
+# cycle-dated URL; when the page cannot be reached, the cycle is the
+# engine's 56-day arithmetic (wingtip.data_cycles).
 FAA_VFR_PRODUCTS_PAGE = "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/"
 FAA_VISUAL_ZIP_URL = "https://aeronav.faa.gov/visual/{cycle}/{folder}/{name}.zip"
 FAA_ENROUTE_ZIP_URL = "https://aeronav.faa.gov/enroute/{cycle}/{name}.zip"
-FAA_CHART_CYCLE_ANCHOR = "2026-09-03"
-FAA_CHART_CYCLE_DAYS = 56
+
+# --- The environment ---
+
+def _switch(value):
+    """A switch as the code has always read one: on unless it is "0"
+    (compose and infra write 0 and 1)."""
+    return value.strip() != "0" if isinstance(value, str) else value
+
+
+def _none_if_blank(value):
+    """An unset-or-empty variable as None, the way `os.environ.get(...)
+    or None` read it: compose passes `${VAR:-}` through as an empty
+    string."""
+    return None if isinstance(value, str) and not value.strip() else value
+
+
+class Settings(BaseSettings):
+    """Every environment variable wingtip and the planner read, by its
+    own name (case aside; the field `log_level` is LOG_LEVEL), with its
+    default. Unset optional keys (SWIM_*, the ADS-B keys, the agents'
+    addresses) are None, which is how each feature knows it is
+    off. ANTHROPIC_API_KEY is not here: the anthropic SDK reads it itself."""
+
+    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
+
+    # wingtip
+    #: The planner's address, for wingtip.planner_client's callers.
+    planning_service_url: str = "http://planning-service:8000"
+    #: The CloudFront base (with key prefix) the map's tiles come from on AWS; None locally.
+    chart_tiles_url: str | None = None
+    #: The S3 bucket a chart refresh publishes the cycle's tiles to; None locally.
+    chart_tiles_bucket: str | None = None
+    #: The key prefix inside that bucket.
+    chart_tiles_prefix: str = "tiles"
+    #: How many chart sheets may be downloaded and prepared at once (wingtip.charts).
+    charts_prepare_at_once: int = 2
+    #: Whether a tile may download a sheet it needs (CHARTS_FETCH_FOR_TILES=0 in CI).
+    charts_fetch_for_tiles: bool = True
+    #: wingtip.filed_routes' SQLite store of the FAA's filed routes.
+    filed_store: Path = DATA_DIR / "raw" / "faa_filed" / "filed.sqlite"
+    #: wingtip.notams' SQLite store of NOTAMs.
+    notam_store: Path = DATA_DIR / "raw" / "faa_notams" / "notams.sqlite"
+    #: SageMaker's channel folders and model folder, set only inside a Training Job (wingtip.pipeline).
+    sm_channel_features: str | None = None
+    sm_channel_labels: str | None = None
+    sm_model_dir: str | None = None
+    #: ADS-B Exchange's RapidAPI key; None turns that source off (wingtip.traffic).
+    adsbx_rapidapi_key: str | None = None
+    #: ADS-B Exchange requests a month at most, short of the plan's 10,000.
+    adsbx_monthly_requests: int = 9000
+    #: Where the month's ADS-B Exchange count is kept across restarts.
+    adsbx_usage_file: Path = DATA_DIR / "raw" / "adsbx_usage.json"
+    #: Whether adsb.fi's open data is asked for watched airplanes (0 in production until adsb.fi agrees).
+    adsbfi_open_data: bool = True
+    #: Where watched airplanes' recorded tracks are kept.
+    recorded_tracks_dir: Path = DATA_DIR / "raw" / "watched_tracks"
+
+    # The planner (planning-service/app)
+    #: The logging level for the planner and its SWIM reader.
+    log_level: str = "INFO"
+    #: Whether the FAA aircraft registry is downloaded and read (0 on a test stack).
+    registry_refresh: bool = True
+    #: Whether the cycle pack is built once a cycle (0 on a test stack).
+    cycle_pack: bool = True
+    #: Whether the map's overlay tiles are built from the cycle pack once a cycle.
+    overlay_tiles: bool = True
+    #: Whether the chart's landmark cells are read at start (0 in CI).
+    landmarks_build: bool = True
+    #: Where the landmark cells are kept; None means beside the cycle's tiles.
+    chart_landmarks_dir: Path | None = None
+    #: Whether the planner refreshes the chart cycle on its own (0 in production).
+    charts_auto_refresh: bool = True
+    #: The "HH:MM-HH:MM" window a cycle's render may start in, or blank for any time.
+    charts_refresh_window: str = "01:00-06:00"
+    #: How many render processes a cycle refresh gets.
+    charts_refresh_workers: int = 1
+    #: Whether the chart model reads tiles in the planner's own process pool.
+    chart_reads_in_process: bool = True
+    #: The assistant's model, its effort, and whether the server-side fallback is asked for (1 only).
+    assistant_model: str = "claude-opus-5-5"
+    assistant_effort: str = "medium"
+    assistant_fallbacks: bool = False
+    #: The mock oral's model.
+    oral_model: str = "claude-opus-5-5"
+    #: The plain-words briefs' model.
+    words_model: str = "claude-haiku-5-5"
+    #: The checkpoint notes' model.
+    checkpoint_note_model: str = "claude-haiku-5-5"
+    #: The OTLP collector traces go to; None sends none (app.tracing).
+    otel_exporter_otlp_endpoint: str | None = None
+    #: The service name on those traces.
+    otel_service_name: str = "planner"
+    #: The browser key for Google's Map Tiles API; blank offers no Google overlay.
+    google_maps_api_key: str = ""
+    #: The compose stack's dev-services sidecar; None everywhere else.
+    dev_services_url: str | None = None
+    #: The webapp's address, for the status page's health probe.
+    webapp_url: str = "http://webapp:8080"
+    #: The agents' addresses for the status page; None where they do not run.
+    nav_log_agent_url: str | None = None
+    crewai_agent_url: str | None = None
+    #: The FAA SWIM subscription (app.swim_reader): the broker, the account, and the CA store.
+    #: A feed is read only where all of host, username, password and its own VPN and queue are set.
+    swim_host: str | None = None
+    swim_username: str | None = None
+    swim_password: str | None = None
+    swim_trust_store: str = "/etc/ssl/certs"
+    #: Each feed's own broker (where it is not SWIM_HOST), VPN and queue.
+    swim_host_stdds: str | None = None
+    swim_vpn_stdds: str | None = None
+    swim_queue_stdds: str | None = None
+    swim_host_fns: str | None = None
+    swim_vpn_fns: str | None = None
+    swim_queue_fns: str | None = None
+    swim_host_tfms: str | None = None
+    swim_vpn_tfms: str | None = None
+    swim_queue_tfms: str | None = None
+
+    read_switches = field_validator(
+        "charts_fetch_for_tiles", "adsbfi_open_data", "registry_refresh", "cycle_pack", "overlay_tiles", "landmarks_build",
+        "charts_auto_refresh", "chart_reads_in_process", mode="before")(_switch)
+
+    @field_validator("assistant_fallbacks", mode="before")
+    @classmethod
+    def read_opt_in(cls, value):
+        """The fallback is opt-in: "1" turns it on, anything else leaves it off."""
+        return value == "1" if isinstance(value, str) else value
+
+    @field_validator("chart_tiles_url", "dev_services_url", mode="before")
+    @classmethod
+    def read_base_url(cls, value):
+        """A base address without its trailing slash, None where blank."""
+        return _none_if_blank(value.rstrip("/") if isinstance(value, str) else value)
+
+    read_blank_as_unset = field_validator("chart_tiles_bucket", "chart_landmarks_dir", mode="before")(_none_if_blank)
+
+    @field_validator("chart_tiles_prefix", mode="before")
+    @classmethod
+    def read_prefix(cls, value):
+        return value.strip("/") if isinstance(value, str) else value
+
+    @field_validator("charts_refresh_window", "google_maps_api_key", mode="before")
+    @classmethod
+    def read_stripped(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class SettingsError(ValueError):
+    """A malformed environment variable, named as compose and infra write it."""
+
+
+@functools.cache
+def get_settings() -> Settings:
+    """The environment, read and checked once. A malformed value (a word
+    where a number goes) raises SettingsError naming the variable. Tests
+    that change the environment clear the cache (get_settings.cache_clear())."""
+    try:
+        return Settings()
+    except ValidationError as err:
+        bad = "; ".join(
+            f"{'_'.join(str(part) for part in e['loc']).upper()}={e.get('input')!r}: {e['msg']}" for e in err.errors())
+        raise SettingsError(f"The environment has a malformed setting: {bad}") from None
+
 
 # On AWS the tiles are not served by the planner at all: a refresh task
 # publishes each cycle's pyramid to an S3 bucket behind CloudFront, and
@@ -73,9 +245,9 @@ FAA_CHART_CYCLE_DAYS = 56
 # base (with the key prefix) the planner tells the browser about and
 # reads the served cycle from; CHART_TILES_BUCKET is where the refresh
 # publishes. Unset locally, where the planner serves its own tiles.
-CHART_TILES_URL = os.environ.get("CHART_TILES_URL", "").rstrip("/") or None
-CHART_TILES_BUCKET = os.environ.get("CHART_TILES_BUCKET") or None
-CHART_TILES_PREFIX = os.environ.get("CHART_TILES_PREFIX", "tiles").strip("/")
+CHART_TILES_URL = get_settings().chart_tiles_url
+CHART_TILES_BUCKET = get_settings().chart_tiles_bucket
+CHART_TILES_PREFIX = get_settings().chart_tiles_prefix
 
 # Where the downloaded rasters and the tiles rendered from them live --
 # both under data/raw, which is not tracked. The whole country is 64

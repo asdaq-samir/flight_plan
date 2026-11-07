@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from wingtip import airports, airspace, alternates, altitude, geo, pattern, publications, runway_wind, tfr, weather
+from wingtip import airports, airspace, alternates, altitude, data_cycles, geo, pattern, publications, runway_wind, tfr, weather
 
 from .. import exposure
 from ..common import load_route
@@ -52,10 +52,12 @@ def _least(values):
 
 def _joined_forecast(forecasts: list[dict]) -> dict:
     """The hops' forecasts as one: every station once, and the lowest
-    ceiling and visibility any of them forecasts."""
+    ceiling and visibility any of them forecasts, and every station whose
+    forecast ceiling is not known (a layer with no height, "OVC///")."""
     return {
         "min_ceiling_ft": _least(f["min_ceiling_ft"] for f in forecasts),
         "min_visibility_sm": _least(f["min_visibility_sm"] for f in forecasts),
+        "ceiling_unknown_at": list(dict.fromkeys(i for f in forecasts for i in f.get("ceiling_unknown_at") or [])),
         "stations": list({s["icaoId"]: s for f in forecasts for s in f["stations"]}.values()),
     }
 
@@ -64,7 +66,7 @@ def _at_each_place(forecast: dict, path: list, start: float, ete_s: float) -> di
     """The route's forecast with each station placed along it: how far
     along (`along_track_nm`), when the flight gets there (`eta`, ISO
     UTC), and its TAF read for then (`eta_ceiling_ft`,
-    `eta_visibility_sm`) with the forecast as issued (`raw`) -- for the
+    `eta_ceiling_unknown`, `eta_visibility_sm`) with the forecast as issued (`raw`) -- for the
     Weather tab, which lays the route out place by place. The time is
     the flight's share of its ETE at that distance: the briefing is
     asked with the whole flight's time, not each leg's, and an hour
@@ -82,7 +84,8 @@ def _at_each_place(forecast: dict, path: list, start: float, ete_s: float) -> di
         placed.append({
             **{k: v for k, v in station.items() if k != "eta_s"},
             "eta": datetime.fromtimestamp(round(station["eta_s"]), timezone.utc).isoformat().replace("+00:00", "Z"),
-            "eta_ceiling_ft": at.get("ceiling_ft"), "eta_visibility_sm": at.get("visibility_sm"), "raw": at.get("raw"),
+            "eta_ceiling_ft": at.get("ceiling_ft"), "eta_ceiling_unknown": bool(at.get("ceiling_unknown")),
+            "eta_visibility_sm": at.get("visibility_sm"), "raw": at.get("raw"),
         })
     return {**forecast, "stations": placed}
 
@@ -124,7 +127,8 @@ def map_layer_ages() -> MapLayerAges:
     from, for the map's settings to say how old each is: the METARs
     (aviationweather.gov's METAR file, held and refreshed by wingtip.weather)
     and the TFRs (tfr.faa.gov); and each source the planner keeps
-    through an outage, for the pilot's Status page."""
+    through an outage, for the pilot's Status page; and each FAA data
+    set's edition and whether it is still in its cycle."""
     sources = [
         {**s, "fetched_at": exposure.iso(s["fetched_at"]), "kept_until": exposure.iso(s["kept_until"])}
         for s in weather.sources_status()
@@ -134,6 +138,9 @@ def map_layer_ages() -> MapLayerAges:
         "metars_at": exposure.iso(weather.dataset_status().get("metars")),
         "tfrs_at": exposure.iso(tfr.fetched_at()),
         "sources": sources,
+        # Each FAA data set's edition and whether it is in its cycle
+        # (wingtip.data_cycles), for the pilot to see one out of date.
+        "data_cycles": data_cycles.held(),
     }
 
 
@@ -223,7 +230,7 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         try:
             forecast = _at_each_place(_joined_forecast(forecast_future.result()), path, start, ete_s)
         except weather.WeatherServiceError:
-            forecast = {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}
+            forecast = {"min_ceiling_ft": None, "min_visibility_sm": None, "ceiling_unknown_at": [], "stations": []}
             weather_unavailable.append("forecast")
         try:
             metars = metars_future.result()

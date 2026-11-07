@@ -29,7 +29,7 @@ test("C81's column: G at the surface, E from 700 ft above it, Chicago's Class B 
 test("a right-click on the chart asks what is there, and Close puts the card away", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  const map = page.locator(".leaflet-container");
+  const map = page.locator(".maplibregl-map");
   const box = (await map.boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3, { button: "right" });
   await expect(page).toHaveURL(/[?&]at=-?\d+\.\d+%2C-?\d+\.\d+/);

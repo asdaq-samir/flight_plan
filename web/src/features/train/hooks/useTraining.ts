@@ -7,7 +7,7 @@ import { ended } from "../../../lib/api/streams";
 import type { Course, Detection, Endpoint, LoosePick, PickSaved, Point, Rating, Role } from "../../../lib/api/types";
 import { usePreferences } from "../../../lib/preferences";
 import { pointKey, type PointKind } from "../logic";
-import { toast } from "sonner";
+import { toast } from "../../../lib/toast";
 
 /**
  * The training workspace's data: what the chart reader found for the

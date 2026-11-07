@@ -53,10 +53,17 @@ on:
 
 # A new push to an open PR should replace the run already queued for its
 # previous commit, not queue behind it -- otherwise every fixup push pays
-# for a run whose result nobody will read.
+# for a run whose result nobody will read. Only on a pull request: on
+# main each push's run is what Promote deploys and what build-images
+# pushes images from, so a merge right behind another must not cancel
+# it, and the night's run (same ref) must not cancel a push's or be
+# cancelled by one. The event is in the group for that reason; main's
+# runs queue instead (GitHub keeps one waiting, so of three quick merges
+# the middle one's run can still be replaced -- the next run builds
+# everything changed since the last green one, so nothing is lost).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Stated here rather than left to the repository's own default, which is
 # a setting outside this file that can change without a commit touching
@@ -111,7 +118,10 @@ jobs:
       # wingtip.airspace_at import: built with the runner's own Rust, in the
       # light `ci` profile (the image's is the release one; the sums are
       # the same either way, as nothing here is built for fast maths).
-      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      # The runner's own temp, not /tmp: the Mac mini's runners share one
+      # machine, and two jobs building into /tmp/native would install each
+      # other's wheel.
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o "$RUNNER_TEMP"/native && uv pip install --system "$RUNNER_TEMP"/native/*.whl
       # The engine's own tests, on the shared fixtures the Python reads too:
       # the facade's and each of its crates' (native/crates).
       - run: cargo test --profile ci --manifest-path native/Cargo.toml -p wingtip-engine -p wingtip-geo -p wingtip-weather -p wingtip-figures -p wingtip-radio -p wingtip-airspace -p wingtip-wording -p wingtip-brief -p wingtip-route -p wingtip-pilot
@@ -142,11 +152,11 @@ jobs:
       - name: pdoc (src/wingtip)
         run: |
           uv pip install --system pdoc
-          PYTHONPATH=src python -m pdoc src/wingtip -o /tmp/pdoc-wingtip --no-show-source
+          PYTHONPATH=src python -m pdoc src/wingtip -o "$RUNNER_TEMP"/pdoc-wingtip --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: pdoc-wingtip
-          path: /tmp/pdoc-wingtip
+          path: ${{ runner.temp }}/pdoc-wingtip
           retention-days: 30
 
   # The web front end. Its own job because it needs Node rather than
@@ -286,7 +296,7 @@ jobs:
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       # The planner imports wingtip's Rust extension (native/), as in the test job.
-      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/py/Cargo.toml -o "$RUNNER_TEMP"/native && uv pip install --system "$RUNNER_TEMP"/native/*.whl
       - run: ruff check app tests
       - run: pytest tests/ -v
 
@@ -316,11 +326,11 @@ jobs:
       - name: pdoc (nav-log-agent)
         run: |
           uv pip install --system pdoc
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o /tmp/pdoc-nav-log-agent --no-show-source
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o "$RUNNER_TEMP"/pdoc-nav-log-agent --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: pdoc-nav-log-agent
-          path: /tmp/pdoc-nav-log-agent
+          path: ${{ runner.temp }}/pdoc-nav-log-agent
           retention-days: 30
 
   test-crewai-agent:
@@ -342,11 +352,11 @@ jobs:
       - name: pdoc (crewai-agent)
         run: |
           uv pip install --system pdoc
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o /tmp/pdoc-crewai-agent --no-show-source
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o "$RUNNER_TEMP"/pdoc-crewai-agent --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: pdoc-crewai-agent
-          path: /tmp/pdoc-crewai-agent
+          path: ${{ runner.temp }}/pdoc-crewai-agent
           retention-days: 30
 
   # What this run has to do, from what changed: the one job the test
@@ -384,6 +394,7 @@ jobs:
       infra: ${{ steps.plan.outputs.infra }}
       android: ${{ steps.plan.outputs.android }}
       ios: ${{ steps.plan.outputs.ios }}
+      api: ${{ steps.plan.outputs.api }}
       docs-only: ${{ steps.docsonly.outputs.only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -434,6 +445,8 @@ jobs:
               - .github/ci-images.hcl
               - .dockerignore
               - pyproject.toml
+              # Every Python suite's conftest, as pyproject.toml is its settings.
+              - conftest.py
             test-root:
               - src/**
               - native/**
@@ -444,6 +457,14 @@ jobs:
               # tests/test_requirements.py reads these
               - planning-service/requirements*.txt
               - docker/requirements*.txt
+              # the shared fixtures the engine's rules are tested against
+              # (test_flight_rules.py and the rest)
+              - web/src/lib/fixtures/**
+              # test_dockerfiles.py: every image's wingtip-native stage
+              - '*/Dockerfile'
+              - docker/Dockerfile.*
+              # test_dev_services_sidecar.py
+              - docker/dev-services/**
             test-web:
               - web/**
               - .nvmrc
@@ -456,6 +477,8 @@ jobs:
               - android/app/src/main/kotlin/app/wingtipmaps/android/api/generated/**
             test-webapp:
               - springboot-app/**
+              # the planner's answers PlannerClient reads are generated from it
+              - planning-service/openapi.json
             test-planning-service:
               - planning-service/**
               - src/**
@@ -466,6 +489,11 @@ jobs:
             test-crewai-agent:
               - crewai-agent/**
               - src/**
+            # The two APIs the phones call, for api-compat.
+            api:
+              - planning-service/openapi.json
+              - springboot-app/openapi.json
+              - .github/api-breaks.txt
             # The production stack's own files.
             infra:
               - infra/cloudformation/**
@@ -551,7 +579,7 @@ jobs:
           images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service",
-                       "test-nav-log-agent", "test-crewai-agent", "docs", "infra"):
+                       "test-nav-log-agent", "test-crewai-agent", "docs", "infra", "api"):
               outputs[name] = "true" if due(name) else "false"
           # The phones' builds gate a merge: a pull request, or a run
           # started by hand on one's branch. Main's pushes and the nights
@@ -1115,13 +1143,31 @@ jobs:
           IOS_AUDIT: ${{ (github.event_name == 'schedule' || inputs.standards) && '1' || '' }}
           SCREENSHOTS: /out/screens
           PROJECTS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '' || '--project=mobile --grep @smoke' }}
+          # The JSON report, for the flaky tests below (those that passed
+          # on their retry): listed in the nightly issue, not failing the run.
+          PLAYWRIGHT_JSON_OUTPUT_NAME: /out/results.json
         run: |
           echo "$(($(date +%s) - T0)) the tests" >> /tmp/e2e-out/timeline
           mkdir -p /tmp/e2e-out/screens
-          docker run --rm --network host -e CI=1 -e IOS_AUDIT -e SCREENSHOTS \
+          docker run --rm --network host -e CI=1 -e IOS_AUDIT -e SCREENSHOTS -e PLAYWRIGHT_JSON_OUTPUT_NAME \
             -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
             "$PLAYWRIGHT_IMAGE" \
-            bash -o pipefail -c "timeout 1800 npx playwright test $PROJECTS --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github 2>&1 | tee /out/playwright.log"
+            bash -o pipefail -c "timeout 1800 npx playwright test $PROJECTS --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github,json 2>&1 | tee /out/playwright.log"
+      # A test that failed and then passed on its retry (playwright.config.ts
+      # retries) passes the run. Kept three days, for the nightly
+      # flake-report job to list in the "Flaky tests (nightly)" issue, a
+      # pull request's runs included.
+      - name: The flaky browser tests, for the nightly issue
+        if: always()
+        run: python3 scripts/flaky_tests.py e2e /tmp/e2e-out/results.json /tmp/e2e-out/flaky.txt
+      - name: Keep the flaky browser tests
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: e2e-flaky-${{ matrix.shard }}
+          path: /tmp/e2e-out/flaky.txt
+          if-no-files-found: ignore
+          retention-days: 3
       - name: How the tests went, as an annotation
         if: always()
         env:
@@ -1609,8 +1655,8 @@ jobs:
         run: |
           printf '%s\n' IMAGE_REGISTRY=registry.example/wingtip PUBLIC_HOST=app.example.com \
             ORIGIN_HOST=origin.app.example.com ORIGIN_SECRET=x POSTGRES_PASSWORD=x NAV_LOG_AGENT_API_KEY=x \
-            MAIL_HOST=smtp.example.com MAIL_FROM=no-reply@example.com > /tmp/prod.env
-          docker compose --env-file /tmp/prod.env -f docker-compose.prod.yml config --quiet
+            MAIL_HOST=smtp.example.com MAIL_FROM=no-reply@example.com > "$RUNNER_TEMP"/prod.env
+          docker compose --env-file "$RUNNER_TEMP"/prod.env -f docker-compose.prod.yml config --quiet
       - name: caddy validate (infra/server/Caddyfile)
         run: |
           docker run --rm -e ORIGIN_HOST=origin.app.example.com -e PUBLIC_HOST=app.example.com -e ORIGIN_SECRET=x \
@@ -1638,6 +1684,54 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.ios == 'true'
     uses: ./.github/workflows/native-ios-test.yml
+
+  # Nothing a phone already calls may break. An iPhone app in the App
+  # Store keeps calling these servers for months after a release, from
+  # every phone that has not updated, so a field or an endpoint removed
+  # or renamed, a parameter made required, or a type narrowed in either
+  # API's OpenAPI document breaks all of them at once. oasdiff (stock,
+  # pinned by digest) compares each document in the pull request with
+  # the one on main and fails on its ERR-level breaking changes; adding
+  # is always fine. A break that is meant -- an endpoint no released
+  # phone calls -- goes in .github/api-breaks.txt, one line per change
+  # as oasdiff words it, which the pull request commits with the change
+  # (docs/CI.md). Pull requests only, and only when a document changed:
+  # it is one small image and two comparisons, seconds.
+  api-compat:
+    name: API compatibility
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    needs: [changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.api == 'true'
+    env:
+      OASDIFF_IMAGE: tufin/oasdiff:v1.34.1@sha256:67a23cfea7d251e2ae34ee703ac8733c5d96bc2e7b90fd0f4d475ec99367b85f
+    steps:
+      # Two commits deep: a pull request's checkout is its merge with
+      # main, and the merge's first parent is the main it was made on --
+      # so the comparison is with exactly the main this would land on.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 2
+      - uses: ./.github/actions/hub-mirror
+      - name: oasdiff breaking, each document against main's
+        run: |
+          docker pull -q "$OASDIFF_IMAGE"
+          status=0
+          for doc in planning-service/openapi.json springboot-app/openapi.json; do
+            mkdir -p "/tmp/base/$(dirname "$doc")"
+            if ! git show "HEAD^1:$doc" > "/tmp/base/$doc" 2>/dev/null; then
+              echo "$doc is new: nothing on main to break"
+              continue
+            fi
+            echo "::group::$doc"
+            docker run --rm -v /tmp/base:/base:ro -v "$PWD:/head:ro" "$OASDIFF_IMAGE" \
+              breaking "/base/$doc" "/head/$doc" --fail-on ERR --format githubactions \
+              --err-ignore /head/.github/api-breaks.txt || status=1
+            echo "::endgroup::"
+          done
+          if [ "$status" != 0 ]; then
+            echo "::error title=API break::A change above breaks the phones already in pilots' hands. Make it additive (a new field or endpoint beside the old), or, if no released app calls it, add oasdiff's line for it to .github/api-breaks.txt (docs/CI.md)."
+          fi
+          exit $status
 
   # Lighthouse's report against the industry's thresholds: Google's
   # "good" Core Web Vitals (web.dev/vitals -- LCP within 2.5 s, CLS 0.1 at
@@ -1759,6 +1853,143 @@ jobs:
               "### Tonight's speed lab\n\n" + "\n".join(f"- {k}: {round(v, 3)}" for k, v in sorted(metrics.items())) + "\n")
           EOF
 
+  # The nightly flake hunt (docs/CI.md, "Flaky tests"): the unit suites run
+  # five times each in a new random order, and a test that failed in one
+  # run and passed in another is flaky. Nightly only, and not among the
+  # jobs "CI passed" waits on: a flaky test is work to do, listed in one
+  # standing issue, not a reason to stop a merge. The root suite and the
+  # planner's, the two whose modules hold the state a test can leave
+  # behind; the agents' suites are small and mock everything.
+  flake-hunt-python:
+    name: Flake hunt (${{ matrix.suite }})
+    if: github.event_name == 'schedule'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [root, planning-service]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The reference data the test jobs keep, restored with the same paths
+      # they save (a cache's paths are part of its key), never saved here.
+      - name: The week, for the reference data's cache
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - if: matrix.suite == 'root'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/raw/*
+            !data/raw/charts.nosync
+            !data/raw/chart_tiles.nosync
+          key: tests-raw-root-v1-${{ steps.week.outputs.week }}
+          restore-keys: tests-raw-root-v1-
+      - if: matrix.suite == 'planning-service'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: tests-raw-planner-v2-${{ steps.week.outputs.week }}
+          restore-keys: tests-raw-planner-v2-
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        with:
+          python-version: "3.14"
+      - run: pip install uv
+      - run: uv pip install --system -r ${{ matrix.suite == 'root' && '.' || matrix.suite }}/requirements-dev.txt
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      # Each run's seed is at the top of its output ("Using --randomly-seed=N").
+      - name: Five runs in random order
+        working-directory: ${{ matrix.suite == 'root' && '.' || matrix.suite }}
+        run: |
+          mkdir -p "/tmp/flake/${{ matrix.suite }}"
+          for n in 1 2 3 4 5; do
+            pytest tests/ -q -p randomly --junitxml="/tmp/flake/${{ matrix.suite }}/run-$n.xml" || true
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: flake-runs-${{ matrix.suite }}
+          path: /tmp/flake
+          retention-days: 7
+
+  flake-hunt-web:
+    name: Flake hunt (web)
+    if: github.event_name == 'schedule'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run types
+      # vite.config.ts shuffles; each run's seed is at the top of its output.
+      - name: Five runs in random order
+        run: |
+          mkdir -p /tmp/flake/web
+          for n in 1 2 3 4 5; do
+            npx vitest run --reporter=default --reporter=json --outputFile.json="/tmp/flake/web/run-$n.json" || true
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: flake-runs-web
+          path: /tmp/flake
+          retention-days: 7
+
+  # The list, into the one standing issue "Flaky tests (nightly)": the unit
+  # suites' flaky tests from the jobs above, and the browser tests that
+  # passed only on their retry, tonight's and the last day's other runs'
+  # (their e2e-flaky-* artifacts, pull requests' included). One GitHub
+  # write at most -- the issue created, or its body edited, never a
+  # comment -- and none when nothing changed (scripts/flaky_tests.py): a
+  # burst of writes got the owner's account suspended once.
+  flake-report:
+    name: Flake report
+    needs: [flake-hunt-python, flake-hunt-web, e2e]
+    if: always() && github.event_name == 'schedule'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        continue-on-error: true
+        with:
+          pattern: flake-runs-*
+          path: /tmp/flake
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        continue-on-error: true
+        with:
+          pattern: e2e-flaky-*
+          path: /tmp/flake/e2e/tonight
+      # Reads only: each run of the last day, its flaky lists if it kept any.
+      - name: The last day's other runs' flaky browser tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          THIS_RUN: ${{ github.run_id }}
+        run: |
+          since=$(date -u -d yesterday +%Y-%m-%d)
+          for id in $(gh run list --workflow ci.yml --created ">=$since" --json databaseId --jq '.[].databaseId' --limit 200); do
+            [ "$id" = "$THIS_RUN" ] && continue
+            gh run download "$id" --pattern 'e2e-flaky-*' --dir "/tmp/flake/e2e/$id" 2>/dev/null || true
+          done
+      - name: Into the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 scripts/flaky_tests.py report /tmp/flake
+
   # The one check main requires (its ruleset), so the rule holds as jobs
   # come and go: every job above passed, or was not needed -- a job its
   # paths did not touch is skipped, which counts as passing. The phone
@@ -1767,7 +1998,7 @@ jobs:
   passed:
     name: CI passed
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra, android, ios]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra, android, ios, api-compat]
     if: always()
     steps:
       - name: Every job passed or was not needed

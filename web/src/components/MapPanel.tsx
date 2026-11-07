@@ -104,10 +104,10 @@ let rideDeclaration: CSSStyleDeclaration | null = null;
 const coverRule = () => {
   if (!coverDeclaration) {
     const sheet = document.head.appendChild(document.createElement("style")).sheet!;
-    sheet.insertRule("[data-map-controls], [data-map-food], .leaflet-bottom {}", 0);
+    sheet.insertRule("[data-map-controls], [data-map-food], .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right {}", 0);
     // The translate they ride the sheet's top by: only those at the foot
     // of the map (the mic's circle is at its top but in flight).
-    sheet.insertRule("[data-map-controls], [data-map-food][data-rides], .leaflet-bottom {}", 1);
+    sheet.insertRule("[data-map-controls], [data-map-food][data-rides], .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right {}", 1);
     coverDeclaration = (sheet.cssRules[0] as CSSStyleRule).style;
     rideDeclaration = (sheet.cssRules[1] as CSSStyleRule).style;
   }
