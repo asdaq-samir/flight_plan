@@ -33,7 +33,7 @@ export function boundsAt(map: L.Map, center: L.LatLng, zoom: number): L.LatLngBo
  *  pan, about a screen -- on the half-degree grid, rounded outward: asked
  *  for once, a pan or a zoom in that stays inside it is answered already,
  *  the marks there as the map stops. */
-export function aheadOf(bounds: L.LatLngBounds): Box {
+export function aheadOf(bounds: Pick<L.LatLngBounds, "getSouth" | "getWest" | "getNorth" | "getEast">): Box {
   const dLat = bounds.getNorth() - bounds.getSouth(), dLon = bounds.getEast() - bounds.getWest();
   const out = (v: number, up: boolean) => (up ? Math.ceil(v * 2) : Math.floor(v * 2)) / 2;
   const box = {

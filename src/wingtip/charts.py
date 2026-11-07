@@ -60,7 +60,7 @@ import zipfile
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -74,8 +74,6 @@ from .config import (
     CHART_TILES_PREFIX,
     CHART_TILES_URL,
     CHARTS_DIR,
-    FAA_CHART_CYCLE_ANCHOR,
-    FAA_CHART_CYCLE_DAYS,
     FAA_ENROUTE_ZIP_URL,
     FAA_VFR_PRODUCTS_PAGE,
     FAA_VISUAL_ZIP_URL,
@@ -89,6 +87,7 @@ from .config import (
     VFR_SECTIONAL_MIN_ZOOM,
     VFR_TAC_MAX_ZOOM,
     VFR_TAC_MIN_ZOOM,
+    get_settings,
 )
 from . import chart_faces
 from .geo import tile_lat_lon, tile_xy
@@ -411,11 +410,12 @@ _cycle_lock = threading.Lock()
 
 
 def cycle_from_anchor(today: date) -> str:
-    """The cycle date in effect on `today`, by 56-day arithmetic from
-    the anchor -- what the FAA's page would say, without asking it."""
-    anchor = date.fromisoformat(FAA_CHART_CYCLE_ANCHOR)
-    cycles = (today - anchor).days // FAA_CHART_CYCLE_DAYS
-    return (anchor + timedelta(days=cycles * FAA_CHART_CYCLE_DAYS)).strftime("%m-%d-%Y")
+    """The cycle date in effect on `today`, by the 56-day charting cycle
+    (the engine's `data_cycle`, from the FAA's 28 and 56 Day Product
+    Schedule) -- what the FAA's page would say, without asking it."""
+    from .data_cycles import start_on
+
+    return start_on("chart", today).strftime("%m-%d-%Y")
 
 
 def cycle_from_products_page(html: str, today: date) -> str | None:
@@ -534,7 +534,7 @@ def _lock_for(key: tuple) -> threading.Lock:
 # asks for a dozen sheets in one breath. The per-sheet locks above stop
 # the same sheet being prepared twice; this stops different sheets being
 # prepared all at once. Two by default; CI sets one (docker-compose.ci.yml).
-_PREPARE_SLOTS = threading.BoundedSemaphore(int(os.environ.get("CHARTS_PREPARE_AT_ONCE", "2")))
+_PREPARE_SLOTS = threading.BoundedSemaphore(get_settings().charts_prepare_at_once)
 
 # Whether a tile may send for a sheet it needs that is not on disk -- a
 # 70 MB download and a minute of preparation, with the tile waiting.
@@ -548,7 +548,7 @@ _PREPARE_SLOTS = threading.BoundedSemaphore(int(os.environ.get("CHARTS_PREPARE_A
 # so never cached, and was drawn again on every request -- the planner
 # busy drawing the country under the Class B test while every other
 # test on the stack waited on it.
-FETCH_FOR_TILES = os.environ.get("CHARTS_FETCH_FOR_TILES", "1") != "0"
+FETCH_FOR_TILES = get_settings().charts_fetch_for_tiles
 
 
 def _load_ready(directory: Path, kind: ChartKind, name: str, cycle: str) -> Chart | None:

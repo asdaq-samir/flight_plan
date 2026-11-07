@@ -35,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.wingtipmaps.android.Charts
@@ -85,20 +87,31 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
     val ownShip = remember { OwnShip.of(context) }
     val trail = remember { OwnTrail.of(context) }
     val fix by ownShip.fix.collectAsStateWithLifecycle()
+    val approximate by ownShip.approximate.collectAsStateWithLifecycle()
+    val denied by ownShip.denied.collectAsStateWithLifecycle()
     val flown by trail.points.collectAsStateWithLifecycle()
     var ownShipOn by rememberSaveable { mutableStateOf(false) }
     var following by rememberSaveable { mutableStateOf(false) }
     var asking by rememberSaveable { mutableStateOf(false) }
+    // Location is asked precise and approximate together: Android 12 and
+    // later ignore a request for precise alone, and let the pilot answer
+    // with approximate, which start() reads and the note under the
+    // buttons says (OwnShipNote).
+    val location = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-        if (granted[Manifest.permission.ACCESS_FINE_LOCATION] == true && ownShipOn) {
+        if (granted.containsKey(Manifest.permission.ACCESS_FINE_LOCATION) && ownShipOn) {
             ownShip.start()
-            following = true
+            following = granted[Manifest.permission.ACCESS_FINE_LOCATION] == true
         }
         if (granted.containsKey(Manifest.permission.POST_NOTIFICATIONS)) Notifications.answered()
     }
     // Back after a rotation with own ship on: the reading goes on (start
     // is idempotent), and the dot is drawn again.
-    LaunchedEffect(ownShipOn) { if (ownShipOn && ownShip.permitted) ownShip.start() }
+    LaunchedEffect(ownShipOn) { if (ownShipOn) ownShip.start() }
+    // Back from Settings with the permission changed: read again, so the
+    // note under the buttons goes once precise is allowed, and the reading
+    // stops if it was taken away.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (ownShipOn) ownShip.start() }
     // A watch set or traffic near asked for notifications (Notifications
     // .allow): the system's dialog on Android 13 and later, nothing to ask
     // before it.
@@ -126,7 +139,7 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
                     ownShip.start()
                     following = true
                 } else {
-                    permissions.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION))
+                    permissions.launch(location)
                 }
             }
             !following -> following = true
@@ -173,6 +186,20 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
                 onDragged = { following = false },
             )
             MapButtons(ownShip = ownShipMode, onOwnShip = onOwnShip, onAsk = onAsk, modifier = Modifier.align(Alignment.TopEnd))
+            // Why the airplane is not on the map, where the pilot looks
+            // for it: beside the button that showed it.
+            if (ownShipOn && (approximate || denied)) {
+                OwnShipNote(
+                    approximate = approximate,
+                    onAskAgain = { permissions.launch(location) },
+                    onClose = {
+                        ownShipOn = false
+                        following = false
+                        ownShip.stop()
+                    },
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
+            }
         }
     }
     // The strip (the other session's StripLayout: one field, the flight

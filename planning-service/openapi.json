@@ -4522,6 +4522,89 @@
         "title": "CyclePacks",
         "type": "object"
       },
+      "DataCycle": {
+        "description": "One FAA data set the planner uses and whether its edition is still\nin its cycle (wingtip.data_cycles, the engine's `data_cycle`): NASR\nand the CIFP on AIRAC's 28 days, the charts and the obstacle file on\n56. Days are YYYY-MM-DD, UTC. An edition past its cycle is still used,\nand said to be out of date (warn, never limit).",
+        "properties": {
+          "behind": {
+            "default": 0,
+            "title": "Behind",
+            "type": "integer"
+          },
+          "current": {
+            "title": "Current",
+            "type": "string"
+          },
+          "edition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edition"
+          },
+          "effective": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective"
+          },
+          "expires": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "airac",
+              "chart",
+              "dof"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "in_force",
+              "expired",
+              "not_yet",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "kind",
+          "current",
+          "state"
+        ],
+        "title": "DataCycle",
+        "type": "object"
+      },
       "DataFile": {
         "properties": {
           "downloaded_at": {
@@ -8120,6 +8203,14 @@
       "MapLayerAges": {
         "description": "When the planner fetched what the map's weather layers are drawn\nfrom (ISO 8601 UTC; None before the first fetch): the METARs the\nairports' flight categories come from, and the TFRs; and every source\nit keeps, for the Status page.",
         "properties": {
+          "data_cycles": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DataCycle"
+            },
+            "title": "Data Cycles",
+            "type": "array"
+          },
           "metars_at": {
             "anyOf": [
               {
@@ -14026,6 +14117,14 @@
             "title": "Corridors",
             "type": "array"
           },
+          "data_cycles": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DataCycle"
+            },
+            "title": "Data Cycles",
+            "type": "array"
+          },
           "faa_files": {
             "items": {
               "$ref": "#/components/schemas/DataFile"
@@ -19274,7 +19373,7 @@
     },
     "/api/map/ages": {
       "get": {
-        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by wingtip.weather)\nand the TFRs (tfr.faa.gov); and each source the planner keeps\nthrough an outage, for the pilot's Status page.",
+        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by wingtip.weather)\nand the TFRs (tfr.faa.gov); and each source the planner keeps\nthrough an outage, for the pilot's Status page; and each FAA data\nset's edition and whether it is still in its cycle.",
         "operationId": "map_layer_ages_api_map_ages_get",
         "responses": {
           "200": {

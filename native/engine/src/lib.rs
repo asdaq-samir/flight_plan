@@ -56,6 +56,7 @@
 //!   case, names, the advisories' intensities, a field's radio and fuel, a
 //!   VOR's radial, Morse and service volume;
 //! - validity: when a weather report stops counting;
+//! - cycles: when an FAA data set's edition stops counting;
 //! - metar, taf, winds, notam, tfr: the weather and NOTAM products as
 //!   sent, read strictly (xml: the small XML reader they share; time:
 //!   UTC dates).
@@ -69,7 +70,7 @@ pub use wingtip_geo::{flight, geo, grid, sums, time, wmm, xml};
 pub use wingtip_pilot::{aircraft, pilot};
 pub use wingtip_radio::{atis, clearance, readback};
 pub use wingtip_route::{approach, motion, route};
-pub use wingtip_weather::{forecast, metar, notam, taf, tfr, validity, winds};
+pub use wingtip_weather::{cycles, forecast, metar, notam, taf, tfr, validity, winds};
 pub use wingtip_wording::wording;
 
 // The JSON every rule reads and writes, as call.rs names it; not part of

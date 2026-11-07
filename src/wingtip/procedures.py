@@ -28,10 +28,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from . import geo
+from . import data_cycles, geo
 from .config import DATA_DIR
 from .faa_data import download_and_extract
-from .publications import AIRAC_DAYS, AIRAC_EPOCH, _cycle_start
 from .once import once
 
 log = logging.getLogger(__name__)
@@ -91,8 +90,10 @@ _LOCK = threading.Lock()
 
 
 def cifp_start(on: date | None = None) -> date:
-    """The date the AIRAC cycle in force on `on` (today) took effect."""
-    return _cycle_start(on or date.today(), AIRAC_EPOCH, AIRAC_DAYS)
+    """The date the AIRAC cycle in force on `on` (today, UTC) took
+    effect (from 0901Z, when it does): the CIFP is on the 28-day AIRAC cycle (the engine's
+    `data_cycle`)."""
+    return data_cycles.start_on("airac", on or data_cycles.in_force_day())
 
 
 def cifp_path(on: date | None = None) -> Path:
@@ -142,9 +143,10 @@ def cifp_cycle(path: Path) -> str:
 
 
 def cifp_stale(path: Path, on: date | None = None) -> bool:
-    """Whether `path` is of an older cycle than the one in force: its
-    fixes, altitudes and whole procedures may have changed since."""
-    return cifp_cycle(path) != f"{cifp_start(on):%y%m%d}"
+    """Whether `path` is of a cycle other than the one in force (the
+    engine's `data_cycle`): its fixes, altitudes and whole procedures may
+    have changed since."""
+    return data_cycles.cycle("airac", data_cycles.cifp_effective(cifp_cycle(path)), on)["state"] != "in_force"
 
 
 # --- the records -----------------------------------------------------------
