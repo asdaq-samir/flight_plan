@@ -31,13 +31,22 @@ is docs/NATIVE-ANDROID.md.
 - A rule the pilot needs offline in flight is computed on the phone by
   the shared engine (`native/engine`), the same Rust the web app and the
   planner run, asked by name through `Engine.call` (`wt_call`;
-  `native/engine/src/call.rs` lists every name and its input). The Swift
-  keeps the words and the formatting, not the rule. The shared fixtures
+  `native/engine/src/call.rs` lists every name, and
+  `native/contract/engine.schema.json` types each input and answer). An
+  answer the app decodes can use a type generated from that contract,
+  `ios/Wingtip/Engine/EngineContract.swift` (`scripts/engine-contract-apps.sh`,
+  committed), rather than a Decodable written by hand; callers move over
+  one name at a time. The Swift keeps the words and the formatting, not
+  the rule, and each screen's state is one observable model the view
+  draws. This app is one of the four layers native/README.md describes:
+  the planner works out the flight, the gateway (Spring Boot) holds the
+  pilot's account and records, and the engine answers every rule. The shared fixtures
   in `web/src/lib/fixtures` are read by the web's vitest tests and by
   `ios/WingtipTests/SharedFixturesTests.swift` (project.yml bundles the
   folder into the test target by its path, not a copy), which now hold
   the engine to them through the phone's own bridge. The few rules still
-  in Swift are in the table below with their fixtures. Every other figure
+  in Swift are in the table below with their fixtures; issue #482 moves
+  them into the engine. Every other figure
   comes from the planner; the app shows the server's answer, with its
   date when offline.
 - The ACS table (`AcsTable`) is the web's own `web/src/lib/acs.json`,

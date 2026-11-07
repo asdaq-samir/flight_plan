@@ -32,8 +32,9 @@ Route: Campbell Airport (C81, Grayslake, IL) → Duluth International
 (KDLH, MN).
 
 Built as a full-lifecycle platform engineering project — model training and
-selection, orchestrated data pipelines, a microservices architecture, and a
-Gen AI agent with long-term memory — designed from the outset with an
+selection, orchestrated data pipelines, services and apps over one Rust
+engine that holds the aviation rules, and a Gen AI agent with long-term
+memory — designed from the outset with an
 explicit path to production on AWS.
 
 ### Highlights
@@ -91,18 +92,56 @@ explicit path to production on AWS.
 
 ### Architecture
 
+Four layers, each with one job:
+
+- **The engine** ([`native/`](../native), Rust): every aviation rule and
+  figure, once. No network, no screen, no clock of its own. A facade,
+  `wingtip-engine`, over nine domain crates in `native/crates` (geo,
+  weather, figures, radio, pilot, brief, route, airspace, wording), each
+  of which may use only the ones under it. Each rule is a name in
+  `native/engine/src/call.rs`, JSON in and JSON out, and its input and
+  answer are typed in `native/contract/engine.schema.json`, from which
+  the web's and the phones' types are generated.
+- **The planner** (`planning-service` over `src/wingtip`, FastAPI):
+  works out a flight. It fetches the FAA's and the weather's data, reads
+  the chart and scores the checkpoints with the chart model in its own
+  process, runs the AI assistant, and asks the engine every rule through
+  `wingtip_native.call`.
+- **Spring Boot** (`springboot-app`, the `webapp` service): who the pilot
+  is and what they saved -- accounts, sign-in, aircraft, flights,
+  logbook and endorsements, the public API, scheduled mail. It holds no
+  aviation logic: where it needs a figure, such as currency for a
+  reminder email, it asks the planner over HTTP (`PlannerClient`), and
+  the planner asks the engine.
+- **The apps** (`web/`, `ios/`, `android/`): get the data, keep the
+  state and draw, with one view model per screen (a hook on the web, an
+  observable model on the phones), and ask the engine the rest by name:
+  the web through `callEngine` (the engine built to WebAssembly), the
+  iPhone through `wt_call`, Android through a JNI shim over `wt_call`.
+
+The owner kept both server languages on this split (2026-11-06). The
+boundary between them is plain HTTP and already clean, merging them would
+give a pilot nothing, and Spring is good at identity and persistence;
+the aviation belongs in the engine, not in either server.
+
+That is the target. Some rules still live outside the engine -- about
+7,000 lines in `src/wingtip`, the currency and endorsement rules in the
+Java, and some in the web and phone apps -- and issue #482 moves them
+in, in phases: copies the engine already has, small rules, weather parsing,
+altitude selection, the nav log, then route options.
+
 The system runs today as nine Docker services:
 
 | Service | Role |
 |---|---|
-| `webapp` | Spring Boot API — the public-facing route-planning service |
+| `webapp` | Spring Boot — accounts, sign-in, the pilot's records, the public API and scheduled mail; serves the React app and proxies the planner |
 | `nav-log-agent` | LangGraph agent (MCP server) that assembles the full nav log and briefing |
 | `crewai-agent` | The same task, built in CrewAI, for framework comparison |
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
 | `ml` | Jupyter environment for model development and experimentation -- on demand, behind the `notebooks` profile: `docker compose up ml` |
-| `planning-service` | FastAPI server for the React app in `web/`: course, checkpoints scored by the chart model in-process, nav log, and rating spottability against FAA sectional charts |
+| `planning-service` | FastAPI: works out a flight for the apps -- course, checkpoints scored by the chart model in-process, nav log, weather, the assistant -- with the engine inside it for every rule |
 
 ![Current local architecture](architecture-current.svg)
 
@@ -166,8 +205,10 @@ for the tabular feature pipeline.
 
 ### Services in detail
 
-**`planning-service`** — chart vision, checkpoint selection and the nav
-log. Serves no pages: the front end lives in [`web/`](../web) and is built
+**`planning-service`** — chart vision, checkpoint selection, the nav log
+and the assistant; it asks the engine (`wingtip_native`) for the rules
+the engine holds, and #482 moves the rest of its Python rules there.
+Serves no pages: the front end lives in [`web/`](../web) and is built
 into `webapp`'s jar, which proxies here for every computation. Publishes no
 port on AWS either — it sits behind `webapp` in a private subnet, found by
 service discovery at `planning-service.wingtip.internal`.
@@ -241,7 +282,7 @@ service discovery at `planning-service.wingtip.internal`.
   one call, until 2026-11-06; scikit-learn and joblib are now pinned in
   the planner's requirements, exactly as the training image pins them
 
-**`springboot-app` (webapp)** — the public-facing route-planning API.
+**`springboot-app` (webapp)** — accounts, sign-in and the pilot's saved records, and the public API. No aviation logic: a figure it needs comes from the planner.
 
 - Schema owned by Flyway migrations; JPA's `ddl-auto` only validates against them
 - Actuator health probes at `/actuator/health/liveness` and `/actuator/health/readiness`
@@ -545,12 +586,13 @@ browser reaches the Python service only through `webapp`'s
 `planning-service` with it. Hitting port 8084 directly works and is
 useful when debugging, but nothing in the front end does it.
 
-A request crosses three services, each with one job:
+A request crosses three services, each with one job, and the engine
+answers the rules on either side:
 
 ```
-browser (web/)   the map, the keyboard, the rows
+browser (web/)   the map, the keyboard, the rows; asks the engine (WebAssembly) for what it draws
   -> webapp        :8080  serves the page, proxies /api/planner/*, owns auth and the database
-  -> planning-service    :8084  reads sectional tiles, scores them with the chart model, great-circle geometry, checkpoint selection, nav log
+  -> planning-service    :8084  reads sectional tiles, scores them with the chart model, checkpoint selection, nav log; asks the engine every rule
   -> db            :5432  pilots, flights, agent memory
 ```
 

@@ -24,8 +24,19 @@ idea, then shows exactly where in this repo that idea shows up.
 Read it top to bottom the first time; come back to individual sections
 later as a refresher while you build.
 
-The whole system, one picture. Every box is a Docker service; every arrow
-is covered by name in the section noted next to it:
+The project has four layers, each with one job. The Rust engine
+(`native/`) holds every aviation rule and figure once, with no network,
+no screen and no clock. The planner (`planning-service` over
+`src/wingtip`, FastAPI) works out a flight: it fetches the data, runs the
+chart model and the assistant, and asks the engine every rule. Spring
+Boot (`webapp`) is who the pilot is and what they saved, with no aviation
+logic of its own. The apps (web, iOS, Android) get data, keep state and
+draw, and ask the engine the rest. §4 says why it is cut this way.
+
+The services, one picture. Each box is a Docker service, except the
+apps, `model_registry` (code run by Airflow) and the engine, which runs
+inside the planner and inside each app; every arrow is covered by name
+in the section noted next to it:
 
 ```mermaid
 flowchart LR
@@ -38,14 +49,16 @@ flowchart LR
 
     registry --> planner[("planning-service<br/>scores with the promoted model")]
 
-    webapp["§4 webapp<br/>(Spring Boot API)"] --> planner
+    webapp["§4 webapp<br/>(Spring Boot: accounts, records)"] --> planner
     webapp --> db[("db<br/>Postgres + pgvector")]
+    planner --> engine[["§4 engine (Rust)<br/>every aviation rule"]]
+    apps([web · iOS · Android]) --> webapp
+    apps --> engine
 
     navlog["§5 nav-log-agent<br/>(LangGraph, MCP)"] --> planner
     navlog --> db
     crewai["§5 crewai-agent<br/>(CrewAI, one-shot CLI)"] --> planner
 
-    client([API client]) --> webapp
     mcpclient([MCP client]) --> navlog
 ```
 
@@ -536,8 +549,37 @@ rather than one image with a runtime branch.
 
 ## 4. The serving layer
 
-Two services answer real HTTP requests: `planning-service` (the route,
-and the model's predictions) and `webapp` (the public API, persistence).
+Two services answer real HTTP requests: `planning-service` (working out
+a flight, and the model's predictions) and `webapp` (who the pilot is
+and what they saved). Under both, and under every app, is the engine.
+
+### Four layers, and why
+
+- **The engine** ([`native/`](../native/README.md)) is a Rust library
+  with no network, no screen and no clock: give it JSON by a rule's
+  name (`native/engine/src/call.rs`), get JSON back. It is a facade over
+  nine crates, each allowed to use only the ones under it, so the
+  compiler keeps geography from reaching for the Go / No-Go. The same
+  bytes run in the planner (PyO3), in the browser (WebAssembly) and on
+  both phones (a C interface), so a pilot's figure is the same offline
+  in the air as on the planner's desk. A JSON Schema per name
+  (`native/contract/engine.schema.json`) types the boundary, and each
+  app's types are generated from it.
+- **The planner** does what needs the network and the big data: the
+  FAA's files, the weather, the chart tiles, the chart model, Claude.
+- **Spring Boot** does identity and persistence: sign-in, sessions,
+  Flyway's schema, the pilot's records, scheduled mail. When it needs a
+  figure it asks the planner, which asks the engine.
+- **The apps** are view and view model per screen, and hold no rules.
+
+Why two server languages, rather than one: the owner weighed folding
+one into the other on 2026-11-06 and kept both. The line between them
+is plain HTTP and already clean, a merge would change nothing a pilot
+sees, and Spring is good at what it does here. What made the old shape
+hard was rules written several times over -- in Python, Java,
+TypeScript and Swift -- and that is fixed by moving them into the
+engine, not by changing servers. Issue #482 lists what has not moved
+yet, in the order it moves.
 
 ### Scoring in the planner
 
