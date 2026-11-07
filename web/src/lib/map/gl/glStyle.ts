@@ -1,5 +1,5 @@
 import type {
-  CircleLayerSpecification, LayerSpecification, LineLayerSpecification, RasterLayerSpecification,
+  LayerSpecification, LineLayerSpecification, RasterLayerSpecification,
   RasterSourceSpecification, SymbolLayerSpecification,
 } from "maplibre-gl";
 import type { AirspaceVolume, ChartInfo } from "../../api/types";
@@ -8,7 +8,7 @@ import { chartPair, tileTemplate } from "../tiles";
 import { COURSE_MAGENTA } from "../chartColors";
 
 /**
- * The map spike's style (the owner, 2026-11-06: "Like ForeFlight, I want
+ * The map's style (the owner, 2026-11-06: "Like ForeFlight, I want
  * the map to be clear and crisp and the overlay items need to be seen as
  * part of the map and not buggy overlay"): the FAA chart, the airspace,
  * the route and its checkpoints drawn by MapLibre GL in one WebGL map,
@@ -218,7 +218,7 @@ export function pointFeatures(points: RoutePoint[]): GeoJSON.FeatureCollection<G
   };
 }
 
-export function routeLayers(font: string[], courseColour = COURSE_MAGENTA): LayerSpecification[] {
+export function routeLayers(courseColour = COURSE_MAGENTA): LayerSpecification[] {
   const casing: LineLayerSpecification = {
     id: "route-casing", type: "line", source: ROUTE_SOURCE,
     layout: { "line-join": "round", "line-cap": "round" },
@@ -229,16 +229,5 @@ export function routeLayers(font: string[], courseColour = COURSE_MAGENTA): Laye
     layout: { "line-join": "round", "line-cap": "round" },
     paint: { "line-color": courseColour, "line-width": 2.5 },
   };
-  // The checkpoints' numbered dots (icons.ts dotIcon): their score's
-  // colour, a white ring, the number in white.
-  const dots: CircleLayerSpecification = {
-    id: "checkpoints", type: "circle", source: CHECKPOINT_SOURCE,
-    paint: { "circle-radius": 9, "circle-color": ["get", "colour"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2 },
-  };
-  const numbers: SymbolLayerSpecification = {
-    id: "checkpoint-numbers", type: "symbol", source: CHECKPOINT_SOURCE,
-    layout: { "text-field": ["get", "label"], "text-font": font, "text-size": 11, "text-allow-overlap": true, "text-ignore-placement": true },
-    paint: { "text-color": "#ffffff" },
-  };
-  return [casing, core, dots, numbers];
+  return [casing, core];
 }

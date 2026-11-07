@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { airportMark, beforeTheRoute, openPanel, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight, openNavLog, navLogSheet } from "./helpers";
+import { airportMark, chartZoom, drawn, beforeTheRoute, openPanel, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight, openNavLog, navLogSheet } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -35,8 +35,8 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await beforeTheRoute(page, () => page.getByTestId("class-b-toggle").click());
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await expect(page.locator("img.leaflet-tile").first()).toBeAttached();
-  const popups = page.locator(".leaflet-popup");
+  await expect(page.locator("[data-chart-zoom]")).toBeAttached();
+  const popups = page.locator(".maplibregl-popup");
   // A tap on the chart itself, where nothing is drawn: a fixed corner
   // had a Class B chip under it once the pin had flown the map to KORD.
 
@@ -44,19 +44,19 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   // airport on the chart does -- it was a weather card over the chart --
   // and a tap on the chart puts it away. The card brings the map in to
   // the field, so the wheel takes it back out before KORD can be found.
-  await page.locator(".leaflet-marker-icon", { hasText: "C81" }).first().click();
+  await page.locator(".maplibregl-marker", { hasText: "C81" }).first().click();
   await expect(page.getByTestId("place-card")).toBeVisible({ timeout: slow(15000) });
   await expect(popups).toHaveCount(0);
   await tapTheChart(page);
   await expect(page.getByTestId("place-card")).toHaveCount(0);
-  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const map = (await page.locator(".maplibregl-map").boundingBox())!;
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 3);
   for (let i = 0; i < 4; i++) {
     await page.mouse.wheel(0, 300);
     await page.waitForTimeout(400);
   }
 
-  const chip = page.locator(".leaflet-marker-icon").filter({ has: page.locator('[data-airspace="B"]'), hasText: "KORD" }).first();
+  const chip = page.locator(".maplibregl-marker").filter({ has: page.locator('[data-airspace="B"]'), hasText: "KORD" }).first();
   await expect(chip).toBeVisible({ timeout: slow(25000) });
   // A Class B chip opens the field's card in the panel, as every
   // airport on the chart does, not a popup of its own on the map.
@@ -77,19 +77,18 @@ test("plan page: a checkpoint picked on the map brings the map in to it, so ther
   await settle(page);
   await expect(page.locator("[data-map-controls]")).toBeVisible();
   await expect(page.locator("[data-map-controls]").getByRole("button", { name: /zoom|fit route|show selected/i })).toHaveCount(0);
-  const zoomOfTiles = () => page.evaluate(() => Math.max(...[...document.querySelectorAll<HTMLImageElement>("img.leaflet-tile")]
-    .map(img => Number(new URL(img.src).pathname.split("/").at(-3))).filter(Number.isFinite)));
+  const zoomOfTiles = () => chartZoom(page);
   const before = await zoomOfTiles();
   // A checkpoint drawn at this zoom: those without room for their dots
   // wait for the map to come in (RouteMap's useSpaced).
-  const marker = page.locator(".leaflet-marker-icon", { hasText: /^\d+$/ }).first();
+  const marker = page.locator(".maplibregl-marker", { hasText: /^\d+$/ }).first();
   await expect(marker).toBeVisible({ timeout: slow(60000) });
   // Its own click, not one at its place: the route fitted to a phone
   // stacks neighbouring checkpoints, and a click there lands on the one
   // drawn over it.
   await marker.dispatchEvent("click");
   await expect.poll(zoomOfTiles, { timeout: slow(10000) }).toBeGreaterThan(before);
-  await expect(page.locator(".leaflet-overlay-pane path")).not.toHaveCount(0);
+  await expect.poll(async () => (await drawn(page, "route-line")).length).toBeGreaterThan(0);
 });
 
 test("plan page: panning the map with own ship off leaves 'Keep the map on me' as it was", async ({ page }) => {
@@ -102,7 +101,7 @@ test("plan page: panning the map with own ship off leaves 'Keep the map on me' a
   const follow = () => page.evaluate(() => JSON.parse(localStorage.getItem("wingtip.ownship") ?? "{}").state?.follow ?? true);
   expect(await follow()).toBe(true);
 
-  const map = await page.locator(".leaflet-container").boundingBox();
+  const map = await page.locator(".maplibregl-map").boundingBox();
   if (!map) throw new Error("no map");
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
   await page.mouse.down();
@@ -118,13 +117,12 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   // airports; the landmarks, from zoom 7.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  const numbered = page.locator(".leaflet-marker-icon", { hasText: /^\d+$/ });
+  const numbered = page.locator(".maplibregl-marker", { hasText: /^\d+$/ });
   await expect(numbered.first()).toBeVisible({ timeout: slow(60000) });
 
   // Out to the zoom a whole region fits at: the tiles say which.
-  const zoomOfTiles = () => page.evaluate(() => Math.min(...[...document.querySelectorAll<HTMLImageElement>("img.leaflet-tile")]
-    .map(img => Number(new URL(img.src).pathname.split("/").at(-3))).filter(Number.isFinite)));
-  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const zoomOfTiles = () => chartZoom(page);
+  const map = (await page.locator(".maplibregl-map").boundingBox())!;
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 2);
   for (let i = 0; i < 3; i++) {
     await page.mouse.wheel(0, 300);
@@ -135,8 +133,7 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   // way to its two airports' marks (RouteMap's useSpaced, 2026-10-26),
   // the landmarks still drawn.
   // The landmarks' dim dots, in their slate outline.
-  const landmarks = page.locator('path.leaflet-interactive[stroke="#5b6b76"]');
-  await expect(landmarks.first()).toBeAttached();
+  await expect.poll(async () => (await drawn(page, "candidate-marks")).length).toBeGreaterThan(0);
 
   // Off, from the search bar's settings, and the route again: no
   // checkpoints on the map, none asked for, and the nav log from the
@@ -150,9 +147,9 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   page.on("request", r => { if (/\/(checkpoints|navlog)\?/.test(r.url())) asked.push(new URL(r.url()).pathname.split("/").pop()!); });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
+  await expect(page.locator(".maplibregl-marker", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
   await expect(numbered).toHaveCount(0);
-  await expect(landmarks).toHaveCount(0);
+  await expect.poll(async () => (await drawn(page, "candidate-marks")).length).toBe(0);
   await openPanel(page);
   await expect(page.getByTestId("navlog-fuel")).toBeAttached({ timeout: slow(60000) });
   await openNavLog(page);

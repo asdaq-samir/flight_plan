@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, grabberTo, settle, showTabs, sideDrawer, slow, stripShows } from "./helpers";
+import { closeCard, drawn, grabberTo, settle, showTabs, sideDrawer, slow, stripShows } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -110,7 +110,7 @@ test("Aircraft is a tab, finds an airplane by its callsign, and a tap on one tra
   await expect(card.getByTestId("flight-follow")).toHaveAttribute("aria-pressed", "true");
   // Ringed on the map, its path behind it in its heights' colours.
   await expect(page.locator("[data-traffic-tracked]")).toHaveCount(1);
-  await expect(page.locator(".leaflet-overlay-pane path.tracked-path").first()).toBeAttached();
+  await expect.poll(async () => (await drawn(page, "tracked-path")).length).toBeGreaterThan(0);
   // Put away: the list again, as an airport's card over Nearest.
   await closeCard(page, "flight-close");
   await expect(page).not.toHaveURL(/[?&]flight=/);
@@ -257,7 +257,7 @@ test("in the air, own ship's path flown is drawn behind it", async ({ page }) =>
   await page.route(url => url.pathname.endsWith("/api/planner/airspace/ahead"), route => route.fulfill({ json: { alerts: [], unavailable: [] } }));
   await page.goto("/app/plan");
   await settle(page);
-  await expect(page.locator(".leaflet-overlay-pane path.own-trail")).toBeAttached({ timeout: slow(15_000) });
+  await expect.poll(async () => (await drawn(page, "own-trail")).length, { timeout: slow(15_000) }).toBeGreaterThan(0);
 });
 
 test("an airplane's past flights are listed on its card, and one is drawn on the map, replayed and logged", async ({ page }) => {

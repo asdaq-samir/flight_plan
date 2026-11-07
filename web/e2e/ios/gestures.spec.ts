@@ -1,5 +1,5 @@
 import { test, expect, devices, type Page } from "@playwright/test";
-import { airportMarks, mapStill, openMapSettings, settle, slow } from "../helpers";
+import { airportMarks, drawn, mapStill, openMapSettings, settle, slow } from "../helpers";
 
 /**
  * The map under a finger, as on an iPhone: what is drawn on the chart
@@ -27,7 +27,7 @@ async function openOnC81(page: Page) {
  *  across the screen's foot, beside a card at its side. */
 function chartMiddle(page: Page) {
   return page.evaluate(() => {
-    const map = document.querySelector(".leaflet-container")!.getBoundingClientRect();
+    const map = document.querySelector(".maplibregl-map")!.getBoundingClientRect();
     const panel = document.querySelector('[data-slot="map-panel"]')?.getBoundingClientRect();
     if (panel && panel.width > map.width * 0.8) return { x: map.left + map.width / 2, y: map.top + (panel.top - map.top) / 2 };
     if (panel) return { x: panel.right + (map.right - panel.right) / 2, y: map.top + map.height / 2 };
@@ -95,7 +95,7 @@ test("a pinch brings in the airports of each level it passes, before the fingers
   // class D airports" (2026-11-04, ownShip's OPEN_ZOOM), where these
   // fields are drawn already.
   await page.evaluate(() => {
-    const box = document.querySelector(".leaflet-container") as unknown as Record<string, unknown>;
+    const box = document.querySelector(".maplibregl-map") as unknown as Record<string, unknown>;
     const key = Object.keys(box).find(k => k.startsWith("__reactFiber"))!;
     let map: { setZoom: (z: number, o: object) => void } | null = null;
     const seen = new Set<unknown>();
@@ -144,8 +144,8 @@ test("a pinch is left where the fingers leave it, as ForeFlight's is, between th
   await page.goto("/app/plan");
   await settle(page);
   await mapStill(page);
-  const scales = () => page.evaluate(() => [...document.querySelectorAll(".leaflet-tile-container")]
-    .map(c => Number((c as HTMLElement).style.transform.match(/scale\(([\d.]+)\)/)?.[1] ?? 1)));
+  // Where the map rests: its zoom (GlMapShell's data-zoom, the app's levels).
+  const zoom = () => page.getByTestId("gl-map").getAttribute("data-zoom").then(Number);
   const at = await chartMiddle(page);
   const touch = await fingers(page);
   await touch("touchStart", [[at.x - 30, at.y], [at.x + 30, at.y]]);
@@ -156,8 +156,8 @@ test("a pinch is left where the fingers leave it, as ForeFlight's is, between th
   }
   await touch("touchEnd", []);
   await mapStill(page);
-  // Left between levels: no level of the chart at its own size.
-  await expect.poll(async () => (await scales()).some(s => Math.abs(s - 1) < 0.001)).toBe(false);
+  // Left between levels: the zoom not a whole one.
+  await expect.poll(async () => { const z = await zoom(); return Math.abs(z - Math.round(z)); }).toBeGreaterThan(0.01);
 });
 
 test("a pinch draws the course line again at its own width as it zooms, not scaled up and settling back", async ({ page }) => {
@@ -167,13 +167,13 @@ test("a pinch draws the course line again at its own width as it zooms, not scal
   await openOnC81(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  const core = page.locator('.leaflet-overlay-pane path[stroke="#e600e6"]');
-  await expect(core).toBeAttached({ timeout: slow(30_000) });
+  await expect.poll(async () => (await drawn(page, "route-line")).length, { timeout: slow(30_000) }).toBeGreaterThan(0);
   await mapStill(page);
-  // How much the renderer's <svg> is scaled, and the core's own width.
+  // How much the map's canvas is scaled by CSS: never, as the WebGL map
+  // draws every frame of a pinch itself.
   const scale = () => page.evaluate(() => {
-    const svg = document.querySelector('.leaflet-overlay-pane path[stroke="#e600e6"]')!.closest("svg")!;
-    return new DOMMatrixReadOnly(getComputedStyle(svg).transform).a;
+    const t = getComputedStyle(document.querySelector(".maplibregl-canvas")!).transform;
+    return t === "none" ? 1 : new DOMMatrixReadOnly(t).a;
   });
   const at = await chartMiddle(page);
   const touch = await fingers(page);
@@ -189,7 +189,7 @@ test("a pinch draws the course line again at its own width as it zooms, not scal
   // little at most between two draws (PINCH_REDRAW_MS) -- where it was
   // scaled up to three times until they lifted.
   expect(Math.max(...seen), `the renderer's scale under the pinch: ${seen.map(s => s.toFixed(2)).join(" ")}`).toBeLessThan(1.2);
-  await expect(core).toHaveAttribute("stroke-width", "2.5");
+  await expect.poll(async () => (await drawn(page, "route-line")).length).toBeGreaterThan(0);
   await touch("touchEnd", []);
 });
 
@@ -205,18 +205,16 @@ test("a pinch out fills the chart's edges with tiles before the fingers lift, un
   await settle(page);
   await mapStill(page);
   // How far the chart's tiles reach past the map's edges, points (bare where negative).
-  const reach = () => page.evaluate(() => {
-    const map = document.querySelector(".leaflet-container")!.getBoundingClientRect();
-    const tiles = [...document.querySelectorAll(".leaflet-tile-pane img.leaflet-tile-loaded")].map(t => t.getBoundingClientRect());
-    return Math.min(
-      map.left - Math.min(...tiles.map(t => t.left)), map.top - Math.min(...tiles.map(t => t.top)),
-      Math.max(...tiles.map(t => t.right)) - map.right, Math.max(...tiles.map(t => t.bottom)) - map.bottom,
-    );
-  });
-  await expect.poll(reach, { timeout: slow(15_000) }).toBeGreaterThanOrEqual(0);
+  // The WebGL map asks for the tiles a pinch bares as it goes: counted
+  // from the chart's first draw.
+  let asked = 0;
+  page.on("request", r => { if (r.url().includes("/api/planner/chart-tile/")) asked += 1; });
+  await expect.poll(() => page.getByTestId("gl-map").getAttribute("data-chart-zoom"), { timeout: slow(15_000) }).not.toBeNull();
+  await mapStill(page);
+  const before = asked;
   // Two fingers near the top, from 180 to 130 points apart: 0.47 of a level
   // out, its foot drawn out past where the tiles reached.
-  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const map = (await page.locator(".maplibregl-map").boundingBox())!;
   const at = { x: map.x + map.width / 2, y: map.y + 120 };
   const touch = await fingers(page);
   await touch("touchStart", [[at.x - 90, at.y], [at.x + 90, at.y]]);
@@ -224,7 +222,7 @@ test("a pinch out fills the chart's edges with tiles before the fingers lift, un
     await touch("touchMove", [[at.x - 90 + i, at.y], [at.x + 90 - i, at.y]]);
     await page.waitForTimeout(30);
   }
-  // Still held: the edges filled with the level's own tiles.
-  await expect.poll(reach, { timeout: slow(5_000) }).toBeGreaterThanOrEqual(0);
+  // Still held: the edges it bared asked for already.
+  await expect.poll(() => asked, { timeout: slow(5_000) }).toBeGreaterThan(before);
   await touch("touchEnd", []);
 });

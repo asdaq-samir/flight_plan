@@ -3,7 +3,7 @@ import type { ChartInfo, Course, Leg, ProcedureDrawing } from "../../api/types";
 import type { StopKind } from "../../stopKinds";
 import type { TrafficPattern } from "../../trafficPattern";
 import { DRY_RUN, usePastFlight } from "../pastFlight";
-import type { RouteWay } from "../RouteWaysLayer";
+import type { RouteWay } from "../routeWays";
 import type { StopPin } from "../stopPins";
 import GlMapShell from "./GlMapShell";
 import { AirportsGl } from "./layers/AirportsGl";
@@ -16,7 +16,6 @@ import { OwnShipGl } from "./layers/OwnShipGl";
 import {
   FuelStopsGl, HoldTracksGl, LegPointsGl, LessonGl, PatternsGl, PickedGl, PlatesGl, ProceduresGl, StopFieldsGl, WaysGl,
 } from "./layers/RouteExtrasGl";
-import { RulerGl } from "./layers/RulerGl";
 import { RouteGl, type GlCandidate, type GlCheckpoint, type GlEndpoint } from "./layers/RouteGl";
 import { TfrGl } from "./layers/TfrGl";
 import { FlownTrackGl, LegHighlightGl, OwnTrailGl, ReplayGl } from "./layers/TracksGl";
@@ -75,10 +74,8 @@ export interface GlRouteMapProps {
 }
 
 /**
- * The planner's map on MapLibre (the map's settings' Map Engine): RouteMap's
- * twin, every layer the Leaflet map draws, each a component of
- * lib/map/gl/layers on the one WebGL map. A chunk of its own, loaded only
- * where it is picked.
+ * The planner's map: every layer it draws, each a component of
+ * lib/map/gl/layers on the one WebGL map (RouteMap gives it the page's state).
  */
 export default function GlRouteMap(p: GlRouteMapProps) {
   const { course } = p;
@@ -135,7 +132,6 @@ function Layers(p: GlRouteMapProps) {
       <OwnShipGl />
       <AheadGl />
       <TrafficGl />
-      <RulerGl />
     </>
   );
 }
